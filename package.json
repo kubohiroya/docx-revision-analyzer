@@ -1,0 +1,58 @@
+{
+  "name": "docx-revision-analyzer",
+  "version": "1.0.0",
+  "description": "Analyze Word (.docx) Track Changes history to visualize edit activity over time and score suspiciously abrupt, paste-like text insertions (possible AI-generated content pasted in). / 変更履歴(Track Changes)付きWordファイル(.docx)から編集時系列を可視化し、AI生成文の貼り付けを疑わせる不自然な挿入を検出するCLIツール群。",
+  "license": "MIT",
+  "author": "Hiroya Kubo <kubo.hiroya@gmail.com>",
+  "keywords": [
+    "docx",
+    "word",
+    "track-changes",
+    "revision-history",
+    "cli",
+    "svg",
+    "chart",
+    "academic-integrity"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "docx-revision-chart": "dist/cli/chart.js",
+    "docx-ai-suspicion-score": "dist/cli/score.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "fixtures": "ts-node scripts/makeFixtures.ts",
+    "build:binary": "bash scripts/build-binary.sh chart",
+    "build:binary:all": "bash scripts/build-binary.sh chart --all",
+    "build:binary:score": "bash scripts/build-binary.sh score",
+    "build:mac-app": "bash scripts/make-mac-droplet.sh"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "fast-xml-parser": "^4.5.0",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kubohiroya/docx-revision-analyzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kubohiroya/docx-revision-analyzer/issues"
+  },
+  "homepage": "https://github.com/kubohiroya/docx-revision-analyzer#readme"
+}

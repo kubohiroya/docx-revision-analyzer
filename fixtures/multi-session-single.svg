@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="550" viewBox="0 0 1100 550" font-family="'Noto Sans CJK JP', 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Meiryo, 'MS PGothic', 'Helvetica Neue', Arial, sans-serif">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <text x="550" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">編集履歴: multi-session.docx</text>
+
+  <!-- ゼロ軸 -->
+  <line x1="70" y1="270" x2="1030" y2="270" stroke="#333" stroke-width="1"/>
+  <!-- プロット枠 -->
+  <line x1="70" y1="60" x2="70" y2="480" stroke="#333" stroke-width="1"/>
+  <line x1="1030" y1="60" x2="1030" y2="480" stroke="#ccd7e6" stroke-width="1"/>
+
+  <line x1="65" y1="470.00" x2="70" y2="470.00" stroke="#999"/>
+  <text x="60" y="474.00" font-size="10" fill="#555" text-anchor="end">93</text>
+  <line x1="65" y1="420.00" x2="70" y2="420.00" stroke="#999"/>
+  <text x="60" y="424.00" font-size="10" fill="#555" text-anchor="end">70</text>
+  <line x1="65" y1="370.00" x2="70" y2="370.00" stroke="#999"/>
+  <text x="60" y="374.00" font-size="10" fill="#555" text-anchor="end">47</text>
+  <line x1="65" y1="320.00" x2="70" y2="320.00" stroke="#999"/>
+  <text x="60" y="324.00" font-size="10" fill="#555" text-anchor="end">23</text>
+  <line x1="65" y1="270.00" x2="70" y2="270.00" stroke="#999"/>
+  <text x="60" y="274.00" font-size="10" fill="#555" text-anchor="end">0</text>
+  <line x1="65" y1="220.00" x2="70" y2="220.00" stroke="#999"/>
+  <text x="60" y="224.00" font-size="10" fill="#555" text-anchor="end">23</text>
+  <line x1="65" y1="170.00" x2="70" y2="170.00" stroke="#999"/>
+  <text x="60" y="174.00" font-size="10" fill="#555" text-anchor="end">47</text>
+  <line x1="65" y1="120.00" x2="70" y2="120.00" stroke="#999"/>
+  <text x="60" y="124.00" font-size="10" fill="#555" text-anchor="end">70</text>
+  <line x1="65" y1="70.00" x2="70" y2="70.00" stroke="#999"/>
+  <text x="60" y="74.00" font-size="10" fill="#555" text-anchor="end">93</text>
+  <line x1="1030.00" y1="480.00" x2="1035.00" y2="480.00" stroke="#1565c0"/>
+  <text x="1040.00" y="484.00" font-size="10" fill="#1565c0" text-anchor="start">0</text>
+  <line x1="1030.00" y1="375.00" x2="1035.00" y2="375.00" stroke="#1565c0"/>
+  <text x="1040.00" y="379.00" font-size="10" fill="#1565c0" text-anchor="start">53</text>
+  <line x1="1030.00" y1="270.00" x2="1035.00" y2="270.00" stroke="#1565c0"/>
+  <text x="1040.00" y="274.00" font-size="10" fill="#1565c0" text-anchor="start">106</text>
+  <line x1="1030.00" y1="165.00" x2="1035.00" y2="165.00" stroke="#1565c0"/>
+  <text x="1040.00" y="169.00" font-size="10" fill="#1565c0" text-anchor="start">159</text>
+  <line x1="1030.00" y1="60.00" x2="1035.00" y2="60.00" stroke="#1565c0"/>
+  <text x="1040.00" y="64.00" font-size="10" fill="#1565c0" text-anchor="start">212</text>
+  <text x="98.24" y="500.00" font-size="11" fill="#333" text-anchor="middle">2026/06/01</text>
+  <text x="211.18" y="500.00" font-size="11" fill="#333" text-anchor="middle">2026/06/01</text>
+  <text x="324.12" y="500.00" font-size="11" fill="#333" text-anchor="middle">2026/06/01</text>
+  <text x="437.06" y="500.00" font-size="11" fill="#333" text-anchor="middle">2026/06/02</text>
+  <text x="550.00" y="500.00" font-size="11" fill="#333" text-anchor="middle">2026/06/02</text>
+  <text x="662.94" y="500.00" font-size="11" fill="#333" text-anchor="middle">2026/06/02</text>
+  <text x="775.88" y="500.00" font-size="11" fill="#333" text-anchor="middle">2026/06/02</text>
+  <text x="888.82" y="500.00" font-size="11" fill="#333" text-anchor="middle">2026/06/03</text>
+  <text x="1001.76" y="500.00" font-size="11" fill="#333" text-anchor="middle">2026/06/03</text>
+
+  <g><rect x="78.47" y="130.22" width="39.53" height="139.78" fill="#2e7d32" fill-opacity="0.85"><title>追加 65文字 (2026-06-01T09:00:30.627Z)</title></rect>
+  <rect x="586.71" y="70.00" width="39.53" height="200.00" fill="#2e7d32" fill-opacity="0.85"><title>追加 93文字 (2026-06-02T12:00:30.627Z)</title></rect>
+  <rect x="982.00" y="153.87" width="39.53" height="116.13" fill="#2e7d32" fill-opacity="0.85"><title>追加 54文字 (2026-06-03T09:00:30.627Z)</title></rect></g>
+
+  <polyline points="98.24,351.23 154.71,351.23 211.18,351.23 267.65,351.23 324.12,351.23 380.59,351.23 437.06,351.23 493.53,351.23 550.00,351.23 606.47,166.98 662.94,166.98 719.41,166.98 775.88,166.98 832.35,166.98 888.82,166.98 945.29,166.98 1001.76,60.00" fill="none" stroke="#1565c0" stroke-width="2.5"/>
+  <g fill="#1565c0"><circle cx="98.24" cy="351.23" r="2.5"><title>総文字数 65 (2026-06-01T12:00:30.627Z)</title></circle><circle cx="154.71" cy="351.23" r="2.5"><title>総文字数 65 (2026-06-01T15:00:30.627Z)</title></circle><circle cx="211.18" cy="351.23" r="2.5"><title>総文字数 65 (2026-06-01T18:00:30.627Z)</title></circle><circle cx="267.65" cy="351.23" r="2.5"><title>総文字数 65 (2026-06-01T21:00:30.627Z)</title></circle><circle cx="324.12" cy="351.23" r="2.5"><title>総文字数 65 (2026-06-02T00:00:30.627Z)</title></circle><circle cx="380.59" cy="351.23" r="2.5"><title>総文字数 65 (2026-06-02T03:00:30.627Z)</title></circle><circle cx="437.06" cy="351.23" r="2.5"><title>総文字数 65 (2026-06-02T06:00:30.627Z)</title></circle><circle cx="493.53" cy="351.23" r="2.5"><title>総文字数 65 (2026-06-02T09:00:30.627Z)</title></circle><circle cx="550.00" cy="351.23" r="2.5"><title>総文字数 65 (2026-06-02T12:00:30.627Z)</title></circle><circle cx="606.47" cy="166.98" r="2.5"><title>総文字数 158 (2026-06-02T15:00:30.627Z)</title></circle><circle cx="662.94" cy="166.98" r="2.5"><title>総文字数 158 (2026-06-02T18:00:30.627Z)</title></circle><circle cx="719.41" cy="166.98" r="2.5"><title>総文字数 158 (2026-06-02T21:00:30.627Z)</title></circle><circle cx="775.88" cy="166.98" r="2.5"><title>総文字数 158 (2026-06-03T00:00:30.627Z)</title></circle><circle cx="832.35" cy="166.98" r="2.5"><title>総文字数 158 (2026-06-03T03:00:30.627Z)</title></circle><circle cx="888.82" cy="166.98" r="2.5"><title>総文字数 158 (2026-06-03T06:00:30.627Z)</title></circle><circle cx="945.29" cy="166.98" r="2.5"><title>総文字数 158 (2026-06-03T09:00:30.627Z)</title></circle><circle cx="1001.76" cy="60.00" r="2.5"><title>総文字数 212 (2026-06-03T12:00:30.627Z)</title></circle></g>
+
+  <text x="20" y="50" font-size="11" fill="#555">文字数(追加/削除)</text>
+  <text x="1010" y="50" font-size="11" fill="#1565c0">総文字数</text>
+
+  <!-- 凡例 -->
+  <g transform="translate(70, 528)">
+    <rect x="0" y="-10" width="14" height="14" fill="#2e7d32" fill-opacity="0.85"/>
+    <text x="20" y="1" font-size="12" fill="#333">追加</text>
+    <rect x="70" y="-10" width="14" height="14" fill="#c62828" fill-opacity="0.85"/>
+    <text x="90" y="1" font-size="12" fill="#333">削除</text>
+    <line x1="140" y1="-3" x2="160" y2="-3" stroke="#1565c0" stroke-width="2.5"/>
+    <text x="166" y="1" font-size="12" fill="#333">総文字数</text>
+  </g>
+</svg>
