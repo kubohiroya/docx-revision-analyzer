@@ -195,8 +195,9 @@ npm run fixtures
   paste (recorded as a move) and by copy + paste + delete (for `docx-revision-flow`; sample output in
   `fixtures/flow-demo.svg`)
 
-Sample `docx-revision-chart` output for each is bundled under `fixtures/*.svg`
-(`*.png` versions are included for quick visual inspection).
+Sample output for each is bundled under `fixtures/*.svg` (`*.png` versions are included for quick visual
+inspection). The files with plain names were rendered in English (`--lang en`) and the `*.ja.svg` / `*.ja.png`
+ones in Japanese (`--lang ja`); README.md and README.ja.md use them respectively.
 
 ---
 
@@ -220,10 +221,12 @@ docx-revision-analyzer/
 │   ├── cli/
 │   │   ├── chart.ts       docx-revision-chart CLI
 │   │   ├── flow.ts        docx-revision-flow CLI
+│   │   ├── config.ts      Loads the settings file (<tool name>.yml)
 │   │   ├── common.ts      Shared CLI code (--preserve-history prompts, multi-file processing and output)
 │   │   └── score.ts       docx-ai-suspicion-score CLI
 │   └── lib/
 │       ├── docxRevisions.ts  Shared library: extracts revision events from a .docx
+│       ├── i18n.ts           Display-language detection and messages (English / Japanese)
 │       ├── insertionKinds.ts Classifies insertions (bulk / fine-grained / moved); shared by chart and flow
 │       ├── historySettings.ts Checks/rewrites the Track Changes and personal-information settings (--preserve-history)
 │       ├── timeBuckets.ts    Aggregates events into time buckets (for the chart)

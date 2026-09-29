@@ -74,10 +74,11 @@ node dist/cli/chart.js <input.docx> [input2.docx ...] [options]
 | `--preserve-history` | 文書が「保存時に個人情報 (変更履歴の作成者・日時) を削除する」設定の場合に、その設定を外し「変更履歴の記録」もオンにして上書き保存する (元のファイルはバックアップとして残す。文書が開かれている場合はエラー)。`--preserveHistory` でも可。下記「日時が記録されない場合」参照 | off |
 | `--check-history-settings` | チャートは作らず設定の確認だけを行い、1行目に `ok` / `needs-fix`、`needs-fix` なら2行目以降に確認用の文面を出力する | off |
 | `--drop` | デスクトップからのドラッグ&ドロップ起動モード。`-o` 未指定時、各ファイルの出力先を通常の `<ファイル名>.svg` ではなく `<入力と同じディレクトリ>/<そのファイル名>-<そのファイルの最終更新日時>.svg` にする。macOS用Finderドロップレット ([INSTALL.ja.md](./INSTALL.ja.md) 参照) や、Windowsエクスプローラーからの直接ドロップ(またはターミナルを介さない他の起動方法)向け。Windows上ではさらにネイティブなメッセージボックスで結果を表示する | off |
+| `--lang <en\|ja>` | メッセージと図の表示言語 (下記「表示言語」参照) | OS のロケール |
 
 ### 出力される図の見方
 
-![docx-revision-chart の出力例](./fixtures/chart-demo.png)
+![docx-revision-chart の出力例](./fixtures/chart-demo.ja.png)
 
 上の図は `fixtures/chart-demo.docx` (2日にわたる3回の執筆。細かく入力しながら下書きを大小さまざまな単位で
 散発的に削除し、2回目の最初 (14:50) に文章をまとめて貼り付け) に対する、次のコマンドの出力です。
@@ -148,7 +149,7 @@ node dist/cli/flow.js fixtures/flow-demo.docx -o flow.svg
 node dist/cli/flow.js 報告書.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 ```
 
-![docx-revision-flow の出力例](./fixtures/flow-demo.png)
+![docx-revision-flow の出力例](./fixtures/flow-demo.ja.png)
 
 | オプション | 説明 | 既定値 |
 |---|---|---|
@@ -160,6 +161,7 @@ node dist/cli/flow.js 報告書.docx --from 2026-06-01 --to "2026-06-02 18:00" -
 | `--slope-width <px>` | サムネイルの列の間 (変化を示す帯) の幅 | `72` |
 | `-t, --title <text>` | 図のタイトル | `編集フロー図: <ファイル名> (最終更新 <ファイルの最終更新日時>)` |
 | `--drop` / `--preserve-history` / `--check-history-settings` | `docx-revision-chart` と同じ。`--drop` の出力先は `<ファイル名>-flow-<最終更新日時>.svg` | |
+| `--lang <en\|ja>` | メッセージと図の表示言語 (下記「表示言語」参照) | OS のロケール |
 
 時系列解析できる変更履歴が無い場合や、指定した期間に変更履歴が無い場合は、SVG を作らずにエラーになります。
 
@@ -234,6 +236,7 @@ node dist/cli/score.js <input.docx> [options]
 | `--rate-high <cps>` | 速度スコアが100になる挿入速度 (文字/秒) | `40` |
 | `--max-weight <0-1>` | 全体スコアにおける「最も疑わしい1件」の重み (残りは文字数加重平均) | `0.6` |
 | `--pretty` | JSONを整形して出力 | off |
+| `--lang <en\|ja>` | メッセージと図の表示言語 (下記「表示言語」参照) | OS のロケール |
 
 ```bash
 node dist/cli/score.js fixtures/suspicious-paste.docx --pretty
@@ -300,6 +303,47 @@ score = max_weight × (最も疑わしいイベントのスコア)
   カウントされる場合があります。
 - 既定では `word/document.xml` (本文) のみを解析します。ヘッダー/フッター/
   コメント/脚注中の変更履歴は対象外です。
+
+---
+
+## 表示言語
+
+メッセージ・ヘルプ・図は、英語または日本語で表示します。言語は次の順で決まります。
+
+1. `--lang en` / `--lang ja`
+2. 設定ファイル (下記) の `lang`
+3. 環境変数 `DOCX_REVISION_LANG`
+4. 環境変数 `LC_ALL` / `LC_MESSAGES` / `LANG`
+5. OS の言語設定 (macOS では「システム設定 > 一般 > 言語と地域」)
+
+日本語以外の環境では英語になります。macOS のドラッグ&ドロップ版は、macOS の言語設定に従います。
+
+---
+
+## 設定ファイル
+
+既定値を変えたい場合は、ツール名の YAML ファイル (`docx-revision-chart.yml` / `docx-revision-flow.yml` /
+`docx-ai-suspicion-score.yml`。拡張子は `.yaml` でも可) を実行ファイルと同じフォルダに置きます。
+macOS のドラッグ&ドロップ版では `.app` と同じフォルダ、npm でインストールした場合はコマンドと同じフォルダです。
+
+```yaml
+# docx-revision-flow.yml
+gap-threshold: 2
+bulk-chars: 200
+page-width: 120
+slope-width: 60
+title: "研究計画調書の編集フロー"
+output: out/flow.svg
+lang: ja
+```
+
+- キーは、そのツールのオプションの長い名前から `--` を除いたものです (`output`・`gap-threshold`・`bulk-chars`・
+  `page-width`・`slope-width`・`title`・`bucket`・`from`・`to`・`lang` など。`docx-ai-suspicion-score` では
+  `min-chars`・`burst-low`・`pretty` など)。`pretty` のようなフラグは `true` / `false` で指定します。
+- コマンドラインでの指定が設定ファイルより優先され、設定ファイルは組み込みの既定値より優先されます。
+- `output` の相対パスは、設定ファイルのあるフォルダを基準にします。複数のファイルをまとめて処理するときは `output` を使いません。
+- 不明なキーや不正な値は警告を出して無視し、YAML として読めないファイルはエラーにします。
+  どの設定ファイルを読んだかは実行時に表示します。
 
 ---
 

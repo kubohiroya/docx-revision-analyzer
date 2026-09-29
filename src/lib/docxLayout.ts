@@ -17,6 +17,7 @@
 
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
+import { t } from "./i18n";
 
 type XmlNode = Record<string, unknown>;
 
@@ -440,7 +441,7 @@ function parseGeometry(
 export async function parseDocxLayout(buf: Buffer): Promise<DocxLayoutModel> {
   const zip = await JSZip.loadAsync(buf);
   const docFile = zip.file("word/document.xml");
-  if (!docFile) throw new Error("word/document.xml が見つかりません。");
+  if (!docFile) throw new Error(t("errNoDocumentXml"));
   const docRoot = parser.parse(await docFile.async("string")) as XmlNode[];
   const stylesFile = zip.file("word/styles.xml");
   const stylesRoot = stylesFile
@@ -450,7 +451,7 @@ export async function parseDocxLayout(buf: Buffer): Promise<DocxLayoutModel> {
 
   const documentNode = docRoot.find((n) => tagOf(n) === "document");
   const body = documentNode ? findChild(childrenOf(documentNode, "document"), "body") : undefined;
-  if (!body) throw new Error("word/document.xml に本文 (w:body) が見つかりません。");
+  if (!body) throw new Error(t("errNoBody"));
 
   const paras: Para[] = [];
   const sectPr = walkBlocks(childrenOf(body, "body"), undefined, { styles, out: paras, tableCount: 0, state: {} });

@@ -29,6 +29,7 @@ import {
   readHistorySettingsFromZip,
   removesAuthorAndDate,
 } from "./historySettings";
+import { t } from "./i18n";
 
 export type RevisionType = "ins" | "del";
 
@@ -179,26 +180,14 @@ export function describeMissingRevisions(data: DocxRevisionData): string | undef
   if (data.undatedRevisionCount > 0) {
     const cause =
       removesAuthorAndDate(data.settings)
-        ? "Word の「保存時にファイルのプロパティから個人情報を削除する」設定が有効なため、日時が削除されています。" +
-          "すでに削除された日時は復元できません。"
+        ? t("undatedCause")
         : "";
-    return (
-      `変更履歴 (w:ins / w:del) は ${data.undatedRevisionCount} 件ありますが、` +
-      "すべて日時 (w:date) が記録されていないため時系列解析できません。" +
-      cause
-    );
+    return t("undatedRevisions", data.undatedRevisionCount, cause);
   }
   if (data.settings.settingsPartFound && !data.settings.trackRevisions) {
-    return (
-      "変更履歴 (w:ins / w:del) が見つかりませんでした。" +
-      "このファイルは「変更履歴の記録」がオフの状態で保存されています。" +
-      "記録していた場合でも、変更をすべて承諾すると変更履歴は消えます。"
-    );
+    return t("noRevisionsTrackingOff");
   }
-  return (
-    "変更履歴 (w:ins / w:del) が見つかりませんでした。" +
-    "「変更履歴の記録」はオンですが、まだ変更が無いか、変更がすべて承諾/元に戻されています。"
-  );
+  return t("noRevisionsTrackingOn");
 }
 
 const parser = new XMLParser({

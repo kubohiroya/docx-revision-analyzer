@@ -19,6 +19,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawnSync } from "child_process";
 import { formatTimestampForFilename } from "./filenames";
+import { t } from "./i18n";
 
 export interface DocxRevisionSettings {
   /** word/settings.xml が存在するか (無い場合、以下はすべて false で書き換えもできない) */
@@ -99,7 +100,7 @@ export function needsHistoryFix(s: DocxRevisionSettings): boolean {
 
 /** 書き換え時にあわせて「変更履歴の記録」もオンにすることを伝える文 (既にオンなら空文字列) */
 function trackRevisionsNote(s: DocxRevisionSettings): string {
-  return s.trackRevisions ? "" : "あわせて「変更履歴の記録」もオンにします。";
+  return s.trackRevisions ? "" : t("trackRevisionsNote");
 }
 
 /**
@@ -108,38 +109,25 @@ function trackRevisionsNote(s: DocxRevisionSettings): string {
  */
 export function buildEnableHistoryPrompt(s: DocxRevisionSettings): string | undefined {
   if (!needsHistoryFix(s)) return undefined;
-  return (
-    "この文書は編集者の名前と編集日時を保存するための設定が無効化されています。有効にしますか？\n\n" +
-    "OK を選ぶと文書の設定を書き換えて上書き保存します (元のファイルはバックアップとして同じフォルダに残します)。" +
-    trackRevisionsNote(s) +
-    "Word でこの文書を開いている場合は、先に閉じてください。" +
-    "すでに削除された過去の編集日時は復元できません。"
-  );
+  return t("enableHistoryPrompt", trackRevisionsNote(s));
 }
 
 /** 設定の問題を説明する文 (警告や y/N の質問の前置き)。変更が不要な場合は undefined */
 export function describeHistorySettingsProblem(s: DocxRevisionSettings): string | undefined {
   if (!needsHistoryFix(s)) return undefined;
-  return (
-    "この文書は「保存時にファイルのプロパティから個人情報を削除する」設定が有効なため、" +
-    "保存時に変更履歴の作成者と日時が削除されます。"
-  );
+  return t("settingsProblem");
 }
 
 /** --preserve-history で行う処理の説明 */
 export function describePreserveHistoryAction(s: DocxRevisionSettings): string {
-  return (
-    "この設定を外し" +
-    (s.trackRevisions ? "" : "、「変更履歴の記録」をオンにし") +
-    "て上書き保存します (元のファイルはバックアップとして同じフォルダに残します)"
-  );
+  return t("preserveAction", s.trackRevisions);
 }
 
 /** CLI の警告として表示する文面。変更が不要な場合は undefined */
 export function describeHistorySettingsWarning(s: DocxRevisionSettings): string | undefined {
   const problem = describeHistorySettingsProblem(s);
   if (!problem) return undefined;
-  return `警告: ${problem}--preserve-history を指定すると、${describePreserveHistoryAction(s)}。`;
+  return t("settingsWarning", problem, describePreserveHistoryAction(s));
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +185,7 @@ export function patchSettingsXml(xml: string): string {
     xml.match(new RegExp(`xmlns:([A-Za-z_][\\w.-]*)="${escapeRegExp(ns)}"`))
   ).find((m) => m);
   if (!nsMatch) {
-    throw new Error("settings.xml に WordprocessingML の名前空間が見つかりません。");
+    throw new Error(t("errNoWmlNamespace"));
   }
   const w = nsMatch[1];
 
@@ -215,7 +203,7 @@ export function patchSettingsXml(xml: string): string {
   // w:settings の開始タグの後ろから、trackRevisions より後ろに置くべき最初の要素を探す
   const rootOpen = out.match(new RegExp(`<${escapeRegExp(w)}:settings(?=[\\s>])[^>]*>`));
   if (!rootOpen || rootOpen.index === undefined) {
-    throw new Error("settings.xml に w:settings 要素が見つかりません。");
+    throw new Error(t("errNoSettingsElement"));
   }
   const bodyStart = rootOpen.index + rootOpen[0].length;
   const tagRe = /<(\/?)([A-Za-z_][\w.-]*):([A-Za-z_][\w.-]*)/g;
@@ -237,7 +225,7 @@ export function patchSettingsXml(xml: string): string {
     }
   }
   if (insertAt < 0) {
-    throw new Error("settings.xml の構造を解釈できませんでした。");
+    throw new Error(t("errSettingsStructure"));
   }
   return out.slice(0, insertAt) + `<${w}:trackRevisions/>` + out.slice(insertAt);
 }
@@ -295,14 +283,10 @@ function isOpenByAnotherProcess(filePath: string): boolean {
 export function checkNotOpenElsewhere(filePath: string): string | undefined {
   const lock = findWordLockFile(filePath);
   if (lock) {
-    return (
-      `Word でこの文書が開かれています (所有者ファイル ${path.basename(lock)} があります)。` +
-      "Word で文書を閉じてから再度実行してください。" +
-      "Word を閉じてもこのファイルが残っている場合は、異常終了時の残骸なので削除してください。"
-    );
+    return t("openInWord", path.basename(lock));
   }
   if (isOpenByAnotherProcess(filePath)) {
-    return "他のアプリケーションがこの文書を開いています。閉じてから再度実行してください。";
+    return t("openElsewhere");
   }
   return undefined;
 }
@@ -338,7 +322,7 @@ export async function enableHistoryPreservation(filePath: string): Promise<Enabl
   const patched = patchSettingsXml(xml);
   const after = parseHistorySettings(patched);
   if (needsHistoryFix(after) || !after.trackRevisions) {
-    throw new Error("settings.xml の書き換えに失敗しました (書き換え後も設定が有効化されていません)。");
+    throw new Error(t("errPatchFailed"));
   }
   zip.file(SETTINGS_PART, patched);
   const out = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });

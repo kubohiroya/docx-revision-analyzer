@@ -191,8 +191,9 @@ npm run fixtures
   4つ目の区間で「カット＋貼り付け (移動として記録)」「コピー＋貼り付け＋削除」による並べ替えを行ったことを想定
   (`docx-revision-flow` の動作確認用。出力例は `fixtures/flow-demo.svg`)
 
-これらに対する `docx-revision-chart` の出力例が `fixtures/*.svg` (`*.png` は
-確認用にラスタライズしたもの) として同梱されています。
+これらに対する出力例が `fixtures/*.svg` (`*.png` は確認用にラスタライズしたもの) として同梱されています。
+既定の名前のものは英語 (`--lang en`)、`*.ja.svg` / `*.ja.png` は日本語 (`--lang ja`) で出力したもので、
+README.md と README.ja.md でそれぞれ使っています。
 
 ---
 
@@ -215,10 +216,12 @@ docx-revision-analyzer/
 │   ├── cli/
 │   │   ├── chart.ts       docx-revision-chart CLI本体
 │   │   ├── flow.ts        docx-revision-flow CLI本体
+│   │   ├── config.ts      設定ファイル (<ツール名>.yml) の読み込み
 │   │   ├── common.ts      CLI共通処理 (--preserve-history の確認、複数ファイルの処理と結果表示)
 │   │   └── score.ts       docx-ai-suspicion-score CLI本体
 │   └── lib/
 │       ├── docxRevisions.ts  docxから変更履歴イベントを抽出する共通ライブラリ
+│       ├── i18n.ts           表示言語の判定とメッセージ (英語・日本語)
 │       ├── insertionKinds.ts 挿入の分類 (一括挿入・細かい編集・移動/並べ替え)。chart と flow で共通
 │       ├── historySettings.ts 変更履歴の記録・個人情報削除の設定の確認と書き換え (--preserve-history)
 │       ├── timeBuckets.ts    時間バケットへの集計 (チャート用)
