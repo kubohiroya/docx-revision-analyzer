@@ -23,6 +23,11 @@
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
 import * as fs from "fs";
+import {
+  DocxRevisionSettings,
+  readHistorySettingsFromZip,
+  removesAuthorAndDate,
+} from "./historySettings";
 
 export type RevisionType = "ins" | "del";
 
@@ -45,6 +50,10 @@ export interface DocxRevisionData {
   baselineCharCount: number;
   totalInserted: number;
   totalDeleted: number;
+  /** w:date 属性を持たないため events から除外された ins/del 要素の数 */
+  undatedRevisionCount: number;
+  /** word/settings.xml の状態 (変更履歴が見つからない理由の診断用) */
+  settings: DocxRevisionSettings;
 }
 
 type XmlNode = Record<string, unknown>;
@@ -114,13 +123,14 @@ function getAttr(node: XmlNode, name: string): string | undefined {
   return v === undefined ? undefined : String(v);
 }
 
-/** ins/del を再帰的に収集する */
+/** ins/del を再帰的に収集する。日付の無い ins/del の数を返す */
 function collectEvents(
   nodes: XmlNode[] | undefined,
   part: string,
   out: RevisionEvent[]
-): void {
-  if (!nodes) return;
+): number {
+  let undated = 0;
+  if (!nodes) return 0;
   for (const node of nodes) {
     const tagKey = Object.keys(node).find((k) => k !== ":@" && k !== "#text");
     if (tagKey === undefined) continue;
@@ -129,8 +139,11 @@ function collectEvents(
     if (tagKey === "ins" || tagKey === "del") {
       const dateStr = getAttr(node, "date");
       const chars = collectText(children);
-      // 日付属性が無い場合は事実上解析不能なのでスキップ (警告はライブラリ利用者側で判断)
-      if (dateStr) {
+      // 日付属性が無い場合は事実上解析不能なのでスキップし、件数だけ数える
+      // (Word の「保存時に個人情報を削除する」設定で w:date が消される)
+      if (!dateStr) {
+        undated++;
+      } else {
         out.push({
           type: tagKey,
           id: getAttr(node, "id"),
@@ -142,8 +155,40 @@ function collectEvents(
       }
     }
     // ins/del の中に入れ子で ins/del が現れる稀なケースにも対応するため常に再帰する
-    collectEvents(children, part, out);
+    undated += collectEvents(children, part, out);
   }
+  return undated;
+}
+
+/**
+ * 変更履歴が1件も取れなかった場合に、その理由を説明する文を返す (「警告:」等の接頭辞は付けない)。
+ * イベントが取れている場合は undefined。
+ */
+export function describeMissingRevisions(data: DocxRevisionData): string | undefined {
+  if (data.events.length > 0) return undefined;
+  if (data.undatedRevisionCount > 0) {
+    const cause =
+      removesAuthorAndDate(data.settings)
+        ? "Word の「保存時にファイルのプロパティから個人情報を削除する」設定が有効なため、日時が削除されています。" +
+          "すでに削除された日時は復元できません。"
+        : "";
+    return (
+      `変更履歴 (w:ins / w:del) は ${data.undatedRevisionCount} 件ありますが、` +
+      "すべて日時 (w:date) が記録されていないため時系列解析できません。" +
+      cause
+    );
+  }
+  if (data.settings.settingsPartFound && !data.settings.trackRevisions) {
+    return (
+      "変更履歴 (w:ins / w:del) が見つかりませんでした。" +
+      "このファイルは「変更履歴の記録」がオフの状態で保存されています。" +
+      "記録していた場合でも、変更をすべて承諾すると変更履歴は消えます。"
+    );
+  }
+  return (
+    "変更履歴 (w:ins / w:del) が見つかりませんでした。" +
+    "「変更履歴の記録」はオンですが、まだ変更が無いか、変更がすべて承諾/元に戻されています。"
+  );
 }
 
 const parser = new XMLParser({
@@ -177,11 +222,12 @@ export async function extractRevisionsFromBuffer(
 
   const events: RevisionEvent[] = [];
   let finalCharCount = 0;
+  let undatedRevisionCount = 0;
 
   for (const part of parts) {
     const root = await readPart(zip, part);
     if (!root) continue;
-    collectEvents(root, part, events);
+    undatedRevisionCount += collectEvents(root, part, events);
     finalCharCount += collectFinalText(root, false);
   }
 
@@ -197,7 +243,17 @@ export async function extractRevisionsFromBuffer(
 
   const baselineCharCount = Math.max(0, finalCharCount - totalInserted + totalDeleted);
 
-  return { events, finalCharCount, baselineCharCount, totalInserted, totalDeleted };
+  const settings = await readHistorySettingsFromZip(zip);
+
+  return {
+    events,
+    finalCharCount,
+    baselineCharCount,
+    totalInserted,
+    totalDeleted,
+    undatedRevisionCount,
+    settings,
+  };
 }
 
 export async function extractRevisionsFromFile(

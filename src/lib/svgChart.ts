@@ -48,12 +48,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   const plotH = height - marginTop - marginBottom;
 
   if (buckets.length === 0) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-      <rect width="100%" height="100%" fill="#ffffff"/>
-      <text x="50%" y="50%" text-anchor="middle" font-family="${fontFamily}" font-size="16" fill="#555">
-        変更履歴 (挿入/削除) が見つかりませんでした
-      </text>
-    </svg>`;
+    throw new Error("描画する変更履歴がありません (buckets が空です)。");
   }
 
   const maxAdded = Math.max(1, ...buckets.map((b) => b.added));
@@ -265,13 +260,7 @@ export function renderSessionedRevisionChart(
   const plotH = height - marginTop - marginBottom;
 
   if (sessions.length === 0) {
-    const width = opts.width ?? 1100;
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-      <rect width="100%" height="100%" fill="#ffffff"/>
-      <text x="50%" y="50%" text-anchor="middle" font-family="${fontFamily}" font-size="16" fill="#555">
-        変更履歴 (挿入/削除) が見つかりませんでした
-      </text>
-    </svg>`;
+    throw new Error("描画する変更履歴がありません (sessions が空です)。");
   }
 
   // --- 各セッションを独立にバケット集計しつつ、累計総文字数はセッションをまたいで引き継ぐ ---

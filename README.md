@@ -173,6 +173,8 @@ be used with a single input file.
 | `-w, --width <px>` | Image width | `1100` (auto-computed from content when `-p` is used) |
 | `-H, --height <px>` | Image height | `550` |
 | `-t, --title <text>` | Chart title | `Revision history: <filename>` |
+| `--preserve-history` | If the document removes personal information (tracked-change authors and dates) on save, remove that setting, turn Track Changes on, and save it in place (the original is kept as a backup; fails if the document is open). `--preserveHistory` also works. See "When timestamps are missing" below | off |
+| `--check-history-settings` | Don't draw a chart; only check the settings and print `ok` or `needs-fix` on the first line, followed by the confirmation text when `needs-fix` | off |
 | `--drop` | Desktop drag-and-drop launch mode. When `-o` isn't given, names each output `<same directory as its input>/<filename>-<that input file's last-modified time>.svg` instead of the plain `<filename>.svg` default. Intended for the macOS Finder droplet or a direct Windows Explorer drop described above (or any other double-click/drag-drop launch with no terminal attached). On Windows, also shows a native message box summarizing the result | off |
 
 ### How to read the chart
@@ -302,6 +304,9 @@ automatically penalize a student or author.
 
 Other technical constraints:
 
+- Documents saved with Word's "Remove personal information from file properties on save"
+  option lose the `w:date` (and author) of every tracked change, so they cannot be analyzed.
+  The tools report how many undated revisions were found in that case.
 - `w:date` timestamps have one-second resolution, so sub-second gaps can't be
   distinguished.
 - `w:moveFrom` / `w:moveTo` (drag-and-drop moves within the same document)
@@ -310,6 +315,30 @@ Other technical constraints:
 - By default, only `word/document.xml` (the document body) is analyzed;
   Track Changes inside headers, footers, comments, or footnotes are not
   included.
+
+### When timestamps are missing (`--preserve-history`)
+
+"Remove personal information from file properties on save" is a per-document setting, stored as
+`<w:removePersonalInformation/>` / `<w:removeDateAndTime/>` in `word/settings.xml`. While it is on, Word strips
+the author and date of every tracked change each time the document is saved. Word for Windows can turn it off under
+File > Options > Trust Center > Trust Center Settings > Privacy Options, but Word for macOS has no such option in
+Settings > Security.
+
+Before analyzing, `docx-revision-chart` checks this setting and, if it is on (documents that merely have Track Changes off are not flagged):
+
+- **CLI:** when run from a terminal, asks `[y/N]` whether to perform the `--preserve-history` rewrite
+  (Enter alone or Ctrl+D means No); when input isn't interactive (e.g. piped), it only prints a warning.
+  Run with `--preserve-history` to skip the question and remove the personal-information setting, turn Track
+  Changes (`<w:trackRevisions/>`) on, and save the file in place. The original is kept as `<name>.backup-<YYYYMMDD-HHMMSS>.docx` in the same folder.
+- **macOS droplet:** shows an OK/Cancel dialog asking whether to enable saving editor names and edit times; OK reruns
+  with `--preserve-history`, Cancel analyzes the file without changing it.
+- **Windows `--drop`:** shows the same OK/Cancel message box.
+
+Before rewriting, it checks that the document isn't open elsewhere (Word's `~$…` owner file; on Windows, whether the
+file can be opened for writing; on macOS/Linux, `lsof`) and fails without touching the file if it is.
+`--check-history-settings` only reports the settings (used internally by the droplet).
+
+Edits made after the rewrite are timestamped; timestamps already removed cannot be recovered.
 
 ---
 
@@ -359,6 +388,7 @@ docx-revision-analyzer/
 │   │   └── score.ts       docx-ai-suspicion-score CLI
 │   └── lib/
 │       ├── docxRevisions.ts  Shared library: extracts revision events from a .docx
+│       ├── historySettings.ts Checks/rewrites the Track Changes and personal-information settings (--preserve-history)
 │       ├── timeBuckets.ts    Aggregates events into time buckets (for the chart)
 │       ├── sessions.ts       Splits events into sessions by idle gap, for -p
 │       ├── svgChart.ts       SVG rendering (single-chart and session-split variants)
