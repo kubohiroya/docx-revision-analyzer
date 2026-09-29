@@ -26,6 +26,7 @@
 import { RevisionEvent } from "./docxRevisions";
 import { DocxLayoutModel, Para, RevRef, Seg, PageGeometry } from "./docxLayout";
 import { splitIntoSessions } from "./sessions";
+import { DEFAULT_BULK_CHARS, matchesCorpus, normalizeForMatch as normalize } from "./insertionKinds";
 
 export interface FlowOptions {
   /** 無編集期間がこれ (時間) を超えたら区間を分ける */
@@ -39,7 +40,7 @@ export interface FlowOptions {
 
 export const DEFAULT_FLOW_OPTIONS: FlowOptions = {
   gapThresholdHours: 1,
-  bulkChars: 150,
+  bulkChars: DEFAULT_BULK_CHARS,
 };
 
 export interface ParaHeat {
@@ -309,10 +310,6 @@ function inRange(rev: RevRef | undefined, start: number, end: number, move = fal
 // 並べ替え (同じ内容の削除と挿入) の判定
 // ---------------------------------------------------------------------------
 
-/** これ未満の文字数の挿入・削除は、並べ替えの判定に使わない (偶然の一致を避ける) */
-export const RELOCATION_MIN_CHARS = 20;
-
-const normalize = (t: string) => t.replace(/\s+/g, "");
 
 interface Piece {
   para: number;
@@ -365,10 +362,7 @@ function findRelocations(model: DocxLayoutModel): Relocations {
   const pick = (pieces: Piece[], other: string) =>
     new Set(
       pieces
-        .filter((pc) => {
-          const n = normalize(pc.text);
-          return n.length >= RELOCATION_MIN_CHARS && other.includes(n);
-        })
+        .filter((pc) => matchesCorpus(pc.text, other))
         .map((pc) => pieceKey(pc.para, pc.rev))
     );
   return { ins: pick(insPieces, delCorpus), del: pick(delPieces, insCorpus), insPieces, delPieces };
@@ -634,6 +628,7 @@ export function buildFlow(model: DocxLayoutModel, opts: FlowOptions): FlowResult
       author: r.rev.author,
       date: r.rev.date!,
       chars: r.chars,
+      text: "",
       part: "word/document.xml",
     }));
 

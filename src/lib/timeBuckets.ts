@@ -6,6 +6,10 @@ export interface Bucket {
   /** バケット終了時刻 */
   end: Date;
   added: number;
+  /** added の内訳 (一括挿入 / 細かい編集 / 移動・並べ替え)。insKind 未設定の挿入は細かい編集に数える */
+  addedBulk: number;
+  addedFine: number;
+  addedMoved: number;
   deleted: number;
   /** バケット終了時点での累計総文字数 */
   totalAtEnd: number;
@@ -60,7 +64,7 @@ export function buildBuckets(
   for (let i = 0; i < bucketCount; i++) {
     const start = new Date(minTime + i * bucketMs);
     const end = new Date(minTime + (i + 1) * bucketMs);
-    buckets.push({ start, end, added: 0, deleted: 0, totalAtEnd: 0 });
+    buckets.push({ start, end, added: 0, addedBulk: 0, addedFine: 0, addedMoved: 0, deleted: 0, totalAtEnd: 0 });
   }
 
   let running = baselineCharCount;
@@ -75,7 +79,11 @@ export function buildBuckets(
       bucketIdx++;
     }
     if (ev.type === "ins") {
-      buckets[bucketIdx].added += ev.chars;
+      const b = buckets[bucketIdx];
+      b.added += ev.chars;
+      if (ev.insKind === "bulk") b.addedBulk += ev.chars;
+      else if (ev.insKind === "moved") b.addedMoved += ev.chars;
+      else b.addedFine += ev.chars;
       running += ev.chars;
     } else {
       buckets[bucketIdx].deleted += ev.chars;

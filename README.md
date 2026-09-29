@@ -184,16 +184,30 @@ be used with a single input file.
 | `-w, --width <px>` | Image width | `1100` (auto-computed from content when `-p` is used) |
 | `-H, --height <px>` | Image height | `550` |
 | `-t, --title <text>` | Chart title | `Revision history: <filename>` |
+| `--bulk-chars <n>` | Treat insertions by the same author at the same time totalling at least this many characters as a bulk insertion (same rule as `docx-revision-flow`) | `150` |
 | `--preserve-history` | If the document removes personal information (tracked-change authors and dates) on save, remove that setting, turn Track Changes on, and save it in place (the original is kept as a backup; fails if the document is open). `--preserveHistory` also works. See "When timestamps are missing" below | off |
 | `--check-history-settings` | Don't draw a chart; only check the settings and print `ok` or `needs-fix` on the first line, followed by the confirmation text when `needs-fix` | off |
 | `--drop` | Desktop drag-and-drop launch mode. When `-o` isn't given, names each output `<same directory as its input>/<filename>-<that input file's last-modified time>.svg` instead of the plain `<filename>.svg` default. Intended for the macOS Finder droplet or a direct Windows Explorer drop described above (or any other double-click/drag-drop launch with no terminal attached). On Windows, also shows a native message box summarizing the result | off |
 
 ### How to read the chart
 
+![Sample docx-revision-chart output](./fixtures/chart-demo.png)
+
+This is the output for `fixtures/chart-demo.docx` (about three hours of writing: typed in small steps, one bulk paste
+at 10:20, and a draft trimmed in deletions of varying size here and there).
+
 - **X-axis**: time (aggregated per bucket)
-- **Upward bars (green)**: characters inserted within that bucket
+- **Upward bars**: characters inserted within that bucket, stacked by kind (same rules as `docx-revision-flow`):
+  - **Orange (bulk insertion)**: insertions by the same author at the same time totalling at least `--bulk-chars`
+    characters — Word records a pasted passage as one insertion per paragraph, all with the same timestamp
+  - **Green (fine-grained editing)**: all other insertions
+  - **Blue (moves/reordering)**: insertions (20+ characters) matching text deleted elsewhere in the document, e.g.
+    copy + paste + delete; shown (and listed in the legend) only when present
 - **Downward bars (red)**: characters deleted within that bucket (shown as an absolute value)
-- **Line (blue, right axis)**: the document's total character count at the end of each bucket (the estimated character count before tracking began, plus the running net change since then)
+- **Line (dark gray, right axis)**: the document's total character count at the end of each bucket (the estimated character count before tracking began, plus the running net change since then)
+
+Changes Word recorded as moves (`w:moveFrom` / `w:moveTo`) don't change the character count and aren't included in
+the bars.
 
 ```bash
 node dist/cli/chart.js fixtures/natural-writing.docx -o out.svg
@@ -453,6 +467,9 @@ npm run fixtures
 # internally: ts-node scripts/makeFixtures.ts (runs the TS directly, no build needed)
 ```
 
+- `fixtures/chart-demo.docx`: about three hours of writing with one bulk paste
+  in the middle and sporadic deletions of a draft (the `docx-revision-chart`
+  example in this README)
 - `fixtures/natural-writing.docx`: simulates ~37 minutes of gradual, organic
   typing (score: 0 / low)
 - `fixtures/suspicious-paste.docx`: simulates a bit of typing, then 295
@@ -496,6 +513,7 @@ docx-revision-analyzer/
 │   │   └── score.ts       docx-ai-suspicion-score CLI
 │   └── lib/
 │       ├── docxRevisions.ts  Shared library: extracts revision events from a .docx
+│       ├── insertionKinds.ts Classifies insertions (bulk / fine-grained / moved); shared by chart and flow
 │       ├── historySettings.ts Checks/rewrites the Track Changes and personal-information settings (--preserve-history)
 │       ├── timeBuckets.ts    Aggregates events into time buckets (for the chart)
 │       ├── sessions.ts       Splits events into sessions by idle gap, for -p

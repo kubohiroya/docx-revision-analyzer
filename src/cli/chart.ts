@@ -7,6 +7,7 @@ import { buildBuckets, BucketSpec } from "../lib/timeBuckets";
 import { renderRevisionChart, renderSessionedRevisionChart } from "../lib/svgChart";
 import { splitIntoSessions } from "../lib/sessions";
 import { buildDropOutputPath } from "../lib/filenames";
+import { classifyInsertions, DEFAULT_BULK_CHARS } from "../lib/insertionKinds";
 import { addCommonOptions, checkAndFixHistorySettings, FileResult, runForFiles } from "./common";
 
 const program = new Command();
@@ -28,6 +29,12 @@ async function processOne(
     // 時系列解析できるイベントが無い場合は SVG を作らずにエラーとする
     return { input: inputFile, ok: false, notes: warnings, message: missing };
   }
+
+  const bulkChars = parseFloat(options.bulkChars);
+  if (!Number.isFinite(bulkChars) || bulkChars <= 0) {
+    return { input: inputFile, ok: false, notes: warnings, message: "--bulk-chars には正の数値を指定してください。" };
+  }
+  classifyInsertions(data.events, bulkChars);
 
   let bucketSpec: BucketSpec = options.bucket;
   if (/^\d+$/.test(options.bucket)) {
@@ -109,6 +116,12 @@ program
     "更新が連続的に行われた期間とそうでない期間を区別する閾値(時間)。" +
       "指定すると、この閾値を超える無編集期間で区切った期間ごとに個別のグラフを作成し、" +
       "水平に並べて表示する(期間の間には無編集期間の長さを表す間隔を挿入)。"
+  )
+  .option(
+    "--bulk-chars <n>",
+    "同じ作成者・同じ時刻にまとめて挿入された文字数がこれ以上なら一括挿入 (オレンジ) とみなす。" +
+      "それ以外の挿入は細かい編集 (緑)、削除された文章と同じ内容の挿入は移動・並べ替え (青) として積み上げる",
+    String(DEFAULT_BULK_CHARS)
   )
   .option("-w, --width <number>", "SVG幅(px) (未指定時、-p使用時は内容に応じて自動計算)")
   .option("-H, --height <number>", "SVG高さ(px)", "550")

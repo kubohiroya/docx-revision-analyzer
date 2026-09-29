@@ -6,6 +6,8 @@
  *  - fixtures/natural-writing.docx   : 人が時間をかけて少しずつタイプしたことを想定
  *  - fixtures/suspicious-paste.docx  : 最初は少し自分でタイプした後、大きな塊を
  *                                       一瞬で貼り付けたことを想定 (AI生成文の貼付を模擬)
+ *  - fixtures/chart-demo.docx       : 細かい入力の途中で一度まとめて貼り付け、下書きを散発的に削除
+ *                                       (docx-revision-chart の README 用)
  *  - fixtures/flow-demo.docx      : 見出し・図を含む複数段落の文書を3つの時間区間で編集
  *                                       (docx-revision-flow 用)
  */
@@ -457,12 +459,67 @@ async function makeFlowDemo() {
   console.log(`生成: ${outPath} (${paras.length} 段落)`);
 }
 
+// ---------------------------------------------------------------------------
+// docx-revision-chart の README 用: 約3時間の執筆。細かい入力の途中で一度まとめて貼り付け、
+// 下書き (記録開始前からあった文章) を大小さまざまな単位で散発的に削除する
+// ---------------------------------------------------------------------------
+
+async function makeChartDemo() {
+  const rnd = mulberry32(314);
+  const author = "学生E";
+  let t = new Date("2026-06-10T00:00:00Z").getTime();
+  let id = 1;
+  const draft = "（下書き）" + WORDS.join("").repeat(6);
+  const segments: Segment[] = [{ kind: "text", text: draft }];
+  let draftPos = 5;
+  const deleteDraft = (len: number) => {
+    const text = draft.slice(draftPos, draftPos + len);
+    draftPos += len;
+    segments.push({ kind: "del", text, author, date: new Date(t), id: id++ });
+  };
+  const deletionSizes = [3, 6, 10, 18, 35, 60, 110];
+
+  // 09:00〜10:20 手で入力しながら、ときどき下書きを削る
+  const typeFor = (minutes: number) => {
+    const until = t + minutes * 60_000;
+    while (t < until) {
+      t += 15_000 + Math.floor(rnd() * 60_000);
+      segments.push({ kind: "ins", text: WORDS[Math.floor(rnd() * WORDS.length)], author, date: new Date(t), id: id++ });
+      if (rnd() < 0.09) {
+        t += 5_000;
+        deleteDraft(deletionSizes[Math.floor(rnd() * deletionSizes.length)]);
+      }
+    }
+  };
+  typeFor(80);
+
+  // 10:20 外部で作った文章をまとめて貼り付け (同じ時刻に2段落分)
+  t += 60_000;
+  const pasted =
+    "本研究の目的は、AIを活用した面接評価システムにおいて、受験者の口頭説明の論理性と一貫性を定量的に" +
+    "評価する新しい指標を提案することである。既存研究では主に音声認識精度やキーワード一致度に基づく評価が" +
+    "中心であったが、本研究ではそれに加えて、発話の時系列構造を考慮した意味的つながりの評価を導入する。" +
+    "具体的には、発話をセグメントに分割し、各セグメント間の意味的類似度を埋め込みベクトルにより算出したうえで、" +
+    "論理展開の自然さをスコア化する。";
+  const half = Math.floor(pasted.length / 2);
+  segments.push({ kind: "ins", text: pasted.slice(0, half), author, date: new Date(t), id: id++ });
+  segments.push({ kind: "ins", text: pasted.slice(half), author, date: new Date(t), id: id++ });
+  t += 20_000;
+  deleteDraft(90);
+
+  // 10:21〜12:00 貼り付けた文章の手直しと続きの入力
+  typeFor(99);
+
+  await writeDocx(path.join(__dirname, "..", "fixtures", "chart-demo.docx"), segments);
+}
+
 async function main() {
   fs.mkdirSync(path.join(__dirname, "..", "fixtures"), { recursive: true });
   await makeNatural();
   await makeSuspicious();
   await makeMultiSession();
   await makeFlowDemo();
+  await makeChartDemo();
 }
 
 main().catch((e) => {
