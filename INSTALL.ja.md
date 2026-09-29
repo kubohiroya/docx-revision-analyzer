@@ -178,8 +178,8 @@ npm run fixtures
 # 内部で: ts-node scripts/makeFixtures.ts (ビルド不要でその場でTSを実行)
 ```
 
-- `fixtures/chart-demo.docx`: 約3時間の執筆で、細かい入力の途中に一度まとめて貼り付け、下書きを散発的に
-  削除したことを想定 (README の `docx-revision-chart` の図の例)
+- `fixtures/chart-demo.docx`: 2日にわたる3回の執筆 (間に4.5時間・17時間の無編集期間) で、1回まとめて
+  貼り付け、下書きを散発的に削除したことを想定 (README の `docx-revision-chart` の図の例)
 - `fixtures/natural-writing.docx`: 約37分かけて少しずつタイプしたことを想定
   (スコア: 0 / low)
 - `fixtures/suspicious-paste.docx`: 最初に少しタイプした直後、295文字を1秒で

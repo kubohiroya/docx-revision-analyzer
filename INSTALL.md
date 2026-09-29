@@ -178,8 +178,8 @@ npm run fixtures
 # internally: ts-node scripts/makeFixtures.ts (runs the TS directly, no build needed)
 ```
 
-- `fixtures/chart-demo.docx`: about three hours of writing with one bulk paste
-  in the middle and sporadic deletions of a draft (the `docx-revision-chart`
+- `fixtures/chart-demo.docx`: three writing sessions over two days (4.5-hour
+  and 17-hour idle gaps) with one bulk paste and sporadic deletions of a draft (the `docx-revision-chart`
   example in this README)
 - `fixtures/natural-writing.docx`: simulates ~37 minutes of gradual, organic
   typing (score: 0 / low)

@@ -82,14 +82,22 @@ be used with a single input file.
 
 ![Sample docx-revision-chart output](./fixtures/chart-demo.png)
 
-This is the output for `fixtures/chart-demo.docx` (about three hours of writing: typed in small steps, one bulk paste
-at 10:20, and a draft trimmed in deletions of varying size here and there).
+This is the output of the command below for `fixtures/chart-demo.docx` (three writing sessions over two days: typed
+in small steps while trimming a draft in deletions of varying size here and there, with one bulk paste at the start of
+the second session, 14:50). With `-p 2` the chart is split at idle gaps longer than two hours, and the length of each
+gap (4.5 h, 17 h) is shown between the periods.
+
+```bash
+node dist/cli/chart.js fixtures/chart-demo.docx -p 2
+```
+
 
 - **X-axis**: time (aggregated per bucket)
-- **Upward bars**: characters inserted within that bucket, stacked by kind (same rules as `docx-revision-flow`):
+- **Upward bars**: characters inserted within that bucket, stacked from the bottom in this order (same rules as
+  `docx-revision-flow`):
+  - **Green (fine-grained editing)**: insertions that are neither bulk nor moved
   - **Orange (bulk insertion)**: insertions by the same author at the same time totalling at least `--bulk-chars`
     characters — Word records a pasted passage as one insertion per paragraph, all with the same timestamp
-  - **Green (fine-grained editing)**: all other insertions
   - **Blue (moves/reordering)**: insertions (20+ characters) matching text deleted elsewhere in the document, e.g.
     copy + paste + delete; shown (and listed in the legend) only when present
 - **Downward bars (red)**: characters deleted within that bucket (shown as an absolute value)
