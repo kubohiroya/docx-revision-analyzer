@@ -26,7 +26,7 @@ const DELETED_COLOR = "rgb(198,40,40)";
 const TOTAL_COLOR = "#424242";
 
 /**
- * 1つのバケットの棒: 上向きに追加 (下から一括挿入・細かい編集・移動/並べ替えの積み上げ)、
+ * 1つのバケットの棒: 上向きに追加 (下から細かい編集・一括挿入・移動/並べ替えの積み上げ)、
  * 下向きに削除。
  */
 function renderBucketBars(
@@ -41,8 +41,8 @@ function renderBucketBars(
   const when = b.start.toISOString();
   let base = 0;
   for (const [v, color, label] of [
-    [b.addedBulk, BULK_COLOR, "一括挿入"],
     [b.addedFine, FINE_COLOR, "細かい編集"],
+    [b.addedBulk, BULK_COLOR, "一括挿入"],
     [b.addedMoved, MOVED_COLOR, "移動・並べ替え"],
   ] as const) {
     if (v <= 0) continue;
@@ -69,8 +69,8 @@ function renderBucketBars(
 /** 凡例 (移動・並べ替えは、該当する挿入がある場合だけ載せる) */
 function renderLegendItems(buckets: Bucket[]): string {
   const items: [string, string][] = [
-    [BULK_COLOR, "一括挿入"],
     [FINE_COLOR, "細かい編集"],
+    [BULK_COLOR, "一括挿入"],
   ];
   if (buckets.some((b) => b.addedMoved > 0)) items.push([MOVED_COLOR, "移動・並べ替え"]);
   items.push([DELETED_COLOR, "削除"]);

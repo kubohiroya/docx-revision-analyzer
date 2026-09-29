@@ -6,7 +6,7 @@
  *  - fixtures/natural-writing.docx   : 人が時間をかけて少しずつタイプしたことを想定
  *  - fixtures/suspicious-paste.docx  : 最初は少し自分でタイプした後、大きな塊を
  *                                       一瞬で貼り付けたことを想定 (AI生成文の貼付を模擬)
- *  - fixtures/chart-demo.docx       : 細かい入力の途中で一度まとめて貼り付け、下書きを散発的に削除
+ *  - fixtures/chart-demo.docx       : 2日にわたる3回の執筆。1回まとめて貼り付け、下書きを散発的に削除
  *                                       (docx-revision-chart の README 用)
  *  - fixtures/flow-demo.docx      : 見出し・図を含む複数段落の文書を3つの時間区間で編集
  *                                       (docx-revision-flow 用)
@@ -460,8 +460,8 @@ async function makeFlowDemo() {
 }
 
 // ---------------------------------------------------------------------------
-// docx-revision-chart の README 用: 約3時間の執筆。細かい入力の途中で一度まとめて貼り付け、
-// 下書き (記録開始前からあった文章) を大小さまざまな単位で散発的に削除する
+// docx-revision-chart の README 用: 2日にわたる3回の執筆 (間に無編集期間)。細かく入力する合間に、
+// 下書き (記録開始前からあった文章) を大小さまざまな単位で散発的に削除し、2回目の最初に文章をまとめて貼り付ける
 // ---------------------------------------------------------------------------
 
 async function makeChartDemo() {
@@ -479,7 +479,7 @@ async function makeChartDemo() {
   };
   const deletionSizes = [3, 6, 10, 18, 35, 60, 110];
 
-  // 09:00〜10:20 手で入力しながら、ときどき下書きを削る
+  // 1日目 09:00〜10:20 手で入力しながら、ときどき下書きを削る
   const typeFor = (minutes: number) => {
     const until = t + minutes * 60_000;
     while (t < until) {
@@ -493,8 +493,8 @@ async function makeChartDemo() {
   };
   typeFor(80);
 
-  // 10:20 外部で作った文章をまとめて貼り付け (同じ時刻に2段落分)
-  t += 60_000;
+  // 約4.5時間の無編集の後、1日目 14:50 外部で作った文章をまとめて貼り付け (同じ時刻に2段落分)
+  t += 4.5 * 3600_000;
   const pasted =
     "本研究の目的は、AIを活用した面接評価システムにおいて、受験者の口頭説明の論理性と一貫性を定量的に" +
     "評価する新しい指標を提案することである。既存研究では主に音声認識精度やキーワード一致度に基づく評価が" +
@@ -507,8 +507,12 @@ async function makeChartDemo() {
   t += 20_000;
   deleteDraft(90);
 
-  // 10:21〜12:00 貼り付けた文章の手直しと続きの入力
-  typeFor(99);
+  // 〜16:20 貼り付けた文章の手直しと続きの入力
+  typeFor(90);
+
+  // 夜をはさんで約17時間の無編集の後、2日目 09:30〜10:30 に見直し
+  t += 17 * 3600_000;
+  typeFor(60);
 
   await writeDocx(path.join(__dirname, "..", "fixtures", "chart-demo.docx"), segments);
 }

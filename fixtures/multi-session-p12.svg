@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1660.2" height="550" viewBox="0 0 1660.2 550" font-family="'Noto Sans CJK JP', 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Meiryo, 'MS PGothic', 'Helvetica Neue', Arial, sans-serif">
   <rect width="100%" height="100%" fill="#ffffff"/>
-  <text x="830.1" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">編集履歴: multi-session.docx</text>
+  <text x="830.1" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">編集履歴: multi-session.docx (最終更新 2026/09/29 11:37)</text>
   <text x="830.1" y="48" text-anchor="middle" font-size="12" fill="#777">(12時間以上更新が無い期間で区切って表示)</text>
 
   <line x1="70.00" y1="279" x2="678.00" y2="279" stroke="#333" stroke-width="1"/>
@@ -52,5 +52,5 @@
   <text x="1570.2" y="68" font-size="11" fill="#424242">総文字数</text>
 
   <!-- 凡例 -->
-  <g transform="translate(70, 528)"><rect x="0" y="-10" width="14" height="14" fill="rgb(234,108,0)" fill-opacity="0.85"/><text x="20" y="1" font-size="12" fill="#333">一括挿入</text><rect x="84" y="-10" width="14" height="14" fill="rgb(22,128,61)" fill-opacity="0.85"/><text x="104" y="1" font-size="12" fill="#333">細かい編集</text><rect x="180" y="-10" width="14" height="14" fill="rgb(198,40,40)" fill-opacity="0.85"/><text x="200" y="1" font-size="12" fill="#333">削除</text><line x1="240" y1="-3" x2="260" y2="-3" stroke="#424242" stroke-width="2.5"/><text x="266" y="1" font-size="12" fill="#333">総文字数</text></g>
+  <g transform="translate(70, 528)"><rect x="0" y="-10" width="14" height="14" fill="rgb(22,128,61)" fill-opacity="0.85"/><text x="20" y="1" font-size="12" fill="#333">細かい編集</text><rect x="96" y="-10" width="14" height="14" fill="rgb(234,108,0)" fill-opacity="0.85"/><text x="116" y="1" font-size="12" fill="#333">一括挿入</text><rect x="180" y="-10" width="14" height="14" fill="rgb(198,40,40)" fill-opacity="0.85"/><text x="200" y="1" font-size="12" fill="#333">削除</text><line x1="240" y1="-3" x2="260" y2="-3" stroke="#424242" stroke-width="2.5"/><text x="266" y="1" font-size="12" fill="#333">総文字数</text></g>
 </svg>
