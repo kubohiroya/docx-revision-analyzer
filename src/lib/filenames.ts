@@ -28,6 +28,18 @@ export function formatTimestampForFilename(date: Date): string {
  * "<同じディレクトリ>/<拡張子を除いたファイル名>-<YYYYMMDD-HHMMSS>.svg"
  * という出力パスを組み立てる。
  */
+/** 図の見出しに添える日時 (YYYY/MM/DD HH:MM、ローカル時刻) */
+export function formatTimestampForTitle(date: Date): string {
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(
+    date.getMinutes()
+  )}`;
+}
+
+/** 既定の図の見出し: "<接頭辞>: <ファイル名> (最終更新 YYYY/MM/DD HH:MM)" */
+export function buildDefaultTitle(prefix: string, filePath: string, mtime: Date): string {
+  return `${prefix}: ${path.basename(filePath)} (最終更新 ${formatTimestampForTitle(mtime)})`;
+}
+
 export function buildDropOutputPath(inputPath: string, mtime: Date, ext = ".svg"): string {
   const dir = path.dirname(inputPath);
   const base = path.basename(inputPath).replace(/\.[^.]+$/, "");

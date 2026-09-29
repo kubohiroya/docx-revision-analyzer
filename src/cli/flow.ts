@@ -6,7 +6,7 @@ import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxR
 import { parseDocxLayout } from "../lib/docxLayout";
 import { buildFlow, DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { renderFlowSvg } from "../lib/flowSvg";
-import { buildDropOutputPath } from "../lib/filenames";
+import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
 import { addCommonOptions, checkAndFixHistorySettings, FileResult, runForFiles } from "./common";
 
 const TOOL = "docx-revision-flow";
@@ -84,7 +84,7 @@ async function processOne(
   }
 
   const svg = renderFlowSvg(result, {
-    title: options.title ?? `編集フロー図: ${path.basename(inputFile)}`,
+    title: options.title ?? buildDefaultTitle("編集フロー図", inputFile, fs.statSync(resolved).mtime),
     pageWidth,
     slopeWidth,
   });

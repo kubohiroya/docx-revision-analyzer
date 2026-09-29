@@ -72,7 +72,7 @@ be used with a single input file.
 | `-p, --gap-threshold <hours>` | Threshold (in hours) used to tell "periods of continuous editing" apart from "periods with no activity". When set, renders a separate, detailed chart per period and lays them out horizontally (see below) | unset (renders one single chart) |
 | `-w, --width <px>` | Image width | `1100` (auto-computed from content when `-p` is used) |
 | `-H, --height <px>` | Image height | `550` |
-| `-t, --title <text>` | Chart title | `Revision history: <filename>` |
+| `-t, --title <text>` | Chart title | `編集履歴: <file name> (最終更新 <last-modified time>)` |
 | `--bulk-chars <n>` | Treat insertions by the same author at the same time totalling at least this many characters as a bulk insertion (same rule as `docx-revision-flow`) | `150` |
 | `--preserve-history` | If the document removes personal information (tracked-change authors and dates) on save, remove that setting, turn Track Changes on, and save it in place (the original is kept as a backup; fails if the document is open). `--preserveHistory` also works. See "When timestamps are missing" below | off |
 | `--check-history-settings` | Don't draw a chart; only check the settings and print `ok` or `needs-fix` on the first line, followed by the confirmation text when `needs-fix` | off |
@@ -167,7 +167,7 @@ node dist/cli/flow.js report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 | `--bulk-chars <n>` | Treat insertions made at the same time totalling at least this many characters as a bulk insertion | `150` |
 | `--page-width <px>` | Width of each page thumbnail | `150` |
 | `--slope-width <px>` | Width of the band area between two thumbnail columns | `72` |
-| `-t, --title <text>` | Title | `編集フロー図: <file name>` |
+| `-t, --title <text>` | Title | `編集フロー図: <file name> (最終更新 <last-modified time>)` |
 | `--drop` / `--preserve-history` / `--check-history-settings` | Same as `docx-revision-chart`; `--drop` writes `<file name>-flow-<last-modified time>.svg` | |
 
 If there are no timestamped revisions, or none in the requested period, no SVG is written and the tool exits with an error.

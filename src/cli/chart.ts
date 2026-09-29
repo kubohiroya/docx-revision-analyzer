@@ -6,7 +6,7 @@ import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxR
 import { buildBuckets, BucketSpec } from "../lib/timeBuckets";
 import { renderRevisionChart, renderSessionedRevisionChart } from "../lib/svgChart";
 import { splitIntoSessions } from "../lib/sessions";
-import { buildDropOutputPath } from "../lib/filenames";
+import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
 import { classifyInsertions, DEFAULT_BULK_CHARS } from "../lib/insertionKinds";
 import { addCommonOptions, checkAndFixHistorySettings, FileResult, runForFiles } from "./common";
 
@@ -66,7 +66,7 @@ async function processOne(
     const svg = renderSessionedRevisionChart(sessions, data.baselineCharCount, bucketSpec, {
       width,
       height: parseInt(options.height, 10),
-      title: options.title ?? `編集履歴: ${path.basename(inputFile)}`,
+      title: options.title ?? buildDefaultTitle("編集履歴", inputFile, fs.statSync(resolved).mtime),
       gapThresholdHours: thresholdHours,
     });
     fs.writeFileSync(outFile, svg, "utf-8");
@@ -84,7 +84,7 @@ async function processOne(
     const svg = renderRevisionChart(buckets, {
       width: width ?? 1100,
       height: parseInt(options.height, 10),
-      title: options.title ?? `編集履歴: ${path.basename(inputFile)}`,
+      title: options.title ?? buildDefaultTitle("編集履歴", inputFile, fs.statSync(resolved).mtime),
     });
     fs.writeFileSync(outFile, svg, "utf-8");
 
