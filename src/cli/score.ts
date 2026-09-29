@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import * as fs from "fs";
 import * as path from "path";
-import { extractRevisionsFromFile } from "../lib/docxRevisions";
+import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxRevisions";
 import {
   computeSuspicionScore,
   DEFAULT_SUSPICION_OPTIONS,
@@ -59,6 +59,8 @@ program
       }
 
       const data = await extractRevisionsFromFile(resolved);
+      const missing = describeMissingRevisions(data);
+      if (missing) console.error(`警告: ${missing}`);
 
       const report = computeSuspicionScore(data.events, {
         minCharsToFlag: parseFloat(options.minChars),

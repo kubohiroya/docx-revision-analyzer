@@ -6,6 +6,7 @@
  *   import { extractRevisionsFromFile, computeSuspicionScore } from "docx-revision-tools";
  */
 export * from "./lib/docxRevisions";
+export * from "./lib/historySettings";
 export * from "./lib/timeBuckets";
 export * from "./lib/sessions";
 export * from "./lib/svgChart";

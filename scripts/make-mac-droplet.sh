@@ -19,6 +19,9 @@
 #   が作成される (docx-revision-chart の --drop オプションを使用)。
 #   完了時はmacOSの通知、エラー時はダイアログで結果を知らせる
 #   (ターミナルを開かないため)。
+#   文書が「変更履歴の作成者・日時を削除する」設定の
+#   場合は、解析前に OK/キャンセルのダイアログで設定を有効化するか尋ねる
+#   (OK なら --preserve-history を付けて実行する)。
 #
 # 必要なもの:
 #   - macOS (このスクリプト自体はmacOS上のターミナルで実行すること。
@@ -69,9 +72,27 @@ on open theFiles
 		set posixPath to POSIX path of aFile
 		set appPosix to POSIX path of (path to me)
 		set toolPath to appPosix & "Contents/Resources/docx-revision-chart"
+		set extraArgs to ""
+		set subtitleText to "SVGチャートを作成しました"
+		-- 変更履歴の作成者・日時を保存する設定が無効な文書なら、有効化するか尋ねる
 		try
-			set outPath to do shell script quoted form of toolPath & " " & quoted form of posixPath & " --drop"
-			display notification outPath with title "docx-revision-chart" subtitle "SVGチャートを作成しました"
+			set checkOut to do shell script quoted form of toolPath & " --check-history-settings " & quoted form of posixPath
+			if paragraph 1 of checkOut is "needs-fix" then
+				set AppleScript's text item delimiters to return
+				set promptText to (paragraphs 2 thru -1 of checkOut) as text
+				set AppleScript's text item delimiters to ""
+				try
+					display dialog promptText with title "docx-revision-chart" buttons {"キャンセル", "OK"} default button "OK" cancel button "キャンセル" with icon caution
+					set extraArgs to " --preserve-history"
+					set subtitleText to "設定を有効化し、SVGチャートを作成しました"
+				on error number -128
+					-- キャンセル: 設定は変えずに解析だけ行う
+				end try
+			end if
+		end try
+		try
+			set outPath to do shell script quoted form of toolPath & " " & quoted form of posixPath & " --drop" & extraArgs
+			display notification outPath with title "docx-revision-chart" subtitle subtitleText
 		on error errMsg
 			display dialog errMsg with title "docx-revision-chart - エラー" buttons {"OK"} default button 1 with icon caution
 		end try
