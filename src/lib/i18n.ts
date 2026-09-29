@@ -373,12 +373,12 @@ const ja: Catalog = {
   errNoBuckets: "描画する変更履歴がありません (buckets が空です)。",
   errNoSessions: "描画する変更履歴がありません (sessions が空です)。",
 
-  flowTitlePrefix: "編集フロー図",
+  flowTitlePrefix: "編集フロー",
   flowDescription:
     "変更履歴(Track Changes)付きのWordファイル(.docx)を、連続的に編集が行われた時間区間ごとに分け、" +
     "最初の区間の開始時点と各区間の終了時点の文書を、模式的なページのサムネイルの列として時系列順に左から右へ並べ、" +
     "各区間の終了時点では区間内に細かく編集された段落を緑、まとめて挿入・置き換えられた段落をオレンジで塗り、" +
-    "列の間にその区間での段落・図表ごとの削除・置き換え・増加・移動を帯で示したフロー図(SVG)を1枚にまとめます。",
+    "列の間にその区間での段落・図表ごとの削除・置き換え・増加・移動を帯で示した編集フロー(SVG)を1枚にまとめます。",
   flowArgFiles: "解析対象の .docx ファイル (複数指定可)",
   flowOptOutput: "出力するSVGファイルのパス (既定: <入力ファイル名>-flow.svg)。複数ファイル指定時は使用不可",
   flowOptGap: "無編集期間がこの時間を超えたら、別の時間区間に分ける",
@@ -390,8 +390,8 @@ const ja: Catalog = {
   errDate: (name, value) => `${name} の日時を解釈できません: ${value} (例: 2026-05-10 または "2026-05-10 09:30")`,
   noRevisionsInRange: "指定された期間 (--from / --to) に変更履歴がありません。",
   flowDone: (sessions, pages, out) =>
-    `${sessions}個の時間区間 (最大${pages}ページ) のフロー図を ${out} に出力しました。`,
-  flowDefaultTitle: "編集フロー図",
+    `${sessions}個の時間区間 (最大${pages}ページ) の編集フローを ${out} に出力しました。`,
+  flowDefaultTitle: "編集フロー",
   flowSession: (i, range) => `区間${i}: ${range}`,
   flowChars: (sign, n) => `${sign}${n}字`,
   flowBulkNote: (n) => `うち一括挿入 ${n}字`,

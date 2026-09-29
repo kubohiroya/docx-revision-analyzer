@@ -9,7 +9,7 @@
 #   ./scripts/build-binary.sh                    # chart CLI を実行中のOS/CPU向けにビルド
 #   ./scripts/build-binary.sh chart               # 同上 (明示指定)
 #   ./scripts/build-binary.sh score                # score (AI不正利用疑いスコア) CLI をビルド
-#   ./scripts/build-binary.sh flow              # flow (編集フロー図) CLI をビルド
+#   ./scripts/build-binary.sh flow              # flow (編集フロー) CLI をビルド
 #   ./scripts/build-binary.sh chart --all          # 主要OS/CPU向けに一括クロスビルド
 #
 # 出力先: dist-bin/

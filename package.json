@@ -1,7 +1,7 @@
 {
   "name": "docx-revision-analyzer",
   "version": "1.1.0",
-  "description": "Analyze Word (.docx) Track Changes history: chart edit activity over time, draw how paragraphs flow across editing sessions, and score suspiciously abrupt, paste-like insertions (possible AI-generated text). / 変更履歴(Track Changes)付きWordファイル(.docx)から、編集の時系列チャート・時間区間ごとの編集フロー図を描き、AI生成文の貼り付けを疑わせる不自然な挿入を検出するCLIツール群。",
+  "description": "Analyze Word (.docx) Track Changes history: chart edit activity over time, draw how paragraphs flow across editing sessions, and score suspiciously abrupt, paste-like insertions (possible AI-generated text). / 変更履歴(Track Changes)付きWordファイル(.docx)から、編集の時系列チャート・時間区間ごとの編集フローを描き、AI生成文の貼り付けを疑わせる不自然な挿入を検出するCLIツール群。",
   "license": "MIT",
   "author": "Hiroya Kubo <kubo.hiroya@gmail.com>",
   "keywords": [

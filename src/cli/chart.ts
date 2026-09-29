@@ -90,6 +90,7 @@ async function processOne(
   } else {
     const buckets = buildBuckets(data.events, data.baselineCharCount, bucketSpec);
     const svg = renderRevisionChart(buckets, {
+      eventRange: { start: data.events[0].date, end: data.events[data.events.length - 1].date },
       width: width ?? 1100,
       height: parseInt(options.height, 10),
       title: options.title ?? buildDefaultTitle(t("chartTitlePrefix"), inputFile, fs.statSync(resolved).mtime),

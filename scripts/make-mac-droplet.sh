@@ -63,7 +63,7 @@ case "$TARGET_CLI" in
     ;;
   flow)
     BIN_NAME="docx-revision-flow"
-    RESULT_LABEL_JA="編集フロー図"
+    RESULT_LABEL_JA="編集フロー"
     RESULT_LABEL_EN="edit flow"
     ;;
   *)
