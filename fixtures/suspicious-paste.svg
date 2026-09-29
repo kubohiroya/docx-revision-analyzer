@@ -3,39 +3,39 @@
   <text x="550" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">Revision history: suspicious-paste.docx (last modified 2026-09-29 11:37)</text>
 
   <!-- zero axis -->
-  <line x1="70" y1="270" x2="1030" y2="270" stroke="#333" stroke-width="1"/>
+  <line x1="70" y1="277" x2="1030" y2="277" stroke="#333" stroke-width="1"/>
   <!-- plot frame -->
-  <line x1="70" y1="60" x2="70" y2="480" stroke="#333" stroke-width="1"/>
-  <line x1="1030" y1="60" x2="1030" y2="480" stroke="#ccd7e6" stroke-width="1"/>
+  <line x1="70" y1="74" x2="70" y2="480" stroke="#333" stroke-width="1"/>
+  <line x1="1030" y1="74" x2="1030" y2="480" stroke="#ccd7e6" stroke-width="1"/>
 
   <line x1="65" y1="470.00" x2="70" y2="470.00" stroke="#999"/>
   <text x="60" y="474.00" font-size="10" fill="#555" text-anchor="end">300</text>
-  <line x1="65" y1="420.00" x2="70" y2="420.00" stroke="#999"/>
-  <text x="60" y="424.00" font-size="10" fill="#555" text-anchor="end">225</text>
-  <line x1="65" y1="370.00" x2="70" y2="370.00" stroke="#999"/>
-  <text x="60" y="374.00" font-size="10" fill="#555" text-anchor="end">150</text>
-  <line x1="65" y1="320.00" x2="70" y2="320.00" stroke="#999"/>
-  <text x="60" y="324.00" font-size="10" fill="#555" text-anchor="end">75</text>
-  <line x1="65" y1="270.00" x2="70" y2="270.00" stroke="#999"/>
-  <text x="60" y="274.00" font-size="10" fill="#555" text-anchor="end">0</text>
-  <line x1="65" y1="220.00" x2="70" y2="220.00" stroke="#999"/>
-  <text x="60" y="224.00" font-size="10" fill="#555" text-anchor="end">75</text>
-  <line x1="65" y1="170.00" x2="70" y2="170.00" stroke="#999"/>
-  <text x="60" y="174.00" font-size="10" fill="#555" text-anchor="end">150</text>
-  <line x1="65" y1="120.00" x2="70" y2="120.00" stroke="#999"/>
-  <text x="60" y="124.00" font-size="10" fill="#555" text-anchor="end">225</text>
-  <line x1="65" y1="70.00" x2="70" y2="70.00" stroke="#999"/>
-  <text x="60" y="74.00" font-size="10" fill="#555" text-anchor="end">300</text>
+  <line x1="65" y1="421.75" x2="70" y2="421.75" stroke="#999"/>
+  <text x="60" y="425.75" font-size="10" fill="#555" text-anchor="end">225</text>
+  <line x1="65" y1="373.50" x2="70" y2="373.50" stroke="#999"/>
+  <text x="60" y="377.50" font-size="10" fill="#555" text-anchor="end">150</text>
+  <line x1="65" y1="325.25" x2="70" y2="325.25" stroke="#999"/>
+  <text x="60" y="329.25" font-size="10" fill="#555" text-anchor="end">75</text>
+  <line x1="65" y1="277.00" x2="70" y2="277.00" stroke="#999"/>
+  <text x="60" y="281.00" font-size="10" fill="#555" text-anchor="end">0</text>
+  <line x1="65" y1="228.75" x2="70" y2="228.75" stroke="#999"/>
+  <text x="60" y="232.75" font-size="10" fill="#555" text-anchor="end">75</text>
+  <line x1="65" y1="180.50" x2="70" y2="180.50" stroke="#999"/>
+  <text x="60" y="184.50" font-size="10" fill="#555" text-anchor="end">150</text>
+  <line x1="65" y1="132.25" x2="70" y2="132.25" stroke="#999"/>
+  <text x="60" y="136.25" font-size="10" fill="#555" text-anchor="end">225</text>
+  <line x1="65" y1="84.00" x2="70" y2="84.00" stroke="#999"/>
+  <text x="60" y="88.00" font-size="10" fill="#555" text-anchor="end">300</text>
   <line x1="1030.00" y1="480.00" x2="1035.00" y2="480.00" stroke="#424242"/>
   <text x="1040.00" y="484.00" font-size="10" fill="#424242" text-anchor="start">0</text>
-  <line x1="1030.00" y1="375.00" x2="1035.00" y2="375.00" stroke="#424242"/>
-  <text x="1040.00" y="379.00" font-size="10" fill="#424242" text-anchor="start">90</text>
-  <line x1="1030.00" y1="270.00" x2="1035.00" y2="270.00" stroke="#424242"/>
-  <text x="1040.00" y="274.00" font-size="10" fill="#424242" text-anchor="start">180</text>
-  <line x1="1030.00" y1="165.00" x2="1035.00" y2="165.00" stroke="#424242"/>
-  <text x="1040.00" y="169.00" font-size="10" fill="#424242" text-anchor="start">270</text>
-  <line x1="1030.00" y1="60.00" x2="1035.00" y2="60.00" stroke="#424242"/>
-  <text x="1040.00" y="64.00" font-size="10" fill="#424242" text-anchor="start">360</text>
+  <line x1="1030.00" y1="378.50" x2="1035.00" y2="378.50" stroke="#424242"/>
+  <text x="1040.00" y="382.50" font-size="10" fill="#424242" text-anchor="start">90</text>
+  <line x1="1030.00" y1="277.00" x2="1035.00" y2="277.00" stroke="#424242"/>
+  <text x="1040.00" y="281.00" font-size="10" fill="#424242" text-anchor="start">180</text>
+  <line x1="1030.00" y1="175.50" x2="1035.00" y2="175.50" stroke="#424242"/>
+  <text x="1040.00" y="179.50" font-size="10" fill="#424242" text-anchor="start">270</text>
+  <line x1="1030.00" y1="74.00" x2="1035.00" y2="74.00" stroke="#424242"/>
+  <text x="1040.00" y="78.00" font-size="10" fill="#424242" text-anchor="start">360</text>
   <text x="84.12" y="500.00" font-size="11" fill="#333" text-anchor="middle">23:00</text>
   <text x="197.06" y="500.00" font-size="11" fill="#333" text-anchor="middle">23:00</text>
   <text x="310.00" y="500.00" font-size="11" fill="#333" text-anchor="middle">23:01</text>
@@ -46,46 +46,47 @@
   <text x="874.71" y="500.00" font-size="11" fill="#333" text-anchor="middle">23:04</text>
   <text x="987.65" y="500.00" font-size="11" fill="#333" text-anchor="middle">23:05</text>
 
-  <g><rect x="74.24" y="266.67" width="19.76" height="3.33" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 5 chars (2026-05-11T14:00:15.292Z)</title></rect>
-  <rect x="102.47" y="266.67" width="19.76" height="3.33" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 5 chars (2026-05-11T14:00:25.292Z)</title></rect>
+  <g><rect x="74.24" y="273.78" width="19.76" height="3.22" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 5 chars (2026-05-11T14:00:15.292Z)</title></rect>
+  <rect x="102.47" y="273.78" width="19.76" height="3.22" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 5 chars (2026-05-11T14:00:25.292Z)</title></rect>
   
   
   
-  <rect x="215.41" y="266.00" width="19.76" height="4.00" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 6 chars (2026-05-11T14:01:05.292Z)</title></rect>
+  <rect x="215.41" y="273.14" width="19.76" height="3.86" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 6 chars (2026-05-11T14:01:05.292Z)</title></rect>
   
   
-  <rect x="300.12" y="264.67" width="19.76" height="5.33" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 8 chars (2026-05-11T14:01:35.292Z)</title></rect>
+  <rect x="300.12" y="271.85" width="19.76" height="5.15" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 8 chars (2026-05-11T14:01:35.292Z)</title></rect>
   
   
-  <rect x="384.82" y="266.67" width="19.76" height="3.33" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 5 chars (2026-05-11T14:02:05.292Z)</title></rect>
+  <rect x="384.82" y="273.78" width="19.76" height="3.22" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 5 chars (2026-05-11T14:02:05.292Z)</title></rect>
   
   
-  <rect x="469.53" y="266.67" width="19.76" height="3.33" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 5 chars (2026-05-11T14:02:35.292Z)</title></rect><rect x="469.53" y="70.00" width="19.76" height="196.67" fill="rgb(234,108,0)" fill-opacity="0.85"><title>Bulk insertion 295 chars (2026-05-11T14:02:35.292Z)</title></rect>
-  
-  
-  
-  <rect x="582.47" y="264.67" width="19.76" height="5.33" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 8 chars (2026-05-11T14:03:15.292Z)</title></rect>
-  
-  
-  <rect x="667.18" y="264.67" width="19.76" height="5.33" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 8 chars (2026-05-11T14:03:45.292Z)</title></rect>
+  <rect x="469.53" y="273.78" width="19.76" height="3.22" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 5 chars (2026-05-11T14:02:35.292Z)</title></rect><rect x="469.53" y="84.00" width="19.76" height="189.78" fill="rgb(234,108,0)" fill-opacity="0.85"><title>Bulk insertion 295 chars (2026-05-11T14:02:35.292Z)</title></rect>
   
   
   
-  <rect x="780.12" y="266.00" width="19.76" height="4.00" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 6 chars (2026-05-11T14:04:25.292Z)</title></rect>
+  <rect x="582.47" y="271.85" width="19.76" height="5.15" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 8 chars (2026-05-11T14:03:15.292Z)</title></rect>
+  
+  
+  <rect x="667.18" y="271.85" width="19.76" height="5.15" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 8 chars (2026-05-11T14:03:45.292Z)</title></rect>
+  
+  
+  
+  <rect x="780.12" y="273.14" width="19.76" height="3.86" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 6 chars (2026-05-11T14:04:25.292Z)</title></rect>
   
   
   
   
-  <rect x="921.29" y="268.00" width="19.76" height="2.00" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 3 chars (2026-05-11T14:05:15.292Z)</title></rect>
+  <rect x="921.29" y="275.07" width="19.76" height="1.93" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 3 chars (2026-05-11T14:05:15.292Z)</title></rect>
   
   
-  <rect x="1006.00" y="266.00" width="19.76" height="4.00" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 6 chars (2026-05-11T14:05:45.292Z)</title></rect></g>
+  <rect x="1006.00" y="273.14" width="19.76" height="3.86" fill="rgb(22,128,61)" fill-opacity="0.85"><title>Fine-grained edits 6 chars (2026-05-11T14:05:45.292Z)</title></rect></g>
 
-  <polyline points="84.12,474.17 112.35,468.33 140.59,468.33 168.82,468.33 197.06,468.33 225.29,461.33 253.53,461.33 281.76,461.33 310.00,452.00 338.24,452.00 366.47,452.00 394.71,446.17 422.94,446.17 451.18,446.17 479.41,96.17 507.65,96.17 535.88,96.17 564.12,96.17 592.35,86.83 620.59,86.83 648.82,86.83 677.06,77.50 705.29,77.50 733.53,77.50 761.76,77.50 790.00,70.50 818.24,70.50 846.47,70.50 874.71,70.50 902.94,70.50 931.18,67.00 959.41,67.00 987.65,67.00 1015.88,60.00" fill="none" stroke="#424242" stroke-width="2.5"/>
-  <g fill="#424242"><circle cx="84.12" cy="474.17" r="2.5"><title>Total 5 chars (2026-05-11T14:00:25.292Z)</title></circle><circle cx="112.35" cy="468.33" r="2.5"><title>Total 10 chars (2026-05-11T14:00:35.292Z)</title></circle><circle cx="140.59" cy="468.33" r="2.5"><title>Total 10 chars (2026-05-11T14:00:45.292Z)</title></circle><circle cx="168.82" cy="468.33" r="2.5"><title>Total 10 chars (2026-05-11T14:00:55.292Z)</title></circle><circle cx="197.06" cy="468.33" r="2.5"><title>Total 10 chars (2026-05-11T14:01:05.292Z)</title></circle><circle cx="225.29" cy="461.33" r="2.5"><title>Total 16 chars (2026-05-11T14:01:15.292Z)</title></circle><circle cx="253.53" cy="461.33" r="2.5"><title>Total 16 chars (2026-05-11T14:01:25.292Z)</title></circle><circle cx="281.76" cy="461.33" r="2.5"><title>Total 16 chars (2026-05-11T14:01:35.292Z)</title></circle><circle cx="310.00" cy="452.00" r="2.5"><title>Total 24 chars (2026-05-11T14:01:45.292Z)</title></circle><circle cx="338.24" cy="452.00" r="2.5"><title>Total 24 chars (2026-05-11T14:01:55.292Z)</title></circle><circle cx="366.47" cy="452.00" r="2.5"><title>Total 24 chars (2026-05-11T14:02:05.292Z)</title></circle><circle cx="394.71" cy="446.17" r="2.5"><title>Total 29 chars (2026-05-11T14:02:15.292Z)</title></circle><circle cx="422.94" cy="446.17" r="2.5"><title>Total 29 chars (2026-05-11T14:02:25.292Z)</title></circle><circle cx="451.18" cy="446.17" r="2.5"><title>Total 29 chars (2026-05-11T14:02:35.292Z)</title></circle><circle cx="479.41" cy="96.17" r="2.5"><title>Total 329 chars (2026-05-11T14:02:45.292Z)</title></circle><circle cx="507.65" cy="96.17" r="2.5"><title>Total 329 chars (2026-05-11T14:02:55.292Z)</title></circle><circle cx="535.88" cy="96.17" r="2.5"><title>Total 329 chars (2026-05-11T14:03:05.292Z)</title></circle><circle cx="564.12" cy="96.17" r="2.5"><title>Total 329 chars (2026-05-11T14:03:15.292Z)</title></circle><circle cx="592.35" cy="86.83" r="2.5"><title>Total 337 chars (2026-05-11T14:03:25.292Z)</title></circle><circle cx="620.59" cy="86.83" r="2.5"><title>Total 337 chars (2026-05-11T14:03:35.292Z)</title></circle><circle cx="648.82" cy="86.83" r="2.5"><title>Total 337 chars (2026-05-11T14:03:45.292Z)</title></circle><circle cx="677.06" cy="77.50" r="2.5"><title>Total 345 chars (2026-05-11T14:03:55.292Z)</title></circle><circle cx="705.29" cy="77.50" r="2.5"><title>Total 345 chars (2026-05-11T14:04:05.292Z)</title></circle><circle cx="733.53" cy="77.50" r="2.5"><title>Total 345 chars (2026-05-11T14:04:15.292Z)</title></circle><circle cx="761.76" cy="77.50" r="2.5"><title>Total 345 chars (2026-05-11T14:04:25.292Z)</title></circle><circle cx="790.00" cy="70.50" r="2.5"><title>Total 351 chars (2026-05-11T14:04:35.292Z)</title></circle><circle cx="818.24" cy="70.50" r="2.5"><title>Total 351 chars (2026-05-11T14:04:45.292Z)</title></circle><circle cx="846.47" cy="70.50" r="2.5"><title>Total 351 chars (2026-05-11T14:04:55.292Z)</title></circle><circle cx="874.71" cy="70.50" r="2.5"><title>Total 351 chars (2026-05-11T14:05:05.292Z)</title></circle><circle cx="902.94" cy="70.50" r="2.5"><title>Total 351 chars (2026-05-11T14:05:15.292Z)</title></circle><circle cx="931.18" cy="67.00" r="2.5"><title>Total 354 chars (2026-05-11T14:05:25.292Z)</title></circle><circle cx="959.41" cy="67.00" r="2.5"><title>Total 354 chars (2026-05-11T14:05:35.292Z)</title></circle><circle cx="987.65" cy="67.00" r="2.5"><title>Total 354 chars (2026-05-11T14:05:45.292Z)</title></circle><circle cx="1015.88" cy="60.00" r="2.5"><title>Total 360 chars (2026-05-11T14:05:55.292Z)</title></circle></g>
+  <polyline points="84.12,474.36 112.35,468.72 140.59,468.72 168.82,468.72 197.06,468.72 225.29,461.96 253.53,461.96 281.76,461.96 310.00,452.93 338.24,452.93 366.47,452.93 394.71,447.29 422.94,447.29 451.18,447.29 479.41,108.96 507.65,108.96 535.88,108.96 564.12,108.96 592.35,99.94 620.59,99.94 648.82,99.94 677.06,90.92 705.29,90.92 733.53,90.92 761.76,90.92 790.00,84.15 818.24,84.15 846.47,84.15 874.71,84.15 902.94,84.15 931.18,80.77 959.41,80.77 987.65,80.77 1015.88,74.00" fill="none" stroke="#424242" stroke-width="2.5"/>
+  <g fill="#424242"><circle cx="84.12" cy="474.36" r="2.5"><title>Total 5 chars (2026-05-11T14:00:25.292Z)</title></circle><circle cx="112.35" cy="468.72" r="2.5"><title>Total 10 chars (2026-05-11T14:00:35.292Z)</title></circle><circle cx="140.59" cy="468.72" r="2.5"><title>Total 10 chars (2026-05-11T14:00:45.292Z)</title></circle><circle cx="168.82" cy="468.72" r="2.5"><title>Total 10 chars (2026-05-11T14:00:55.292Z)</title></circle><circle cx="197.06" cy="468.72" r="2.5"><title>Total 10 chars (2026-05-11T14:01:05.292Z)</title></circle><circle cx="225.29" cy="461.96" r="2.5"><title>Total 16 chars (2026-05-11T14:01:15.292Z)</title></circle><circle cx="253.53" cy="461.96" r="2.5"><title>Total 16 chars (2026-05-11T14:01:25.292Z)</title></circle><circle cx="281.76" cy="461.96" r="2.5"><title>Total 16 chars (2026-05-11T14:01:35.292Z)</title></circle><circle cx="310.00" cy="452.93" r="2.5"><title>Total 24 chars (2026-05-11T14:01:45.292Z)</title></circle><circle cx="338.24" cy="452.93" r="2.5"><title>Total 24 chars (2026-05-11T14:01:55.292Z)</title></circle><circle cx="366.47" cy="452.93" r="2.5"><title>Total 24 chars (2026-05-11T14:02:05.292Z)</title></circle><circle cx="394.71" cy="447.29" r="2.5"><title>Total 29 chars (2026-05-11T14:02:15.292Z)</title></circle><circle cx="422.94" cy="447.29" r="2.5"><title>Total 29 chars (2026-05-11T14:02:25.292Z)</title></circle><circle cx="451.18" cy="447.29" r="2.5"><title>Total 29 chars (2026-05-11T14:02:35.292Z)</title></circle><circle cx="479.41" cy="108.96" r="2.5"><title>Total 329 chars (2026-05-11T14:02:45.292Z)</title></circle><circle cx="507.65" cy="108.96" r="2.5"><title>Total 329 chars (2026-05-11T14:02:55.292Z)</title></circle><circle cx="535.88" cy="108.96" r="2.5"><title>Total 329 chars (2026-05-11T14:03:05.292Z)</title></circle><circle cx="564.12" cy="108.96" r="2.5"><title>Total 329 chars (2026-05-11T14:03:15.292Z)</title></circle><circle cx="592.35" cy="99.94" r="2.5"><title>Total 337 chars (2026-05-11T14:03:25.292Z)</title></circle><circle cx="620.59" cy="99.94" r="2.5"><title>Total 337 chars (2026-05-11T14:03:35.292Z)</title></circle><circle cx="648.82" cy="99.94" r="2.5"><title>Total 337 chars (2026-05-11T14:03:45.292Z)</title></circle><circle cx="677.06" cy="90.92" r="2.5"><title>Total 345 chars (2026-05-11T14:03:55.292Z)</title></circle><circle cx="705.29" cy="90.92" r="2.5"><title>Total 345 chars (2026-05-11T14:04:05.292Z)</title></circle><circle cx="733.53" cy="90.92" r="2.5"><title>Total 345 chars (2026-05-11T14:04:15.292Z)</title></circle><circle cx="761.76" cy="90.92" r="2.5"><title>Total 345 chars (2026-05-11T14:04:25.292Z)</title></circle><circle cx="790.00" cy="84.15" r="2.5"><title>Total 351 chars (2026-05-11T14:04:35.292Z)</title></circle><circle cx="818.24" cy="84.15" r="2.5"><title>Total 351 chars (2026-05-11T14:04:45.292Z)</title></circle><circle cx="846.47" cy="84.15" r="2.5"><title>Total 351 chars (2026-05-11T14:04:55.292Z)</title></circle><circle cx="874.71" cy="84.15" r="2.5"><title>Total 351 chars (2026-05-11T14:05:05.292Z)</title></circle><circle cx="902.94" cy="84.15" r="2.5"><title>Total 351 chars (2026-05-11T14:05:15.292Z)</title></circle><circle cx="931.18" cy="80.77" r="2.5"><title>Total 354 chars (2026-05-11T14:05:25.292Z)</title></circle><circle cx="959.41" cy="80.77" r="2.5"><title>Total 354 chars (2026-05-11T14:05:35.292Z)</title></circle><circle cx="987.65" cy="80.77" r="2.5"><title>Total 354 chars (2026-05-11T14:05:45.292Z)</title></circle><circle cx="1015.88" cy="74.00" r="2.5"><title>Total 360 chars (2026-05-11T14:05:55.292Z)</title></circle></g>
 
-  <text x="20" y="50" font-size="11" fill="#555">Chars (added/deleted)</text>
-  <text x="1054" y="50" font-size="11" fill="#424242" text-anchor="end">Total characters</text>
+  <text x="20" y="64" font-size="11" fill="#555">Chars (added/deleted)</text>
+  <text x="1054" y="64" font-size="11" fill="#424242" text-anchor="end">Total characters</text>
+  <text x="550.00" y="48" text-anchor="middle" font-size="12" font-weight="bold" fill="#444">05/11</text>
 
   <!-- legend -->
   <g transform="translate(70, 528)"><rect x="0" y="-10" width="14" height="14" fill="rgb(22,128,61)" fill-opacity="0.85"/><text x="20" y="1" font-size="12" fill="#333">Fine-grained edits</text><rect x="154.8" y="-10" width="14" height="14" fill="rgb(234,108,0)" fill-opacity="0.85"/><text x="174.8" y="1" font-size="12" fill="#333">Bulk insertion</text><rect x="283.2" y="-10" width="14" height="14" fill="rgb(198,40,40)" fill-opacity="0.85"/><text x="303.2" y="1" font-size="12" fill="#333">Deleted</text><line x1="365.4" y1="-3" x2="385.4" y2="-3" stroke="#424242" stroke-width="2.5"/><text x="391.4" y="1" font-size="12" fill="#333">Total characters</text></g>

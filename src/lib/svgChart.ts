@@ -8,6 +8,8 @@ export interface ChartOptions {
   title?: string;
   /** 文字コード表記用フォント */
   fontFamily?: string;
+  /** 最初と最後の変更の日時 (指定すると、グラフの上に月日を表示する) */
+  eventRange?: { start: Date; end: Date };
 }
 
 export function esc(s: string): string {
@@ -91,6 +93,20 @@ function renderLegendItems(buckets: Bucket[]): string {
   return parts.join("");
 }
 
+/** 期間の月日: "MM/DD"、日をまたぐ場合は "MM/DD – MM/DD" (ローカル時刻) */
+export function formatDayRange(start: Date, end: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const day = (d: Date) => `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+  return start.toDateString() === end.toDateString() ? day(start) : `${day(start)} – ${day(end)}`;
+}
+
+/** グラフ (またはパネル) の上に置く月日の表示 */
+function renderDayLabel(start: Date, end: Date, cx: number, y: number): string {
+  return `<text x="${cx.toFixed(2)}" y="${y}" text-anchor="middle" font-size="12" font-weight="bold" fill="#444">${esc(
+    formatDayRange(start, end)
+  )}</text>`;
+}
+
 function fmtTime(d: Date, spanMs: number): string {
   const useDate = spanMs > 1000 * 60 * 60 * 36; // 36時間超なら日付表示
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -116,7 +132,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
 
   const marginLeft = 70;
   const marginRight = 70;
-  const marginTop = 60;
+  const marginTop = opts.eventRange ? 74 : 60;
   const marginBottom = 70;
   const plotW = width - marginLeft - marginRight;
   const plotH = height - marginTop - marginBottom;
@@ -239,6 +255,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
 
   <text x="${marginLeft - 50}" y="${marginTop - 10}" font-size="11" fill="#555">${esc(t("axisAddedDeleted"))}</text>
   <text x="${marginLeft + plotW + 24}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}" text-anchor="end">${esc(t("totalChars"))}</text>
+  ${opts.eventRange ? renderDayLabel(opts.eventRange.start, opts.eventRange.end, marginLeft + plotW / 2, marginTop - 26) : ""}
 
   <!-- legend -->
   <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(buckets)}</g>
@@ -307,7 +324,7 @@ export function renderSessionedRevisionChart(
 
   const marginLeft = 70;
   const marginRight = 70;
-  const marginTop = opts.gapThresholdHours !== undefined ? 78 : 60;
+  const marginTop = (opts.gapThresholdHours !== undefined ? 78 : 60) + 14; // +14: 期間の月日の行
   const marginBottom = 70;
   const plotH = height - marginTop - marginBottom;
 
@@ -479,8 +496,13 @@ export function renderSessionedRevisionChart(
       );
     }
 
+    // 期間の月日 (最初と最後の変更の日時から)
+    const evs = p.session.events;
+    const dayLabel = renderDayLabel(evs[0].date, evs[evs.length - 1].date, p.x + p.width / 2, marginTop - 26);
+
     panelContents.push(
-      `<g>${bars.join("")}</g>` +
+      dayLabel +
+        `<g>${bars.join("")}</g>` +
         `<polyline points="${linePoints}" fill="none" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>` +
         `<g fill="${TOTAL_COLOR}">${dots}</g>` +
         `${xLabels.join("")}`

@@ -135,7 +135,7 @@ node dist/cli/chart.js fixtures/multi-session.docx -p 12 -o out.svg
 
 ---
 
-## 2. `docx-revision-flow` — 時間区間ごとの編集フロー図
+## 2. `docx-revision-flow` — 時間区間ごとの編集フロー
 
 変更履歴を「連続的に編集が行われた時間区間」に分け、最初の区間の開始時点と各区間の終了時点の文書を
 ページのサムネイル (模式図) の列として左から右へ時系列順に並べ、列の間に、その区間での段落・図表ごとの変化を
@@ -159,7 +159,7 @@ node dist/cli/flow.js 報告書.docx --from 2026-06-01 --to "2026-06-02 18:00" -
 | `--bulk-chars <n>` | 同じ時刻にまとめて挿入された文字数がこれ以上なら一括挿入とみなす | `150` |
 | `--page-width <px>` | ページのサムネイルの幅 | `150` |
 | `--slope-width <px>` | サムネイルの列の間 (変化を示す帯) の幅 | `72` |
-| `-t, --title <text>` | 図のタイトル | `編集フロー図: <ファイル名> (最終更新 <ファイルの最終更新日時>)` |
+| `-t, --title <text>` | 図のタイトル | `編集フロー: <ファイル名> (最終更新 <ファイルの最終更新日時>)` |
 | `--drop` / `--preserve-history` / `--check-history-settings` | `docx-revision-chart` と同じ。`--drop` の出力先は `<ファイル名>-flow-<最終更新日時>.svg` | |
 | `--lang <en\|ja>` | メッセージと図の表示言語 (下記「表示言語」参照) | OS のロケール |
 
