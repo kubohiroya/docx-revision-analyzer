@@ -1,9 +1,9 @@
 /**
- * docx-revision-tools のライブラリエントリポイント。
- * CLI (`docx-revision-chart` / `docx-ai-suspicion-score`) からだけでなく、
+ * docx-revision-analyzer のライブラリエントリポイント。
+ * CLI (`docx-revision-chart` / `docx-revision-flow` / `docx-ai-suspicion-score`) からだけでなく、
  * 他の Node.js / Bun プロジェクトから直接 import して使うこともできる。
  *
- *   import { extractRevisionsFromFile, computeSuspicionScore } from "docx-revision-tools";
+ *   import { extractRevisionsFromFile, computeSuspicionScore } from "docx-revision-analyzer";
  */
 export * from "./lib/docxRevisions";
 export * from "./lib/insertionKinds";

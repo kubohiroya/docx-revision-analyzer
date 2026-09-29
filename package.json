@@ -1,7 +1,7 @@
 {
   "name": "docx-revision-analyzer",
-  "version": "1.0.0",
-  "description": "Analyze Word (.docx) Track Changes history to visualize edit activity over time and score suspiciously abrupt, paste-like text insertions (possible AI-generated content pasted in). / 変更履歴(Track Changes)付きWordファイル(.docx)から編集時系列を可視化し、AI生成文の貼り付けを疑わせる不自然な挿入を検出するCLIツール群。",
+  "version": "1.1.0",
+  "description": "Analyze Word (.docx) Track Changes history: chart edit activity over time, draw how paragraphs flow across editing sessions, and score suspiciously abrupt, paste-like insertions (possible AI-generated text). / 変更履歴(Track Changes)付きWordファイル(.docx)から、編集の時系列チャート・時間区間ごとの編集フロー図を描き、AI生成文の貼り付けを疑わせる不自然な挿入を検出するCLIツール群。",
   "license": "MIT",
   "author": "Hiroya Kubo <kubo.hiroya@gmail.com>",
   "keywords": [
@@ -12,7 +12,10 @@
     "cli",
     "svg",
     "chart",
-    "academic-integrity"
+    "academic-integrity",
+    "flow",
+    "visualization",
+    "ai-detection"
   ],
   "engines": {
     "node": ">=18"
@@ -23,6 +26,7 @@
   "files": [
     "dist",
     "README.md",
+    "README.ja.md",
     "LICENSE"
   ],
   "bin": {
@@ -31,7 +35,9 @@
     "docx-revision-flow": "dist/cli/flow.js"
   },
   "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run clean && npm run build",
     "fixtures": "ts-node scripts/makeFixtures.ts",
     "build:binary": "bash scripts/build-binary.sh chart",
     "build:binary:all": "bash scripts/build-binary.sh chart --all",
