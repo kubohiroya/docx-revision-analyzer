@@ -6,8 +6,8 @@
  *  - fixtures/natural-writing.docx   : 人が時間をかけて少しずつタイプしたことを想定
  *  - fixtures/suspicious-paste.docx  : 最初は少し自分でタイプした後、大きな塊を
  *                                       一瞬で貼り付けたことを想定 (AI生成文の貼付を模擬)
- *  - fixtures/heatmap-demo.docx      : 見出し・図を含む複数段落の文書を3つの時間区間で編集
- *                                       (docx-revision-heatmap 用)
+ *  - fixtures/flow-demo.docx      : 見出し・図を含む複数段落の文書を3つの時間区間で編集
+ *                                       (docx-revision-flow 用)
  */
 import JSZip from "jszip";
 import * as fs from "fs";
@@ -252,7 +252,7 @@ async function makeMultiSession() {
 }
 
 // ---------------------------------------------------------------------------
-// docx-revision-heatmap 用: 見出し・図・複数段落を含み、3つの時間区間で
+// docx-revision-flow 用: 見出し・図・複数段落を含み、3つの時間区間で
 // 「手での入力」「複数段落の一括貼り付け」「段落の置き換え」を行った文書
 // ---------------------------------------------------------------------------
 
@@ -327,14 +327,14 @@ function buildParagraphsXml(paras: ParaSpec[]): string {
 </w:document>`;
 }
 
-const HEATMAP_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+const FLOW_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults>
   <w:style w:type="paragraph" w:styleId="a"><w:name w:val="Normal"/></w:style>
   <w:style w:type="paragraph" w:styleId="1"><w:name w:val="heading 1"/><w:basedOn w:val="a"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
 </w:styles>`;
 
-async function makeHeatmapDemo() {
+async function makeFlowDemo() {
   const rnd = mulberry32(2024);
   const author = "学生D";
   let id = 1;
@@ -446,13 +446,13 @@ async function makeHeatmapDemo() {
   copied.segments = [...copied.segments.filter((sg) => sg.kind !== "text"), { kind: "del", text: copiedText, ...rev(t) }];
   copied.markDel = rev(t);
 
-  const outPath = path.join(__dirname, "..", "fixtures", "heatmap-demo.docx");
+  const outPath = path.join(__dirname, "..", "fixtures", "flow-demo.docx");
   const zip = new JSZip();
   zip.file("[Content_Types].xml", CONTENT_TYPES);
   zip.file("_rels/.rels", ROOT_RELS);
   zip.file("word/document.xml", buildParagraphsXml(paras));
   zip.file("word/_rels/document.xml.rels", DOCUMENT_RELS);
-  zip.file("word/styles.xml", HEATMAP_STYLES);
+  zip.file("word/styles.xml", FLOW_STYLES);
   fs.writeFileSync(outPath, await zip.generateAsync({ type: "nodebuffer" }));
   console.log(`生成: ${outPath} (${paras.length} 段落)`);
 }
@@ -462,7 +462,7 @@ async function main() {
   await makeNatural();
   await makeSuspicious();
   await makeMultiSession();
-  await makeHeatmapDemo();
+  await makeFlowDemo();
 }
 
 main().catch((e) => {

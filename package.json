@@ -28,7 +28,7 @@
   "bin": {
     "docx-revision-chart": "dist/cli/chart.js",
     "docx-ai-suspicion-score": "dist/cli/score.js",
-    "docx-revision-heatmap": "dist/cli/heatmap.js"
+    "docx-revision-flow": "dist/cli/flow.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -36,9 +36,9 @@
     "build:binary": "bash scripts/build-binary.sh chart",
     "build:binary:all": "bash scripts/build-binary.sh chart --all",
     "build:binary:score": "bash scripts/build-binary.sh score",
-    "build:binary:heatmap": "bash scripts/build-binary.sh heatmap",
+    "build:binary:flow": "bash scripts/build-binary.sh flow",
     "build:mac-app": "bash scripts/make-mac-droplet.sh chart",
-    "build:mac-app:heatmap": "bash scripts/make-mac-droplet.sh heatmap"
+    "build:mac-app:flow": "bash scripts/make-mac-droplet.sh flow"
   },
   "dependencies": {
     "commander": "^12.1.0",

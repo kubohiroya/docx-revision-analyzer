@@ -10,7 +10,7 @@ enabled:
 2. **`docx-ai-suspicion-score`** — scores how likely it is that a chunk of
    text was pasted in from an external app (e.g. an AI writing tool) rather
    than typed and reviewed inside Word, on a 0–100 scale
-3. **`docx-revision-heatmap`** — for each session of continuous editing, draws
+3. **`docx-revision-flow`** — for each session of continuous editing, draws
    the document's pages at the start and end of the session as a schematic,
    colors fine-grained edits (green), bulk insertions/replacements (orange) and
    deletions (red), and connects each paragraph/figure/table across the two
@@ -72,8 +72,8 @@ needed):
 This wraps `scripts/build-binary.sh` under the hood. To build a binary for
 `docx-ai-suspicion-score` instead, run `npm run build:binary:score` or
 `bash scripts/build-binary.sh score` (add `--all` for the same cross-build).
-For `docx-revision-heatmap`, use `npm run build:binary:heatmap`
-(`bash scripts/build-binary.sh heatmap`).
+For `docx-revision-flow`, use `npm run build:binary:flow`
+(`bash scripts/build-binary.sh flow`).
 
 > Binaries cross-compiled for other OSes (`--all`) can't be smoke-tested on
 > the machine that built them — verify them on the target OS before
@@ -100,10 +100,10 @@ extra install beyond Bun itself). Move or copy that `.app` anywhere convenient
 (e.g. your Applications folder or the Dock) and drop `.docx` files onto its
 icon.
 
-`npm run build:mac-app:heatmap` builds the same kind of droplet for
-`docx-revision-heatmap` (`dist-bin/docx-revision-heatmap.app`). It covers the
+`npm run build:mac-app:flow` builds the same kind of droplet for
+`docx-revision-flow` (`dist-bin/docx-revision-flow.app`). It covers the
 whole editing period with default settings and writes
-`<file name>-heatmap-<that file's last-modified time>.svg`.
+`<file name>-flow-<that file's last-modified time>.svg`.
 
 Why this needs a wrapper at all: macOS Finder only delivers dropped files to
 proper application bundles (via an Apple Event), never directly as command-line
@@ -353,7 +353,7 @@ Edits made after the rewrite are timestamped; timestamps already removed cannot 
 
 ---
 
-## 3. `docx-revision-heatmap` — edit heatmap per editing session
+## 3. `docx-revision-flow` — edit flow across editing sessions
 
 Splits the Track Changes history into sessions of continuous editing and draws, left to right in time order, the
 document at the start of the first session and at the end of every session as columns of page thumbnails (a
@@ -361,24 +361,24 @@ schematic, not Word's real layout). Between two columns, bands connect each para
 that session. Nothing changes between sessions, so each session's end column doubles as the next session's start.
 
 ```bash
-node dist/cli/heatmap.js fixtures/heatmap-demo.docx -o heatmap.svg
+node dist/cli/flow.js fixtures/flow-demo.docx -o flow.svg
 
 # Limit the period and split sessions at idle gaps longer than 2 hours
-node dist/cli/heatmap.js report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
+node dist/cli/flow.js report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 ```
 
-![Sample docx-revision-heatmap output](./fixtures/heatmap-demo.png)
+![Sample docx-revision-flow output](./fixtures/flow-demo.png)
 
 | Option | Description | Default |
 |---|---|---|
-| `-o, --output <file.svg>` | Output SVG path | `<input name>-heatmap.svg` |
+| `-o, --output <file.svg>` | Output SVG path | `<input name>-flow.svg` |
 | `-p, --gap-threshold <hours>` | Start a new session after an idle gap longer than this | `1` |
 | `--from <datetime>` / `--to <datetime>` | Period to analyze (local time, `2026-06-01` or `"2026-06-01 09:30"`; a date-only `--to` includes that whole day) | everything |
 | `--bulk-chars <n>` | Treat insertions made at the same time totalling at least this many characters as a bulk insertion | `150` |
 | `--page-width <px>` | Width of each page thumbnail | `150` |
 | `--slope-width <px>` | Width of the band area between two thumbnail columns | `72` |
-| `-t, --title <text>` | Title | `編集ヒートマップ: <file name>` |
-| `--drop` / `--preserve-history` / `--check-history-settings` | Same as `docx-revision-chart`; `--drop` writes `<file name>-heatmap-<last-modified time>.svg` | |
+| `-t, --title <text>` | Title | `編集フロー図: <file name>` |
+| `--drop` / `--preserve-history` / `--check-history-settings` | Same as `docx-revision-chart`; `--drop` writes `<file name>-flow-<last-modified time>.svg` | |
 
 If there are no timestamped revisions, or none in the requested period, no SVG is written and the tool exits with an error.
 
@@ -460,12 +460,12 @@ npm run fixtures
   paste of externally-authored text (score: 93 / very_high)
 - `fixtures/multi-session.docx`: simulates writing spread across 3 days, with
   29-hour and 20.5-hour idle gaps in between (for exercising the `-p` option)
-- `fixtures/heatmap-demo.docx`: a multi-paragraph document with headings and a
+- `fixtures/flow-demo.docx`: a multi-paragraph document with headings and a
   figure, edited in three sessions — typing by hand; pasting three paragraphs
   at once and touching them up; replacing and deleting paragraphs, making small
   fixes and adding a figure; and a fourth session reordering paragraphs by cut +
-  paste (recorded as a move) and by copy + paste + delete (for `docx-revision-heatmap`; sample output in
-  `fixtures/heatmap-demo.svg`)
+  paste (recorded as a move) and by copy + paste + delete (for `docx-revision-flow`; sample output in
+  `fixtures/flow-demo.svg`)
 
 Sample `docx-revision-chart` output for each is bundled under `fixtures/*.svg`
 (`*.png` versions are included for quick visual inspection).
@@ -491,7 +491,7 @@ docx-revision-analyzer/
 │   ├── index.ts           Library entry point for programmatic use
 │   ├── cli/
 │   │   ├── chart.ts       docx-revision-chart CLI
-│   │   ├── heatmap.ts     docx-revision-heatmap CLI
+│   │   ├── flow.ts        docx-revision-flow CLI
 │   │   ├── common.ts      Shared CLI code (--preserve-history prompts, multi-file processing and output)
 │   │   └── score.ts       docx-ai-suspicion-score CLI
 │   └── lib/
@@ -500,9 +500,9 @@ docx-revision-analyzer/
 │       ├── timeBuckets.ts    Aggregates events into time buckets (for the chart)
 │       ├── sessions.ts       Splits events into sessions by idle gap, for -p
 │       ├── svgChart.ts       SVG rendering (single-chart and session-split variants)
-│       ├── docxLayout.ts     For heatmap: splits the body into paragraphs and revision-tagged pieces; reads page setup
-│       ├── heatmap.ts        For heatmap: start/end document reconstruction, schematic pagination, paragraph intensities and change classification
-│       ├── heatmapSvg.ts     For heatmap: SVG rendering
+│       ├── docxLayout.ts     For flow: splits the body into paragraphs and revision-tagged pieces; reads page setup
+│       ├── flow.ts           For flow: start/end document reconstruction, schematic pagination, paragraph intensities and change classification
+│       ├── flowSvg.ts        For flow: SVG rendering
 │       ├── suspicionScore.ts The AI-misuse suspicion score algorithm
 │       └── filenames.ts      For --drop: builds the last-modified-time-based output filename
 ├── scripts/

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ----------------------------------------------------------------------------
-# macOS 専用: docx-revision-chart (または docx-revision-heatmap) を
+# macOS 専用: docx-revision-chart (または docx-revision-flow) を
 # Finder にドラッグ&ドロップできる ".app" (ドロップレット) にパッケージする。
 #
 # 使い方:
 #   ./scripts/make-mac-droplet.sh            # docx-revision-chart.app
-#   ./scripts/make-mac-droplet.sh heatmap    # docx-revision-heatmap.app
+#   ./scripts/make-mac-droplet.sh flow    # docx-revision-flow.app
 #
 # 仕組み:
 #   - 素の (バンドル化されていない) Unix実行ファイルは Finder の
@@ -17,11 +17,11 @@
 #   - Bunでコンパイルした本体バイナリは、このアプリの Contents/Resources/ に
 #     同梱し、AppleScript側から `do shell script` で呼び出す。
 #
-# 出力: dist-bin/docx-revision-chart.app (heatmap 指定時は docx-revision-heatmap.app)
+# 出力: dist-bin/docx-revision-chart.app (flow 指定時は docx-revision-flow.app)
 #   ここに .docx ファイルをドラッグ&ドロップすると、同じディレクトリに
 #   "<ファイル名>-<最終更新日時 YYYYMMDD-HHMMSS>.svg"
-#   (heatmap は "<ファイル名>-heatmap-<最終更新日時>.svg") が作成される
-#   (各ツールの --drop オプションを使用。heatmap は全期間が対象)。
+#   (flow は "<ファイル名>-flow-<最終更新日時>.svg") が作成される
+#   (各ツールの --drop オプションを使用。flow は全期間が対象)。
 #   完了時はmacOSの通知、エラー時はダイアログで結果を知らせる
 #   (ターミナルを開かないため)。
 #   文書が「変更履歴の作成者・日時を削除する」設定の
@@ -59,12 +59,12 @@ case "$TARGET_CLI" in
     BIN_NAME="docx-revision-chart"
     RESULT_LABEL="SVGチャート"
     ;;
-  heatmap)
-    BIN_NAME="docx-revision-heatmap"
-    RESULT_LABEL="編集ヒートマップ"
+  flow)
+    BIN_NAME="docx-revision-flow"
+    RESULT_LABEL="編集フロー図"
     ;;
   *)
-    echo "エラー: 第1引数には 'chart' または 'heatmap' を指定してください (指定値: '$TARGET_CLI')" >&2
+    echo "エラー: 第1引数には 'chart' または 'flow' を指定してください (指定値: '$TARGET_CLI')" >&2
     exit 1
     ;;
 esac

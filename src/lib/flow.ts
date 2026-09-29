@@ -1,5 +1,5 @@
 /**
- * heatmap.ts
+ * flow.ts
  *
  * 変更履歴を「連続的に編集が行われた時間区間 (セッション)」に分け、区間ごとに
  *  1. 区間開始時点 (最初の変更の直前) と終了時点の文書の状態を復元して、模式的にページへ割り付け、
@@ -27,7 +27,7 @@ import { RevisionEvent } from "./docxRevisions";
 import { DocxLayoutModel, Para, RevRef, Seg, PageGeometry } from "./docxLayout";
 import { splitIntoSessions } from "./sessions";
 
-export interface HeatmapOptions {
+export interface FlowOptions {
   /** 無編集期間がこれ (時間) を超えたら区間を分ける */
   gapThresholdHours: number;
   /** 同時刻の挿入の合計がこれ以上なら一括挿入とみなす (文字数) */
@@ -37,7 +37,7 @@ export interface HeatmapOptions {
   to?: Date;
 }
 
-export const DEFAULT_HEATMAP_OPTIONS: HeatmapOptions = {
+export const DEFAULT_FLOW_OPTIONS: FlowOptions = {
   gapThresholdHours: 1,
   bulkChars: 150,
 };
@@ -105,7 +105,7 @@ export interface SlopeUnit {
   intensity: number;
 }
 
-export interface HeatmapSession {
+export interface FlowSession {
   start: Date;
   end: Date;
   /** 直前の区間との間の無編集期間 (時間)。先頭は null */
@@ -124,10 +124,10 @@ export interface HeatmapSession {
   links: SlopeLink[];
 }
 
-export interface HeatmapResult {
+export interface FlowResult {
   geometry: PageGeometry;
   linesPerPage: number;
-  sessions: HeatmapSession[];
+  sessions: FlowSession[];
 }
 
 // ---------------------------------------------------------------------------
@@ -604,7 +604,7 @@ function toUnitLinks(model: DocxLayoutModel, paraLinks: SessionHeat["paraLinks"]
   return [...links.values()];
 }
 
-export function buildHeatmap(model: DocxLayoutModel, opts: HeatmapOptions): HeatmapResult {
+export function buildFlow(model: DocxLayoutModel, opts: FlowOptions): FlowResult {
   const g = model.geometry;
   const textWidth = g.pageWidthTwips - g.marginLeftTwips - g.marginRightTwips;
   const textHeight = g.pageHeightTwips - g.marginTopTwips - g.marginBottomTwips;
@@ -638,7 +638,7 @@ export function buildHeatmap(model: DocxLayoutModel, opts: HeatmapOptions): Heat
     }));
 
   const reloc = findRelocations(model);
-  const sessions: HeatmapSession[] = splitIntoSessions(events, opts.gapThresholdHours).map((s) => {
+  const sessions: FlowSession[] = splitIntoSessions(events, opts.gapThresholdHours).map((s) => {
     const start = s.events[0].date.getTime();
     const end = s.events[s.events.length - 1].date.getTime();
     // 開始時点は区間の最初の変更の直前 (同じ時刻の変更は区間に含まれるため 1ms 前)

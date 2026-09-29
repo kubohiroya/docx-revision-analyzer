@@ -8,7 +8,7 @@
 1. **`docx-revision-chart`** — 編集の時系列を可視化する SVG チャートを生成
 2. **`docx-ai-suspicion-score`** — 「外部で作文した文章を貼り付けたのでは」と疑われる
    不自然な文字数増加を検出し、0〜100の「AI不正利用疑いスコア」を算出
-3. **`docx-revision-heatmap`** — 連続的に編集が行われた時間区間ごとに、開始時点と終了時点の
+3. **`docx-revision-flow`** — 連続的に編集が行われた時間区間ごとに、開始時点と終了時点の
    文書のページの模式図を並べ、細かい編集 (緑)・一括挿入や置き換え (オレンジ)・削除 (赤) と、
    段落・図表ごとの変化を示す帯を描いた SVG を生成
 
@@ -67,8 +67,8 @@ npm run build:binary:all
 内部的には `scripts/build-binary.sh` を呼んでいます。`docx-ai-suspicion-score` の
 方をバイナリ化したい場合は `npm run build:binary:score`、または
 `bash scripts/build-binary.sh score` を実行してください
-(`--all` を追加すると同様に一括クロスビルドできます)。`docx-revision-heatmap` は
-`npm run build:binary:heatmap` (`bash scripts/build-binary.sh heatmap`) でバイナリ化できます。
+(`--all` を追加すると同様に一括クロスビルドできます)。`docx-revision-flow` は
+`npm run build:binary:flow` (`bash scripts/build-binary.sh flow`) でバイナリ化できます。
 
 > クロスコンパイル (`--all`) で生成した他OS向けの実行ファイルは、ビルドを実行した
 > マシン上では動作確認できません。配布前に対象OSでの動作確認を推奨します。
@@ -96,9 +96,9 @@ npm run build:mac-app
 パッケージします。生成された `.app` は好きな場所 (Applicationsフォルダや
 Dockなど) に置いて、`.docx` ファイルをそのアイコンにドロップしてください。
 
-`npm run build:mac-app:heatmap` を実行すると、同じ仕組みで `docx-revision-heatmap` の
-ドロップレット `dist-bin/docx-revision-heatmap.app` を作れます。こちらは全期間・既定の設定で
-`<ファイル名>-heatmap-<そのファイルの最終更新日時>.svg` を出力します。
+`npm run build:mac-app:flow` を実行すると、同じ仕組みで `docx-revision-flow` の
+ドロップレット `dist-bin/docx-revision-flow.app` を作れます。こちらは全期間・既定の設定で
+`<ファイル名>-flow-<そのファイルの最終更新日時>.svg` を出力します。
 
 なぜラッパーが必要か: macOSのFinderは、ドロップされたファイルを
 (Apple Eventという仕組み経由で) 正式な「アプリケーションバンドル」にしか
@@ -334,7 +334,7 @@ Windows では書き込みオープンの可否、macOS/Linux では `lsof`) を
 
 ---
 
-## 3. `docx-revision-heatmap` — 時間区間ごとの編集ヒートマップ
+## 3. `docx-revision-flow` — 時間区間ごとの編集フロー図
 
 変更履歴を「連続的に編集が行われた時間区間」に分け、最初の区間の開始時点と各区間の終了時点の文書を
 ページのサムネイル (模式図) の列として左から右へ時系列順に並べ、列の間に、その区間での段落・図表ごとの変化を
@@ -342,24 +342,24 @@ Windows では書き込みオープンの可否、macOS/Linux では `lsof`) を
 開始時点を兼ねます。
 
 ```bash
-node dist/cli/heatmap.js fixtures/heatmap-demo.docx -o heatmap.svg
+node dist/cli/flow.js fixtures/flow-demo.docx -o flow.svg
 
 # 期間を指定し、2時間以上の無編集期間で区間を分ける
-node dist/cli/heatmap.js 報告書.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
+node dist/cli/flow.js 報告書.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 ```
 
-![docx-revision-heatmap の出力例](./fixtures/heatmap-demo.png)
+![docx-revision-flow の出力例](./fixtures/flow-demo.png)
 
 | オプション | 説明 | 既定値 |
 |---|---|---|
-| `-o, --output <file.svg>` | 出力するSVGファイルのパス | `<入力ファイル名>-heatmap.svg` |
+| `-o, --output <file.svg>` | 出力するSVGファイルのパス | `<入力ファイル名>-flow.svg` |
 | `-p, --gap-threshold <hours>` | 無編集期間がこの時間を超えたら、別の時間区間に分ける | `1` |
 | `--from <datetime>` / `--to <datetime>` | 対象期間 (ローカル時刻。`2026-06-01` や `"2026-06-01 09:30"` の形式。日付だけの `--to` はその日の終わりまで) | 全期間 |
 | `--bulk-chars <n>` | 同じ時刻にまとめて挿入された文字数がこれ以上なら一括挿入とみなす | `150` |
 | `--page-width <px>` | ページのサムネイルの幅 | `150` |
 | `--slope-width <px>` | サムネイルの列の間 (変化を示す帯) の幅 | `72` |
-| `-t, --title <text>` | 図のタイトル | `編集ヒートマップ: <ファイル名>` |
-| `--drop` / `--preserve-history` / `--check-history-settings` | `docx-revision-chart` と同じ。`--drop` の出力先は `<ファイル名>-heatmap-<最終更新日時>.svg` | |
+| `-t, --title <text>` | 図のタイトル | `編集フロー図: <ファイル名>` |
+| `--drop` / `--preserve-history` / `--check-history-settings` | `docx-revision-chart` と同じ。`--drop` の出力先は `<ファイル名>-flow-<最終更新日時>.svg` | |
 
 時系列解析できる変更履歴が無い場合や、指定した期間に変更履歴が無い場合は、SVG を作らずにエラーになります。
 
@@ -434,10 +434,10 @@ npm run fixtures
   一括挿入 (外部での作文の貼り付けを模擬) したことを想定 (スコア: 93 / very_high)
 - `fixtures/multi-session.docx`: 3日間に分けて執筆し、間に29時間・20.5時間の
   無編集期間があったことを想定 (`-p` オプションの動作確認用)
-- `fixtures/heatmap-demo.docx`: 見出し・図を含む複数段落の文書を、3つの時間区間で
+- `fixtures/flow-demo.docx`: 見出し・図を含む複数段落の文書を、3つの時間区間で
   「手で入力」「3段落の一括貼り付けと手直し」「段落の置き換え・削除と細かい修正・図の追加」と編集し、
   4つ目の区間で「カット＋貼り付け (移動として記録)」「コピー＋貼り付け＋削除」による並べ替えを行ったことを想定
-  (`docx-revision-heatmap` の動作確認用。出力例は `fixtures/heatmap-demo.svg`)
+  (`docx-revision-flow` の動作確認用。出力例は `fixtures/flow-demo.svg`)
 
 これらに対する `docx-revision-chart` の出力例が `fixtures/*.svg` (`*.png` は
 確認用にラスタライズしたもの) として同梱されています。
@@ -462,7 +462,7 @@ docx-revision-analyzer/
 │   ├── index.ts           ライブラリとしてimportする場合のエントリポイント
 │   ├── cli/
 │   │   ├── chart.ts       docx-revision-chart CLI本体
-│   │   ├── heatmap.ts     docx-revision-heatmap CLI本体
+│   │   ├── flow.ts        docx-revision-flow CLI本体
 │   │   ├── common.ts      CLI共通処理 (--preserve-history の確認、複数ファイルの処理と結果表示)
 │   │   └── score.ts       docx-ai-suspicion-score CLI本体
 │   └── lib/
@@ -471,9 +471,9 @@ docx-revision-analyzer/
 │       ├── timeBuckets.ts    時間バケットへの集計 (チャート用)
 │       ├── sessions.ts       -p オプション用: 無編集期間で区切ったセッション分割
 │       ├── svgChart.ts       SVGチャートのレンダリング (全体版・セッション分割版)
-│       ├── docxLayout.ts     heatmap 用: 本文を段落と変更履歴付きの断片に分解し、用紙サイズ等を読み取る
-│       ├── heatmap.ts        heatmap 用: 区間の開始・終了時点の文書の復元・模式的なページ割り・段落ごとの度合いと変化の分類
-│       ├── heatmapSvg.ts     heatmap 用: SVG のレンダリング
+│       ├── docxLayout.ts     flow 用: 本文を段落と変更履歴付きの断片に分解し、用紙サイズ等を読み取る
+│       ├── flow.ts           flow 用: 区間の開始・終了時点の文書の復元・模式的なページ割り・段落ごとの度合いと変化の分類
+│       ├── flowSvg.ts        flow 用: SVG のレンダリング
 │       ├── suspicionScore.ts AI不正利用疑いスコアの算出ロジック
 │       └── filenames.ts      --drop 用: 最終更新日時を使った出力ファイル名の生成
 ├── scripts/

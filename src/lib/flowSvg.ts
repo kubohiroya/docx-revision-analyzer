@@ -1,7 +1,7 @@
 /**
- * heatmapSvg.ts
+ * flowSvg.ts
  *
- * buildHeatmap の結果を1枚の SVG に描画する。
+ * buildFlow の結果を1枚の SVG に描画する。
  *  - 文書の模式的なページを縦に並べた列 (サムネイル) を、左から右へ時系列順に並べる。
  *    先頭の列は最初の区間の開始時点、以降の列は各区間の終了時点の文書。
  *    区間と区間の間には変更が無いため、前の区間の終了時点と次の区間の開始時点は同じ文書であり、
@@ -15,10 +15,10 @@
  *    列の見出しに、その後の無編集期間の長さを表記する。
  */
 
-import { HeatmapResult, HeatmapSession, PageLayout, ParaHeat, SlopeUnit } from "./heatmap";
+import { FlowResult, FlowSession, PageLayout, ParaHeat, SlopeUnit } from "./flow";
 import { esc, formatGapHours } from "./svgChart";
 
-export interface HeatmapSvgOptions {
+export interface FlowSvgOptions {
   title?: string;
   /** ページのサムネイルの幅 (px) */
   pageWidth?: number;
@@ -216,7 +216,7 @@ function unitColor(u: SlopeUnit): string {
  * 移動・並べ替えで対応づいた単位は、移動元から移動先へ青い帯で結び、最後に重ねる。
  */
 function renderSlopes(
-  s: HeatmapSession,
+  s: FlowSession,
   lx: number,
   rx: number,
   stackTop: number,
@@ -285,7 +285,7 @@ function renderSlopes(
 }
 
 /** 区間 index (0始まり) のキャプション。x〜x+width は前後の列の中心の間 */
-function renderCaption(s: HeatmapSession, index: number, x: number, y: number, width: number, font: string): string {
+function renderCaption(s: FlowSession, index: number, x: number, y: number, width: number, font: string): string {
   const cx = x + width / 2;
   const lines = [
     // どの帯の区間かが分かるよう、前後の列の中心を結ぶ括弧を描く
@@ -328,7 +328,7 @@ function renderLegend(x: number, y: number, font: string): string {
   );
 }
 
-export function renderHeatmapSvg(result: HeatmapResult, opts: HeatmapSvgOptions = {}): string {
+export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): string {
   const sessions = result.sessions;
   if (sessions.length === 0) {
     throw new Error("描画する時間区間がありません (sessions が空です)。");
@@ -365,7 +365,7 @@ export function renderHeatmapSvg(result: HeatmapResult, opts: HeatmapSvgOptions 
   parts.push(`<rect width="100%" height="100%" fill="#ffffff"/>`);
   parts.push(
     `<text x="${MARGIN}" y="32" font-family="${font}" font-size="18" font-weight="bold" fill="#222">${esc(
-      opts.title ?? "編集ヒートマップ"
+      opts.title ?? "編集フロー図"
     )}</text>`
   );
   parts.push(renderLegend(MARGIN, 58, font));
