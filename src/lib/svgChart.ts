@@ -9,12 +9,85 @@ export interface ChartOptions {
   fontFamily?: string;
 }
 
-function esc(s: string): string {
+export function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** 追加の内訳・削除の色 (docx-revision-flow と同じ) */
+const BULK_COLOR = "rgb(234,108,0)";
+const FINE_COLOR = "rgb(22,128,61)";
+const MOVED_COLOR = "rgb(37,99,235)";
+const DELETED_COLOR = "rgb(198,40,40)";
+/** 総文字数の折れ線 (移動・並べ替えの青と紛れないよう濃い灰色) */
+const TOTAL_COLOR = "#424242";
+
+/**
+ * 1つのバケットの棒: 上向きに追加 (下から一括挿入・細かい編集・移動/並べ替えの積み上げ)、
+ * 下向きに削除。
+ */
+function renderBucketBars(
+  b: Bucket,
+  x: number,
+  barW: number,
+  zeroY: number,
+  yAdded: (v: number) => number,
+  yDeleted: (v: number) => number
+): string {
+  const parts: string[] = [];
+  const when = b.start.toISOString();
+  let base = 0;
+  for (const [v, color, label] of [
+    [b.addedBulk, BULK_COLOR, "一括挿入"],
+    [b.addedFine, FINE_COLOR, "細かい編集"],
+    [b.addedMoved, MOVED_COLOR, "移動・並べ替え"],
+  ] as const) {
+    if (v <= 0) continue;
+    const top = yAdded(base + v);
+    const bottom = yAdded(base);
+    parts.push(
+      `<rect x="${x.toFixed(2)}" y="${top.toFixed(2)}" width="${barW.toFixed(2)}" height="${(bottom - top).toFixed(
+        2
+      )}" fill="${color}" fill-opacity="0.85"><title>${label} ${v}文字 (${when})</title></rect>`
+    );
+    base += v;
+  }
+  if (b.deleted > 0) {
+    const y = yDeleted(b.deleted);
+    parts.push(
+      `<rect x="${x.toFixed(2)}" y="${zeroY.toFixed(2)}" width="${barW.toFixed(2)}" height="${(y - zeroY).toFixed(
+        2
+      )}" fill="${DELETED_COLOR}" fill-opacity="0.85"><title>削除 ${b.deleted}文字 (${when})</title></rect>`
+    );
+  }
+  return parts.join("");
+}
+
+/** 凡例 (移動・並べ替えは、該当する挿入がある場合だけ載せる) */
+function renderLegendItems(buckets: Bucket[]): string {
+  const items: [string, string][] = [
+    [BULK_COLOR, "一括挿入"],
+    [FINE_COLOR, "細かい編集"],
+  ];
+  if (buckets.some((b) => b.addedMoved > 0)) items.push([MOVED_COLOR, "移動・並べ替え"]);
+  items.push([DELETED_COLOR, "削除"]);
+  const parts: string[] = [];
+  let x = 0;
+  for (const [color, label] of items) {
+    parts.push(
+      `<rect x="${x}" y="-10" width="14" height="14" fill="${color}" fill-opacity="0.85"/>`,
+      `<text x="${x + 20}" y="1" font-size="12" fill="#333">${label}</text>`
+    );
+    x += 20 + label.length * 12 + 16;
+  }
+  parts.push(
+    `<line x1="${x}" y1="-3" x2="${x + 20}" y2="-3" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>`,
+    `<text x="${x + 26}" y="1" font-size="12" fill="#333">総文字数</text>`
+  );
+  return parts.join("");
 }
 
 function fmtTime(d: Date, spanMs: number): string {
@@ -81,22 +154,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   for (let i = 0; i < n; i++) {
     const b = buckets[i];
     const x = marginLeft + bandW * i + (bandW - barW) / 2;
-    if (b.added > 0) {
-      const y = yAdded(b.added);
-      bars.push(
-        `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barW.toFixed(2)}" height="${(
-          zeroY - y
-        ).toFixed(2)}" fill="#2e7d32" fill-opacity="0.85"><title>追加 ${b.added}文字 (${b.start.toISOString()})</title></rect>`
-      );
-    }
-    if (b.deleted > 0) {
-      const y = yDeleted(b.deleted);
-      bars.push(
-        `<rect x="${x.toFixed(2)}" y="${zeroY.toFixed(2)}" width="${barW.toFixed(2)}" height="${(
-          y - zeroY
-        ).toFixed(2)}" fill="#c62828" fill-opacity="0.85"><title>削除 ${b.deleted}文字 (${b.start.toISOString()})</title></rect>`
-      );
-    }
+    bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted));
   }
 
   // --- 総文字数の折れ線 ---
@@ -144,12 +202,12 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
     rightTicks.push(
       `<line x1="${(marginLeft + plotW).toFixed(2)}" y1="${y.toFixed(2)}" x2="${(
         marginLeft + plotW + 5
-      ).toFixed(2)}" y2="${y.toFixed(2)}" stroke="#1565c0"/>`
+      ).toFixed(2)}" y2="${y.toFixed(2)}" stroke="${TOTAL_COLOR}"/>`
     );
     rightTicks.push(
       `<text x="${(marginLeft + plotW + 10).toFixed(2)}" y="${(y + 4).toFixed(
         2
-      )}" font-size="10" fill="#1565c0" text-anchor="start">${Math.round(val)}</text>`
+      )}" font-size="10" fill="${TOTAL_COLOR}" text-anchor="start">${Math.round(val)}</text>`
     );
   }
 
@@ -173,23 +231,16 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
 
   <g>${bars.join("\n  ")}</g>
 
-  <polyline points="${linePoints}" fill="none" stroke="#1565c0" stroke-width="2.5"/>
-  <g fill="#1565c0">${buckets
+  <polyline points="${linePoints}" fill="none" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>
+  <g fill="${TOTAL_COLOR}">${buckets
     .map((b, i) => `<circle cx="${xCenter(i).toFixed(2)}" cy="${yTotal(b.totalAtEnd).toFixed(2)}" r="2.5"><title>総文字数 ${b.totalAtEnd} (${b.end.toISOString()})</title></circle>`)
     .join("")}</g>
 
   <text x="${marginLeft - 50}" y="${marginTop - 10}" font-size="11" fill="#555">文字数(追加/削除)</text>
-  <text x="${marginLeft + plotW - 20}" y="${marginTop - 10}" font-size="11" fill="#1565c0">総文字数</text>
+  <text x="${marginLeft + plotW - 20}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}">総文字数</text>
 
   <!-- 凡例 -->
-  <g transform="translate(${marginLeft}, ${height - 22})">
-    <rect x="0" y="-10" width="14" height="14" fill="#2e7d32" fill-opacity="0.85"/>
-    <text x="20" y="1" font-size="12" fill="#333">追加</text>
-    <rect x="70" y="-10" width="14" height="14" fill="#c62828" fill-opacity="0.85"/>
-    <text x="90" y="1" font-size="12" fill="#333">削除</text>
-    <line x1="140" y1="-3" x2="160" y2="-3" stroke="#1565c0" stroke-width="2.5"/>
-    <text x="166" y="1" font-size="12" fill="#333">総文字数</text>
-  </g>
+  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(buckets)}</g>
 </svg>`;
 }
 
@@ -198,12 +249,12 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
 // ============================================================================
 
 /** 文字幅の粗い近似 (プロポーショナルフォント、半角英数字・記号を想定) */
-function estimateTextWidth(text: string, fontSize: number): number {
+export function estimateTextWidth(text: string, fontSize: number): number {
   return text.length * fontSize * 0.62;
 }
 
 /** 無編集期間 (時間) を "12 h" のような表記に整形する */
-function formatGapHours(hours: number): string {
+export function formatGapHours(hours: number): string {
   const rounded = Math.round(hours * 10) / 10;
   const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
   return `${text} h`;
@@ -343,12 +394,12 @@ export function renderSessionedRevisionChart(
     rightTicks.push(
       `<line x1="${plotRight.toFixed(2)}" y1="${y.toFixed(2)}" x2="${(plotRight + 5).toFixed(
         2
-      )}" y2="${y.toFixed(2)}" stroke="#1565c0"/>`
+      )}" y2="${y.toFixed(2)}" stroke="${TOTAL_COLOR}"/>`
     );
     rightTicks.push(
       `<text x="${(plotRight + 10).toFixed(2)}" y="${(y + 4).toFixed(
         2
-      )}" font-size="10" fill="#1565c0" text-anchor="start">${Math.round(val)}</text>`
+      )}" font-size="10" fill="${TOTAL_COLOR}" text-anchor="start">${Math.round(val)}</text>`
     );
   }
 
@@ -399,22 +450,7 @@ export function renderSessionedRevisionChart(
     for (let i = 0; i < n; i++) {
       const b = p.buckets[i];
       const x = p.x + bandW * i + (bandW - barW) / 2;
-      if (b.added > 0) {
-        const y = yAdded(b.added);
-        bars.push(
-          `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barW.toFixed(2)}" height="${(
-            zeroY - y
-          ).toFixed(2)}" fill="#2e7d32" fill-opacity="0.85"><title>追加 ${b.added}文字 (${b.start.toISOString()})</title></rect>`
-        );
-      }
-      if (b.deleted > 0) {
-        const y = yDeleted(b.deleted);
-        bars.push(
-          `<rect x="${x.toFixed(2)}" y="${zeroY.toFixed(2)}" width="${barW.toFixed(2)}" height="${(
-            y - zeroY
-          ).toFixed(2)}" fill="#c62828" fill-opacity="0.85"><title>削除 ${b.deleted}文字 (${b.start.toISOString()})</title></rect>`
-        );
-      }
+      bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted));
     }
 
     const linePoints = p.buckets
@@ -444,8 +480,8 @@ export function renderSessionedRevisionChart(
 
     panelContents.push(
       `<g>${bars.join("")}</g>` +
-        `<polyline points="${linePoints}" fill="none" stroke="#1565c0" stroke-width="2.5"/>` +
-        `<g fill="#1565c0">${dots}</g>` +
+        `<polyline points="${linePoints}" fill="none" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>` +
+        `<g fill="${TOTAL_COLOR}">${dots}</g>` +
         `${xLabels.join("")}`
     );
   }
@@ -471,16 +507,9 @@ export function renderSessionedRevisionChart(
   ${panelContents.join("\n  ")}
 
   <text x="${marginLeft - 50}" y="${marginTop - 10}" font-size="11" fill="#555">文字数(追加/削除)</text>
-  <text x="${plotRight - 20}" y="${marginTop - 10}" font-size="11" fill="#1565c0">総文字数</text>
+  <text x="${plotRight - 20}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}">総文字数</text>
 
   <!-- 凡例 -->
-  <g transform="translate(${marginLeft}, ${height - 22})">
-    <rect x="0" y="-10" width="14" height="14" fill="#2e7d32" fill-opacity="0.85"/>
-    <text x="20" y="1" font-size="12" fill="#333">追加</text>
-    <rect x="70" y="-10" width="14" height="14" fill="#c62828" fill-opacity="0.85"/>
-    <text x="90" y="1" font-size="12" fill="#333">削除</text>
-    <line x1="140" y1="-3" x2="160" y2="-3" stroke="#1565c0" stroke-width="2.5"/>
-    <text x="166" y="1" font-size="12" fill="#333">総文字数</text>
-  </g>
+  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(allBuckets)}</g>
 </svg>`;
 }

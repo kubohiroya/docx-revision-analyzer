@@ -21,6 +21,7 @@
  */
 
 import JSZip from "jszip";
+import type { InsertionKind } from "./insertionKinds";
 import { XMLParser } from "fast-xml-parser";
 import * as fs from "fs";
 import {
@@ -38,6 +39,10 @@ export interface RevisionEvent {
   date: Date;
   /** このイベントで追加/削除された文字数 */
   chars: number;
+  /** このイベントで追加/削除された文章 (移動・並べ替えの判定用) */
+  text: string;
+  /** 挿入の種類 (classifyInsertions で設定する。削除イベントでは undefined) */
+  insKind?: InsertionKind;
   /** 抽出元パート (例: word/document.xml) */
   part: string;
 }
@@ -60,8 +65,8 @@ type XmlNode = Record<string, unknown>;
 
 const DEFAULT_PARTS = ["word/document.xml"];
 
-/** #text を含む子ノード配列から文字列を再帰的に取り出す (t / delText のみ対象) */
-function collectText(nodes: XmlNode[] | undefined): number {
+/** #text を含む子ノード配列から文字列を再帰的に取り出し、文字数を返す (t / delText のみ対象) */
+function collectText(nodes: XmlNode[] | undefined, out: string[] = []): number {
   if (!nodes) return 0;
   let total = 0;
   for (const node of nodes) {
@@ -73,16 +78,19 @@ function collectText(nodes: XmlNode[] | undefined): number {
       if (Array.isArray(children)) {
         for (const c of children) {
           if (typeof c === "object" && c !== null && "#text" in c) {
-            total += String((c as Record<string, unknown>)["#text"]).length;
+            const text = String((c as Record<string, unknown>)["#text"]);
+            total += text.length;
+            out.push(text);
           }
         }
       }
     } else if (tagKey === "tab" || tagKey === "br" || tagKey === "cr") {
       // タブ/改行も1文字としてカウント (簡易近似)
       total += 1;
+      out.push(tagKey === "tab" ? "\t" : "\n");
     } else {
       // その他の要素は再帰的に潜る (入れ子の ins/del を含む可能性がある)
-      total += collectText(children);
+      total += collectText(children, out);
     }
   }
   return total;
@@ -138,7 +146,8 @@ function collectEvents(
 
     if (tagKey === "ins" || tagKey === "del") {
       const dateStr = getAttr(node, "date");
-      const chars = collectText(children);
+      const textParts: string[] = [];
+      const chars = collectText(children, textParts);
       // 日付属性が無い場合は事実上解析不能なのでスキップし、件数だけ数える
       // (Word の「保存時に個人情報を削除する」設定で w:date が消される)
       if (!dateStr) {
@@ -150,6 +159,7 @@ function collectEvents(
           author: getAttr(node, "author"),
           date: new Date(dateStr),
           chars,
+          text: textParts.join(""),
           part,
         });
       }
