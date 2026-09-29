@@ -1,5 +1,6 @@
 import { Bucket, buildBuckets, BucketSpec } from "./timeBuckets";
 import { Session } from "./sessions";
+import { estimateLabelWidth, t } from "./i18n";
 
 export interface ChartOptions {
   width?: number;
@@ -41,9 +42,9 @@ function renderBucketBars(
   const when = b.start.toISOString();
   let base = 0;
   for (const [v, color, label] of [
-    [b.addedFine, FINE_COLOR, "細かい編集"],
-    [b.addedBulk, BULK_COLOR, "一括挿入"],
-    [b.addedMoved, MOVED_COLOR, "移動・並べ替え"],
+    [b.addedFine, FINE_COLOR, t("kindFine")],
+    [b.addedBulk, BULK_COLOR, t("kindBulk")],
+    [b.addedMoved, MOVED_COLOR, t("kindMoved")],
   ] as const) {
     if (v <= 0) continue;
     const top = yAdded(base + v);
@@ -51,7 +52,7 @@ function renderBucketBars(
     parts.push(
       `<rect x="${x.toFixed(2)}" y="${top.toFixed(2)}" width="${barW.toFixed(2)}" height="${(bottom - top).toFixed(
         2
-      )}" fill="${color}" fill-opacity="0.85"><title>${label} ${v}文字 (${when})</title></rect>`
+      )}" fill="${color}" fill-opacity="0.85"><title>${esc(t("barTooltip", label, v, when))}</title></rect>`
     );
     base += v;
   }
@@ -60,7 +61,7 @@ function renderBucketBars(
     parts.push(
       `<rect x="${x.toFixed(2)}" y="${zeroY.toFixed(2)}" width="${barW.toFixed(2)}" height="${(y - zeroY).toFixed(
         2
-      )}" fill="${DELETED_COLOR}" fill-opacity="0.85"><title>削除 ${b.deleted}文字 (${when})</title></rect>`
+      )}" fill="${DELETED_COLOR}" fill-opacity="0.85"><title>${esc(t("barTooltip", t("kindDeleted"), b.deleted, when))}</title></rect>`
     );
   }
   return parts.join("");
@@ -69,23 +70,23 @@ function renderBucketBars(
 /** 凡例 (移動・並べ替えは、該当する挿入がある場合だけ載せる) */
 function renderLegendItems(buckets: Bucket[]): string {
   const items: [string, string][] = [
-    [FINE_COLOR, "細かい編集"],
-    [BULK_COLOR, "一括挿入"],
+    [FINE_COLOR, t("kindFine")],
+    [BULK_COLOR, t("kindBulk")],
   ];
-  if (buckets.some((b) => b.addedMoved > 0)) items.push([MOVED_COLOR, "移動・並べ替え"]);
-  items.push([DELETED_COLOR, "削除"]);
+  if (buckets.some((b) => b.addedMoved > 0)) items.push([MOVED_COLOR, t("kindMoved")]);
+  items.push([DELETED_COLOR, t("kindDeleted")]);
   const parts: string[] = [];
   let x = 0;
   for (const [color, label] of items) {
     parts.push(
       `<rect x="${x}" y="-10" width="14" height="14" fill="${color}" fill-opacity="0.85"/>`,
-      `<text x="${x + 20}" y="1" font-size="12" fill="#333">${label}</text>`
+      `<text x="${x + 20}" y="1" font-size="12" fill="#333">${esc(label)}</text>`
     );
-    x += 20 + label.length * 12 + 16;
+    x += 20 + estimateLabelWidth(label, 12) + 16;
   }
   parts.push(
     `<line x1="${x}" y1="-3" x2="${x + 20}" y2="-3" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>`,
-    `<text x="${x + 26}" y="1" font-size="12" fill="#333">総文字数</text>`
+    `<text x="${x + 26}" y="1" font-size="12" fill="#333">${esc(t("totalChars"))}</text>`
   );
   return parts.join("");
 }
@@ -111,7 +112,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   const fontFamily =
     opts.fontFamily ??
     "'Noto Sans CJK JP', 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Meiryo, 'MS PGothic', 'Helvetica Neue', Arial, sans-serif";
-  const title = opts.title ?? "編集履歴 (追加/削除文字数・総文字数)";
+  const title = opts.title ?? t("chartDefaultTitle");
 
   const marginLeft = 70;
   const marginRight = 70;
@@ -121,7 +122,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   const plotH = height - marginTop - marginBottom;
 
   if (buckets.length === 0) {
-    throw new Error("描画する変更履歴がありません (buckets が空です)。");
+    throw new Error(t("errNoBuckets"));
   }
 
   const maxAdded = Math.max(1, ...buckets.map((b) => b.added));
@@ -217,9 +218,9 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
     title
   )}</text>
 
-  <!-- ゼロ軸 -->
+  <!-- zero axis -->
   <line x1="${marginLeft}" y1="${zeroY}" x2="${marginLeft + plotW}" y2="${zeroY}" stroke="#333" stroke-width="1"/>
-  <!-- プロット枠 -->
+  <!-- plot frame -->
   <line x1="${marginLeft}" y1="${marginTop}" x2="${marginLeft}" y2="${marginTop + plotH}" stroke="#333" stroke-width="1"/>
   <line x1="${marginLeft + plotW}" y1="${marginTop}" x2="${marginLeft + plotW}" y2="${
     marginTop + plotH
@@ -233,13 +234,13 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
 
   <polyline points="${linePoints}" fill="none" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>
   <g fill="${TOTAL_COLOR}">${buckets
-    .map((b, i) => `<circle cx="${xCenter(i).toFixed(2)}" cy="${yTotal(b.totalAtEnd).toFixed(2)}" r="2.5"><title>総文字数 ${b.totalAtEnd} (${b.end.toISOString()})</title></circle>`)
+    .map((b, i) => `<circle cx="${xCenter(i).toFixed(2)}" cy="${yTotal(b.totalAtEnd).toFixed(2)}" r="2.5"><title>${esc(t("totalTooltip", b.totalAtEnd, b.end.toISOString()))}</title></circle>`)
     .join("")}</g>
 
-  <text x="${marginLeft - 50}" y="${marginTop - 10}" font-size="11" fill="#555">文字数(追加/削除)</text>
-  <text x="${marginLeft + plotW - 20}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}">総文字数</text>
+  <text x="${marginLeft - 50}" y="${marginTop - 10}" font-size="11" fill="#555">${esc(t("axisAddedDeleted"))}</text>
+  <text x="${marginLeft + plotW + 24}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}" text-anchor="end">${esc(t("totalChars"))}</text>
 
-  <!-- 凡例 -->
+  <!-- legend -->
   <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(buckets)}</g>
 </svg>`;
 }
@@ -300,7 +301,7 @@ export function renderSessionedRevisionChart(
   const fontFamily =
     opts.fontFamily ??
     "'Noto Sans CJK JP', 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Meiryo, 'MS PGothic', 'Helvetica Neue', Arial, sans-serif";
-  const title = opts.title ?? "編集履歴 (期間ごと・追加/削除文字数・総文字数)";
+  const title = opts.title ?? t("chartDefaultTitleSessions");
   const pixelsPerBucket = opts.pixelsPerBucket ?? 16;
   const axisFontSize = 11;
 
@@ -311,7 +312,7 @@ export function renderSessionedRevisionChart(
   const plotH = height - marginTop - marginBottom;
 
   if (sessions.length === 0) {
-    throw new Error("描画する変更履歴がありません (sessions が空です)。");
+    throw new Error(t("errNoSessions"));
   }
 
   // --- 各セッションを独立にバケット集計しつつ、累計総文字数はセッションをまたいで引き継ぐ ---
@@ -461,7 +462,7 @@ export function renderSessionedRevisionChart(
         (b, i) =>
           `<circle cx="${xCenter(i).toFixed(2)}" cy="${yTotal(b.totalAtEnd).toFixed(
             2
-          )}" r="2.5"><title>総文字数 ${b.totalAtEnd} (${b.end.toISOString()})</title></circle>`
+          )}" r="2.5"><title>${esc(t("totalTooltip", b.totalAtEnd, b.end.toISOString()))}</title></circle>`
       )
       .join("");
 
@@ -488,7 +489,7 @@ export function renderSessionedRevisionChart(
 
   const thresholdNote =
     opts.gapThresholdHours !== undefined
-      ? `<text x="${width / 2}" y="48" text-anchor="middle" font-size="12" fill="#777">(${opts.gapThresholdHours}時間以上更新が無い期間で区切って表示)</text>`
+      ? `<text x="${width / 2}" y="48" text-anchor="middle" font-size="12" fill="#777">${esc(t("chartSplitNote", opts.gapThresholdHours))}</text>`
       : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${fontFamily}">
@@ -506,10 +507,10 @@ export function renderSessionedRevisionChart(
 
   ${panelContents.join("\n  ")}
 
-  <text x="${marginLeft - 50}" y="${marginTop - 10}" font-size="11" fill="#555">文字数(追加/削除)</text>
-  <text x="${plotRight - 20}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}">総文字数</text>
+  <text x="${marginLeft - 50}" y="${marginTop - 10}" font-size="11" fill="#555">${esc(t("axisAddedDeleted"))}</text>
+  <text x="${plotRight + 24}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}" text-anchor="end">${esc(t("totalChars"))}</text>
 
-  <!-- 凡例 -->
+  <!-- legend -->
   <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(allBuckets)}</g>
 </svg>`;
 }

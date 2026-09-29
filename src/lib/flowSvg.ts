@@ -17,6 +17,7 @@
 
 import { FlowResult, FlowSession, PageLayout, ParaHeat, SlopeUnit } from "./flow";
 import { esc, formatGapHours } from "./svgChart";
+import { estimateLabelWidth, t } from "./i18n";
 
 export interface FlowSvgOptions {
   title?: string;
@@ -40,7 +41,7 @@ const MARGIN = 24;
 const HEADER_HEIGHT = 128;
 /** 「開始時点」「終了時点」の見出しの高さ */
 const STACK_LABEL_HEIGHT = 34;
-const CAPTION_HEIGHT = 64;
+const CAPTION_HEIGHT = 78;
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -57,7 +58,7 @@ function fmtRange(start: Date, end: Date): string {
 }
 
 function fmtCount(n: number): string {
-  return n.toLocaleString("ja-JP");
+  return n.toLocaleString("en-US");
 }
 
 function fill(rgb: string, intensity: number): string {
@@ -290,48 +291,66 @@ function renderCaption(s: FlowSession, index: number, x: number, y: number, widt
   const lines = [
     // どの帯の区間かが分かるよう、前後の列の中心を結ぶ括弧を描く
     `<path d="M${x},${y - 6} L${x},${y} L${x + width},${y} L${x + width},${y - 6}" fill="none" stroke="#bbb"/>`,
-    `<text x="${cx}" y="${y + 16}" text-anchor="middle" font-size="12" fill="#333">区間${index + 1}: ${esc(fmtRange(s.start, s.end))}</text>`,
+    `<text x="${cx}" y="${y + 16}" text-anchor="middle" font-size="12" fill="#333">${esc(
+      t("flowSession", index + 1, fmtRange(s.start, s.end))
+    )}</text>`,
     `<text x="${cx}" y="${y + 33}" text-anchor="middle" font-size="12">` +
-      `<tspan fill="#1a7f37">+${fmtCount(s.insChars)}字</tspan>` +
+      `<tspan fill="#1a7f37">${esc(t("flowChars", "+", fmtCount(s.insChars)))}</tspan>` +
       `<tspan fill="#888"> / </tspan>` +
-      `<tspan fill="rgb(${RED})">−${fmtCount(s.delChars)}字</tspan></text>`,
+      `<tspan fill="rgb(${RED})">${esc(t("flowChars", "−", fmtCount(s.delChars)))}</tspan></text>`,
   ];
-  const notes: string[] = [];
-  if (s.bulkInsChars > 0) notes.push(`<tspan fill="rgb(${ORANGE})">うち一括挿入 ${fmtCount(s.bulkInsChars)}字</tspan>`);
-  if (s.movedChars > 0) notes.push(`<tspan fill="rgb(${BLUE})">移動・並べ替え ${fmtCount(s.movedChars)}字</tspan>`);
-  if (notes.length > 0) {
+  // 一括挿入・移動は1行ずつ (英語では長くなり、隣の区間のキャプションと重なるため)
+  const notes: [string, string][] = [];
+  if (s.bulkInsChars > 0) notes.push([ORANGE, t("flowBulkNote", fmtCount(s.bulkInsChars))]);
+  if (s.movedChars > 0) notes.push([BLUE, t("flowMovedNote", fmtCount(s.movedChars))]);
+  notes.forEach(([rgb, text], i) => {
     lines.push(
-      `<text x="${cx}" y="${y + 49}" text-anchor="middle" font-size="11">${notes.join('<tspan fill="#888"> / </tspan>')}</text>`
+      `<text x="${cx}" y="${y + 49 + i * 15}" text-anchor="middle" font-size="11" fill="rgb(${rgb})">${esc(text)}</text>`
     );
-  }
+  });
   return `<g font-family="${font}">${lines.join("")}</g>`;
 }
 
-function renderLegend(x: number, y: number, font: string): string {
-  const item = (dx: number, dy: number, rgb: string, label: string) =>
-    `<rect x="${x + dx}" y="${y + dy - 10}" width="12" height="12" fill="${fill(rgb, 0.3)}"/>` +
-    `<rect x="${x + dx + 12}" y="${y + dy - 10}" width="12" height="12" fill="${fill(rgb, 1)}"/>` +
-    `<text x="${x + dx + 30}" y="${y + dy}" font-size="12" fill="#333">${esc(label)}</text>`;
-  return (
-    `<g font-family="${font}">` +
-    item(0, 0, GREEN, "細かい編集 (多いほど濃い)") +
-    item(210, 0, ORANGE, "一括挿入・置き換え (段落に占める割合が大きいほど濃い)") +
-    item(0, 20, RED, "削除 (ページ右端の印は次の区間で削除)") +
-    item(300, 20, BLUE, "移動・並べ替え (右端の印は次の区間で移動)") +
-    item(600, 20, GRAY, "変化なし") +
-    `<text x="${x}" y="${y + 40}" font-size="11" fill="#777">` +
-    "各列はその時点の文書で、列の間の帯は段落・図表 (表は1つ) ごとの、その区間での位置と高さの変化です。" +
-    `</text>` +
-    `<text x="${x}" y="${y + 55}" font-size="11" fill="#777">` +
-    "ページは模式図です (行・図の大きさとページ割りは近似)。" +
-    `</text></g>`
-  );
+/** 凡例。返り値の width は凡例全体の幅 (図の幅を決めるのに使う) */
+function renderLegend(x: number, y: number, font: string): { svg: string; width: number } {
+  const rows: [string, string][][] = [
+    [
+      [GREEN, t("flowLegendFine")],
+      [ORANGE, t("flowLegendBulk")],
+    ],
+    [
+      [RED, t("flowLegendDeleted")],
+      [BLUE, t("flowLegendMoved")],
+      [GRAY, t("flowLegendUnchanged")],
+    ],
+  ];
+  const parts: string[] = [];
+  let width = 0;
+  rows.forEach((row, r) => {
+    let dx = 0;
+    const dy = r * 20;
+    for (const [rgb, label] of row) {
+      parts.push(
+        `<rect x="${x + dx}" y="${y + dy - 10}" width="12" height="12" fill="${fill(rgb, 0.3)}"/>` +
+          `<rect x="${x + dx + 12}" y="${y + dy - 10}" width="12" height="12" fill="${fill(rgb, 1)}"/>` +
+          `<text x="${x + dx + 30}" y="${y + dy}" font-size="12" fill="#333">${esc(label)}</text>`
+      );
+      dx += 30 + estimateLabelWidth(label, 12) + 24;
+    }
+    width = Math.max(width, dx);
+  });
+  const notes = [t("flowLegendNote1"), t("flowLegendNote2")];
+  notes.forEach((note, i) => {
+    parts.push(`<text x="${x}" y="${y + 40 + i * 15}" font-size="11" fill="#777">${esc(note)}</text>`);
+    width = Math.max(width, estimateLabelWidth(note, 11));
+  });
+  return { svg: `<g font-family="${font}">${parts.join("")}</g>`, width };
 }
 
 export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): string {
   const sessions = result.sessions;
   if (sessions.length === 0) {
-    throw new Error("描画する時間区間がありません (sessions が空です)。");
+    throw new Error(t("errNoFlowSessions"));
   }
   const font =
     opts.fontFamily ??
@@ -358,17 +377,20 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
   const stackTop = HEADER_HEIGHT + STACK_LABEL_HEIGHT;
   const columnsHeight = maxPages * geom.height + (maxPages - 1) * PAGE_GAP;
   const captionY = stackTop + columnsHeight + 20;
-  const width = Math.max(720, MARGIN * 2 + columns.length * pageWidth + sessions.length * slopeWidth);
+  const legend = renderLegend(MARGIN, 58, font);
+  const width = Math.ceil(
+    Math.max(720, MARGIN * 2 + legend.width, MARGIN * 2 + columns.length * pageWidth + sessions.length * slopeWidth)
+  );
   const height = captionY + CAPTION_HEIGHT + MARGIN;
 
   const parts: string[] = [];
   parts.push(`<rect width="100%" height="100%" fill="#ffffff"/>`);
   parts.push(
     `<text x="${MARGIN}" y="32" font-family="${font}" font-size="18" font-weight="bold" fill="#222">${esc(
-      opts.title ?? "編集フロー図"
+      opts.title ?? t("flowDefaultTitle")
     )}</text>`
   );
-  parts.push(renderLegend(MARGIN, 58, font));
+  parts.push(legend.svg);
 
   columns.forEach((pages, k) => {
     const x = columnX(k);
@@ -377,15 +399,15 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
     const next = sessions[k];
 
     // 見出し: どの時点の文書か、その後の無編集期間
-    const title = ended ? `区間${k}の終了時点` : "区間1の開始時点";
+    const title = ended ? t("flowColumnEnd", k) : t("flowColumnStart");
     parts.push(
-      `<text x="${x + pageWidth / 2}" y="${HEADER_HEIGHT + 12}" text-anchor="middle" font-family="${font}" font-size="11" fill="#555">${title}</text>`
+      `<text x="${x + pageWidth / 2}" y="${HEADER_HEIGHT + 12}" text-anchor="middle" font-family="${font}" font-size="11" fill="#555">${esc(title)}</text>`
     );
     if (ended && next && next.gapBeforeHours !== null) {
       parts.push(
-        `<text x="${x + pageWidth / 2}" y="${HEADER_HEIGHT + 26}" text-anchor="middle" font-family="${font}" font-size="10" fill="#999">(${esc(
-          formatGapHours(next.gapBeforeHours)
-        )} 無編集)</text>`
+        `<text x="${x + pageWidth / 2}" y="${HEADER_HEIGHT + 26}" text-anchor="middle" font-family="${font}" font-size="10" fill="#999">${esc(
+          t("flowIdle", formatGapHours(next.gapBeforeHours))
+        )}</text>`
       );
     }
 

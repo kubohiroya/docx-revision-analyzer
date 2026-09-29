@@ -1,4 +1,5 @@
 import { RevisionEvent } from "./docxRevisions";
+import { t } from "./i18n";
 
 /**
  * 「AI不正利用疑いスコア」算出ロジック
@@ -119,7 +120,7 @@ export function computeSuspicionScore(
     .reduce((s, e) => s + e.chars, 0);
 
   if (insertions.length === 0) {
-    notes.push("挿入イベントが見つからなかったため、スコアは算出できません (0を返します)。");
+    notes.push(t("noInsertions"));
     return {
       score: 0,
       riskLevel: "low",
@@ -184,7 +185,7 @@ export function computeSuspicionScore(
 
   if (insertions.length < 5) {
     notes.push(
-      "挿入イベント数が少ないため (5件未満)、統計的な信頼性は低くなります。参考値として扱ってください。"
+      t("fewEvents")
     );
   }
 

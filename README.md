@@ -72,11 +72,12 @@ be used with a single input file.
 | `-p, --gap-threshold <hours>` | Threshold (in hours) used to tell "periods of continuous editing" apart from "periods with no activity". When set, renders a separate, detailed chart per period and lays them out horizontally (see below) | unset (renders one single chart) |
 | `-w, --width <px>` | Image width | `1100` (auto-computed from content when `-p` is used) |
 | `-H, --height <px>` | Image height | `550` |
-| `-t, --title <text>` | Chart title | `編集履歴: <file name> (最終更新 <last-modified time>)` |
+| `-t, --title <text>` | Chart title | `Revision history: <file name> (last modified <last-modified time>)` |
 | `--bulk-chars <n>` | Treat insertions by the same author at the same time totalling at least this many characters as a bulk insertion (same rule as `docx-revision-flow`) | `150` |
 | `--preserve-history` | If the document removes personal information (tracked-change authors and dates) on save, remove that setting, turn Track Changes on, and save it in place (the original is kept as a backup; fails if the document is open). `--preserveHistory` also works. See "When timestamps are missing" below | off |
 | `--check-history-settings` | Don't draw a chart; only check the settings and print `ok` or `needs-fix` on the first line, followed by the confirmation text when `needs-fix` | off |
 | `--drop` | Desktop drag-and-drop launch mode. When `-o` isn't given, names each output `<same directory as its input>/<filename>-<that input file's last-modified time>.svg` instead of the plain `<filename>.svg` default. Intended for the macOS Finder droplet or a direct Windows Explorer drop (see [INSTALL.md](./INSTALL.md)) (or any other double-click/drag-drop launch with no terminal attached). On Windows, also shows a native message box summarizing the result | off |
+| `--lang <en\|ja>` | Display language for messages and the figure (see [Language](#language)) | OS locale |
 
 ### How to read the chart
 
@@ -167,8 +168,9 @@ node dist/cli/flow.js report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 | `--bulk-chars <n>` | Treat insertions made at the same time totalling at least this many characters as a bulk insertion | `150` |
 | `--page-width <px>` | Width of each page thumbnail | `150` |
 | `--slope-width <px>` | Width of the band area between two thumbnail columns | `72` |
-| `-t, --title <text>` | Title | `編集フロー図: <file name> (最終更新 <last-modified time>)` |
+| `-t, --title <text>` | Title | `Edit flow: <file name> (last modified <last-modified time>)` |
 | `--drop` / `--preserve-history` / `--check-history-settings` | Same as `docx-revision-chart`; `--drop` writes `<file name>-flow-<last-modified time>.svg` | |
+| `--lang <en\|ja>` | Display language for messages and the figure (see [Language](#language)) | OS locale |
 
 If there are no timestamped revisions, or none in the requested period, no SVG is written and the tool exits with an error.
 
@@ -212,7 +214,7 @@ How Word records reordering depends on how it was done:
   connected with a blue band.
 
 Either way, reordered text counts neither as a bulk insertion (orange) nor as fine-grained editing (green). The caption
-shows it as "移動・並べ替え N字" (the total inserted/deleted characters still include reordering recorded as
+shows it as "N chars moved/reordered" (the total inserted/deleted characters still include reordering recorded as
 insertion + deletion).
 
 ### Limitations
@@ -248,6 +250,7 @@ node dist/cli/score.js <input.docx> [options]
 | `--rate-high <cps>` | Insertion-speed threshold (chars/sec) above which the rate score is 100 | `40` |
 | `--max-weight <0-1>` | Weight given to the single most suspicious event in the overall score (the rest is a character-weighted average) | `0.6` |
 | `--pretty` | Pretty-print the JSON output | off |
+| `--lang <en\|ja>` | Display language for messages and the figure (see [Language](#language)) | OS locale |
 
 ```bash
 node dist/cli/score.js fixtures/suspicious-paste.docx --pretty
@@ -326,6 +329,49 @@ Other technical constraints:
 - By default, only `word/document.xml` (the document body) is analyzed;
   Track Changes inside headers, footers, comments, or footnotes are not
   included.
+
+---
+
+## Language
+
+Messages, help, and the figures are shown in English or Japanese. The language is chosen in this order:
+
+1. `--lang en` / `--lang ja`
+2. `lang` in the settings file (see below)
+3. The `DOCX_REVISION_LANG` environment variable
+4. The `LC_ALL` / `LC_MESSAGES` / `LANG` environment variables
+5. The OS language setting (on macOS, System Settings > General > Language & Region)
+
+Anything other than Japanese falls back to English. The macOS drag-and-drop apps follow the macOS language setting.
+
+---
+
+## Settings file
+
+To change the defaults, put a YAML file named after the tool (`docx-revision-chart.yml`,
+`docx-revision-flow.yml`, or `docx-ai-suspicion-score.yml`; `.yaml` also works) in the same folder as the executable.
+For the macOS drag-and-drop apps, put it next to the `.app`; for an npm installation, next to the installed command.
+
+```yaml
+# docx-revision-flow.yml
+gap-threshold: 2
+bulk-chars: 200
+page-width: 120
+slope-width: 60
+title: "Research proposal: edit flow"
+output: out/flow.svg
+lang: en
+```
+
+- Keys are the tool's long option names without `--` (for example `output`, `gap-threshold`, `bulk-chars`,
+  `page-width`, `slope-width`, `title`, `bucket`, `from`, `to`, `lang`; for `docx-ai-suspicion-score`, `min-chars`,
+  `burst-low`, `pretty`, ...). Flags such as `pretty` take `true` / `false`.
+- Options given on the command line take precedence over the settings file, which takes precedence over the
+  built-in defaults.
+- A relative `output` path is resolved against the folder containing the settings file. `output` is ignored when
+  several files are processed at once.
+- Unknown keys and invalid values are reported as warnings and ignored; a file that isn't valid YAML is an error.
+  The tool prints which settings file it used.
 
 ---
 

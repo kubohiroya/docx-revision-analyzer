@@ -24,6 +24,7 @@
 #   (各ツールの --drop オプションを使用。flow は全期間が対象)。
 #   完了時はmacOSの通知、エラー時はダイアログで結果を知らせる
 #   (ターミナルを開かないため)。
+#   ダイアログや通知の文言は macOS の言語設定に合わせる (日本語以外は英語)。
 #   文書が「変更履歴の作成者・日時を削除する」設定の
 #   場合は、解析前に OK/キャンセルのダイアログで設定を有効化するか尋ねる
 #   (OK なら --preserve-history を付けて実行する)。
@@ -57,11 +58,13 @@ TARGET_CLI="${1:-chart}"
 case "$TARGET_CLI" in
   chart)
     BIN_NAME="docx-revision-chart"
-    RESULT_LABEL="SVGチャート"
+    RESULT_LABEL_JA="SVGチャート"
+    RESULT_LABEL_EN="SVG chart"
     ;;
   flow)
     BIN_NAME="docx-revision-flow"
-    RESULT_LABEL="編集フロー図"
+    RESULT_LABEL_JA="編集フロー図"
+    RESULT_LABEL_EN="edit flow"
     ;;
   *)
     echo "エラー: 第1引数には 'chart' または 'flow' を指定してください (指定値: '$TARGET_CLI')" >&2
@@ -82,45 +85,68 @@ bash "$ROOT_DIR/scripts/build-binary.sh" "$TARGET_CLI"
 echo "==> [2/4] AppleScriptドロップレットを作成中 (osacompile)..."
 SCRIPT_SRC="$(mktemp -t "$BIN_NAME-droplet").applescript"
 cat > "$SCRIPT_SRC" <<'APPLESCRIPT'
+-- 表示言語: macOS の言語設定が日本語なら日本語、それ以外は英語 (ツールにも --lang で渡す)
+on isJapanese()
+	return (user locale of (system info)) starts with "ja"
+end isJapanese
+
 on run
-	display dialog "Wordファイル (.docx) をこのアイコンにドラッグ&ドロップしてください。" & return & return & "変更履歴の記録が有効な状態で編集された .docx が対象です。" ¬
-		with title "__TOOL__" buttons {"OK"} default button 1
+	if isJapanese() then
+		set msg to "Wordファイル (.docx) をこのアイコンにドラッグ&ドロップしてください。" & return & return & "変更履歴の記録が有効な状態で編集された .docx が対象です。"
+	else
+		set msg to "Drag and drop Word files (.docx) onto this icon." & return & return & "The files must have been edited with Track Changes on."
+	end if
+	display dialog msg with title "__TOOL__" buttons {"OK"} default button 1
 end run
 
 on open theFiles
+	if isJapanese() then
+		set langArg to " --lang ja"
+		set cancelLabel to "キャンセル"
+		set doneText to "__RESULT_LABEL_JA__を作成しました"
+		set fixedText to "設定を有効化し、__RESULT_LABEL_JA__を作成しました"
+		set errorTitle to "__TOOL__ - エラー"
+	else
+		set langArg to " --lang en"
+		set cancelLabel to "Cancel"
+		set doneText to "Created the __RESULT_LABEL_EN__"
+		set fixedText to "Enabled the setting and created the __RESULT_LABEL_EN__"
+		set errorTitle to "__TOOL__ - Error"
+	end if
 	repeat with aFile in theFiles
 		set posixPath to POSIX path of aFile
 		set appPosix to POSIX path of (path to me)
 		set toolPath to appPosix & "Contents/Resources/__TOOL__"
 		set extraArgs to ""
-		set subtitleText to "__RESULT_LABEL__を作成しました"
+		set subtitleText to doneText
 		-- 変更履歴の作成者・日時を保存する設定が無効な文書なら、有効化するか尋ねる
 		try
-			set checkOut to do shell script quoted form of toolPath & " --check-history-settings " & quoted form of posixPath
+			set checkOut to do shell script quoted form of toolPath & " --check-history-settings " & quoted form of posixPath & langArg
 			if paragraph 1 of checkOut is "needs-fix" then
 				set AppleScript's text item delimiters to return
 				set promptText to (paragraphs 2 thru -1 of checkOut) as text
 				set AppleScript's text item delimiters to ""
 				try
-					display dialog promptText with title "__TOOL__" buttons {"キャンセル", "OK"} default button "OK" cancel button "キャンセル" with icon caution
+					display dialog promptText with title "__TOOL__" buttons {cancelLabel, "OK"} default button "OK" cancel button cancelLabel with icon caution
 					set extraArgs to " --preserve-history"
-					set subtitleText to "設定を有効化し、__RESULT_LABEL__を作成しました"
+					set subtitleText to fixedText
 				on error number -128
 					-- キャンセル: 設定は変えずに解析だけ行う
 				end try
 			end if
 		end try
 		try
-			set outPath to do shell script quoted form of toolPath & " " & quoted form of posixPath & " --drop" & extraArgs
+			set outPath to do shell script quoted form of toolPath & " " & quoted form of posixPath & " --drop" & langArg & extraArgs
 			display notification outPath with title "__TOOL__" subtitle subtitleText
 		on error errMsg
-			display dialog errMsg with title "__TOOL__ - エラー" buttons {"OK"} default button 1 with icon caution
+			display dialog errMsg with title errorTitle buttons {"OK"} default button 1 with icon caution
 		end try
 	end repeat
 end open
 APPLESCRIPT
 # AppleScript 内のツール名・結果の呼び名を差し込む (ヒアドキュメントは展開しない形で書いているため)
-sed -i '' -e "s/__TOOL__/$BIN_NAME/g" -e "s/__RESULT_LABEL__/$RESULT_LABEL/g" "$SCRIPT_SRC"
+sed -i '' -e "s/__TOOL__/$BIN_NAME/g" -e "s/__RESULT_LABEL_JA__/$RESULT_LABEL_JA/g" \
+  -e "s/__RESULT_LABEL_EN__/$RESULT_LABEL_EN/g" "$SCRIPT_SRC"
 
 # 既存の同名 .app があると osacompile が失敗するため、事前に退避 (削除ではなくrename)。
 # 通常のターミナルなので rm -rf でも問題ないが、上書き対象が壊れていた場合に
