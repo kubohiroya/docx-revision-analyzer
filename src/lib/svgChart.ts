@@ -9,7 +9,7 @@ export interface ChartOptions {
   fontFamily?: string;
 }
 
-function esc(s: string): string {
+export function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -198,12 +198,12 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
 // ============================================================================
 
 /** 文字幅の粗い近似 (プロポーショナルフォント、半角英数字・記号を想定) */
-function estimateTextWidth(text: string, fontSize: number): number {
+export function estimateTextWidth(text: string, fontSize: number): number {
   return text.length * fontSize * 0.62;
 }
 
 /** 無編集期間 (時間) を "12 h" のような表記に整形する */
-function formatGapHours(hours: number): string {
+export function formatGapHours(hours: number): string {
   const rounded = Math.round(hours * 10) / 10;
   const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
   return `${text} h`;

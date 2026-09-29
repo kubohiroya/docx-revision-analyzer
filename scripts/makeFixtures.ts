@@ -6,6 +6,8 @@
  *  - fixtures/natural-writing.docx   : 人が時間をかけて少しずつタイプしたことを想定
  *  - fixtures/suspicious-paste.docx  : 最初は少し自分でタイプした後、大きな塊を
  *                                       一瞬で貼り付けたことを想定 (AI生成文の貼付を模擬)
+ *  - fixtures/heatmap-demo.docx      : 見出し・図を含む複数段落の文書を3つの時間区間で編集
+ *                                       (docx-revision-heatmap 用)
  */
 import JSZip from "jszip";
 import * as fs from "fs";
@@ -249,11 +251,218 @@ async function makeMultiSession() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// docx-revision-heatmap 用: 見出し・図・複数段落を含み、3つの時間区間で
+// 「手での入力」「複数段落の一括貼り付け」「段落の置き換え」を行った文書
+// ---------------------------------------------------------------------------
+
+type Rev = { author: string; date: Date; id: number };
+
+interface ParaSpec {
+  style?: string;
+  /** 段落記号の挿入 (新しく追加された段落) / 削除 (段落ごと削除された) */
+  markIns?: Rev;
+  markDel?: Rev;
+  /** 段落記号の移動 (Word が移動として記録した段落) */
+  markMoveFrom?: Rev;
+  markMoveTo?: Rev;
+  segments: (
+    | Segment
+    | { kind: "figure"; heightEmu: number; ins?: Rev }
+    | ({ kind: "moveFrom" | "moveTo"; text: string; name: string; rangeId: number } & Rev)
+  )[];
+}
+
+function revAttrs(r: { author: string; date: Date; id: number }): string {
+  return `w:id="${r.id}" w:author="${escapeXml(r.author)}" w:date="${r.date.toISOString()}"`;
+}
+
+function buildParagraphsXml(paras: ParaSpec[]): string {
+  const body = paras
+    .map((p) => {
+      const pPr: string[] = [];
+      if (p.style) pPr.push(`<w:pStyle w:val="${p.style}"/>`);
+      const marks = [
+        p.markIns && `<w:ins ${revAttrs(p.markIns)}/>`,
+        p.markDel && `<w:del ${revAttrs(p.markDel)}/>`,
+        p.markMoveFrom && `<w:moveFrom ${revAttrs(p.markMoveFrom)}/>`,
+        p.markMoveTo && `<w:moveTo ${revAttrs(p.markMoveTo)}/>`,
+      ].filter(Boolean);
+      if (marks.length > 0) pPr.push(`<w:rPr>${marks.join("")}</w:rPr>`);
+      const runs = p.segments
+        .map((seg) => {
+          if (seg.kind === "moveFrom" || seg.kind === "moveTo") {
+            // Word は移動元・移動先を同じ範囲名 (w:name) の範囲で囲んで記録する
+            const range = seg.kind === "moveFrom" ? "moveFromRange" : "moveToRange";
+            return (
+              `<w:${range}Start w:id="${seg.rangeId}" ${revAttrs(seg).replace(/w:id="\d+" /, "")} w:name="${seg.name}"/>` +
+              `<w:${seg.kind} ${revAttrs(seg)}><w:r><w:t xml:space="preserve">${escapeXml(seg.text)}</w:t></w:r></w:${seg.kind}>` +
+              `<w:${range}End w:id="${seg.rangeId}"/>`
+            );
+          }
+          if (seg.kind === "figure") {
+            const drawing =
+              `<w:r><w:drawing><wp:inline><wp:extent cx="3600000" cy="${seg.heightEmu}"/>` +
+              `<wp:docPr id="1" name="図"/></wp:inline></w:drawing></w:r>`;
+            return seg.ins ? `<w:ins ${revAttrs(seg.ins)}>${drawing}</w:ins>` : drawing;
+          }
+          if (seg.kind === "text") {
+            return `<w:r><w:t xml:space="preserve">${escapeXml(seg.text)}</w:t></w:r>`;
+          }
+          if (seg.kind === "ins") {
+            return `<w:ins ${revAttrs(seg)}><w:r><w:t xml:space="preserve">${escapeXml(seg.text)}</w:t></w:r></w:ins>`;
+          }
+          return `<w:del ${revAttrs(seg)}><w:r><w:delText xml:space="preserve">${escapeXml(seg.text)}</w:delText></w:r></w:del>`;
+        })
+        .join("");
+      return `<w:p>${pPr.length ? `<w:pPr>${pPr.join("")}</w:pPr>` : ""}${runs}</w:p>`;
+    })
+    .join("\n    ");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+  <w:body>
+    ${body}
+    <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1985" w:right="1701" w:bottom="1701" w:left="1701"/><w:docGrid w:type="lines" w:linePitch="360"/></w:sectPr>
+  </w:body>
+</w:document>`;
+}
+
+const HEATMAP_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults>
+  <w:style w:type="paragraph" w:styleId="a"><w:name w:val="Normal"/></w:style>
+  <w:style w:type="paragraph" w:styleId="1"><w:name w:val="heading 1"/><w:basedOn w:val="a"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr></w:style>
+</w:styles>`;
+
+async function makeHeatmapDemo() {
+  const rnd = mulberry32(2024);
+  const author = "学生D";
+  let id = 1;
+  const rev = (date: number) => ({ author, date: new Date(date), id: id++ });
+  // 段落ごとに単語の並びを変え、別々の段落の文章が偶然一致しないようにする
+  // (一致すると、文書内の並べ替えと判定されてしまうため)
+  const filler = (n: number, seed: number) => {
+    const r = mulberry32(1000 + seed);
+    return Array.from({ length: n }, () => WORDS[Math.floor(r() * WORDS.length)]).join("");
+  };
+
+  const paras: ParaSpec[] = [];
+  // 変更履歴の記録を始める前からあった部分 (様式の説明文など)
+  paras.push({ style: "1", segments: [{ kind: "text", text: "研究計画調書" }] });
+  for (let i = 0; i < 6; i++) {
+    paras.push({ segments: [{ kind: "text", text: filler(14, i * 3) }] });
+  }
+
+  // 区間1: 見出しと2段落を少しずつ手で入力 (約70分)
+  let t = new Date("2026-06-01T00:00:00Z").getTime();
+  const typeInto = (p: ParaSpec, count: number, offset: number) => {
+    for (let i = 0; i < count; i++) {
+      t += 20_000 + Math.floor(rnd() * 70_000);
+      p.segments.push({ kind: "ins", text: WORDS[(i + offset) % WORDS.length], ...rev(t) });
+      if (i % 7 === 6) {
+        t += 5_000;
+        // Word は自分で入力した文字を自分で消しても記録を残さないため、
+        // 削除として記録されるのは記録開始前からあった文章 (様式の説明文) の削除
+        paras[1 + (i % 6)].segments.push({ kind: "del", text: "えーと", ...rev(t) });
+      }
+    }
+  };
+  const h1: ParaSpec = { style: "1", markIns: rev(t), segments: [] };
+  paras.push(h1);
+  typeInto(h1, 2, 0);
+  const p1: ParaSpec = { markIns: rev(t), segments: [] };
+  paras.push(p1);
+  typeInto(p1, 22, 3);
+  const p2: ParaSpec = { markIns: rev(t), segments: [] };
+  paras.push(p2);
+  typeInto(p2, 18, 8);
+
+  // 区間2 (約26時間後): 見出しを入力し、3段落をまとめて貼り付けてから小さく手直し
+  t += 26 * 3600_000;
+  const h2: ParaSpec = { style: "1", markIns: rev(t), segments: [] };
+  paras.push(h2);
+  typeInto(h2, 2, 5);
+  t += 30_000;
+  const pasteAt = t;
+  const pasted: ParaSpec[] = [0, 1, 2].map((k) => ({
+    markIns: rev(pasteAt),
+    segments: [{ kind: "ins" as const, text: filler(9, k * 5 + 2), ...rev(pasteAt) }],
+  }));
+  paras.push(...pasted);
+  for (let i = 0; i < 6; i++) {
+    t += 30_000 + Math.floor(rnd() * 60_000);
+    pasted[i % 3].segments.push({ kind: "ins", text: WORDS[(i + 4) % WORDS.length], ...rev(t) });
+  }
+
+  // 区間3 (約5時間後): 記録前からあった段落を丸ごと置き換え・1段落を削除し、区間1の段落を細かく修正し、図を追加
+  t += 5 * 3600_000;
+  const replaced = paras[3];
+  const oldText = (replaced.segments[0] as Segment & { kind: "text" }).text;
+  replaced.segments = [
+    { kind: "del", text: oldText, ...rev(t) },
+    { kind: "ins", text: filler(24, 11), ...rev(t) },
+  ];
+  t += 40_000;
+  const removed = paras[6];
+  const removedText = (removed.segments[0] as Segment & { kind: "text" }).text;
+  removed.segments = [{ kind: "del", text: removedText, ...rev(t) }];
+  removed.markDel = rev(t);
+  for (let i = 0; i < 9; i++) {
+    t += 25_000 + Math.floor(rnd() * 50_000);
+    const text = WORDS[(i + 15) % WORDS.length].slice(0, 4);
+    if (i % 3 === 2) paras[5].segments.push({ kind: "del", text, ...rev(t) });
+    else p1.segments.push({ kind: "ins", text, ...rev(t) });
+  }
+  t += 60_000;
+  paras.push({ markIns: rev(t), segments: [{ kind: "figure", heightEmu: 1_800_000, ins: rev(t) }] });
+
+  // 区間4 (約20時間後): 段落の並べ替え
+  //  - 冒頭の段落をカット＋貼り付けで後ろへ移動 (Word が移動として記録)
+  //  - 2つ目の段落をコピー＋貼り付けで後ろへ複製してから元を削除 (挿入＋削除として記録)
+  t += 20 * 3600_000;
+  const plainText = (p: ParaSpec) =>
+    p.segments.filter((sg): sg is Segment & { kind: "text" } => sg.kind === "text").map((sg) => sg.text).join("");
+  const moved = paras[1];
+  const movedText = plainText(moved);
+  const moveFromRev = rev(t);
+  const moveToRev = rev(t);
+  moved.segments = [
+    ...moved.segments.filter((sg) => sg.kind !== "text"),
+    { kind: "moveFrom", text: movedText, name: "move1", rangeId: 901, ...moveFromRev },
+  ];
+  moved.markMoveFrom = moveFromRev;
+  const movedDest: ParaSpec = {
+    markMoveTo: moveToRev,
+    segments: [{ kind: "moveTo", text: movedText, name: "move1", rangeId: 902, ...moveToRev }],
+  };
+  paras.splice(paras.indexOf(pasted[2]) + 1, 0, movedDest);
+
+  t += 60_000;
+  const copied = paras[2];
+  const copiedText = plainText(copied);
+  const copyDest: ParaSpec = { markIns: rev(t), segments: [{ kind: "ins", text: copiedText, ...rev(t) }] };
+  paras.splice(paras.indexOf(h2), 0, copyDest);
+  t += 30_000;
+  copied.segments = [...copied.segments.filter((sg) => sg.kind !== "text"), { kind: "del", text: copiedText, ...rev(t) }];
+  copied.markDel = rev(t);
+
+  const outPath = path.join(__dirname, "..", "fixtures", "heatmap-demo.docx");
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml", CONTENT_TYPES);
+  zip.file("_rels/.rels", ROOT_RELS);
+  zip.file("word/document.xml", buildParagraphsXml(paras));
+  zip.file("word/_rels/document.xml.rels", DOCUMENT_RELS);
+  zip.file("word/styles.xml", HEATMAP_STYLES);
+  fs.writeFileSync(outPath, await zip.generateAsync({ type: "nodebuffer" }));
+  console.log(`生成: ${outPath} (${paras.length} 段落)`);
+}
+
 async function main() {
   fs.mkdirSync(path.join(__dirname, "..", "fixtures"), { recursive: true });
   await makeNatural();
   await makeSuspicious();
   await makeMultiSession();
+  await makeHeatmapDemo();
 }
 
 main().catch((e) => {

@@ -3,23 +3,27 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 English | [日本語](./README.ja.md)
 
-Two CLI tools that analyze Word (`.docx`) files edited with Track Changes
+Three CLI tools that analyze Word (`.docx`) files edited with Track Changes
 enabled:
 
 1. **`docx-revision-chart`** — renders an SVG chart of edit activity over time
 2. **`docx-ai-suspicion-score`** — scores how likely it is that a chunk of
    text was pasted in from an external app (e.g. an AI writing tool) rather
    than typed and reviewed inside Word, on a 0–100 scale
+3. **`docx-revision-heatmap`** — for each session of continuous editing, draws
+   the document's pages at the start and end of the session as a schematic,
+   colors fine-grained edits (green), bulk insertions/replacements (orange) and
+   deletions (red), and connects each paragraph/figure/table across the two
 
 It's organized as an npm package, and `docx-revision-chart` can also be
 compiled into a single, dependency-free executable with [Bun](https://bun.sh)
 (no Node.js required to run it). Licensed under MIT.
 
-> **Prerequisite**: both tools require a `.docx` file that was authored/edited
+> **Prerequisite**: all tools require a `.docx` file that was authored/edited
 > with Word's "Track Changes" turned on (Review tab → Track Changes). Files
 > edited with Track Changes off don't retain insertion (`w:ins`) / deletion
-> (`w:del`) markup, so there's nothing to analyze (this doesn't error — it's
-> simply treated as zero events).
+> (`w:del`) markup, so there's nothing to analyze (the tools exit with an
+> error explaining why).
 
 ---
 
@@ -68,6 +72,8 @@ needed):
 This wraps `scripts/build-binary.sh` under the hood. To build a binary for
 `docx-ai-suspicion-score` instead, run `npm run build:binary:score` or
 `bash scripts/build-binary.sh score` (add `--all` for the same cross-build).
+For `docx-revision-heatmap`, use `npm run build:binary:heatmap`
+(`bash scripts/build-binary.sh heatmap`).
 
 > Binaries cross-compiled for other OSes (`--all`) can't be smoke-tested on
 > the machine that built them — verify them on the target OS before
@@ -93,6 +99,11 @@ using `osacompile` (an AppleScript compiler that ships with every Mac — no
 extra install beyond Bun itself). Move or copy that `.app` anywhere convenient
 (e.g. your Applications folder or the Dock) and drop `.docx` files onto its
 icon.
+
+`npm run build:mac-app:heatmap` builds the same kind of droplet for
+`docx-revision-heatmap` (`dist-bin/docx-revision-heatmap.app`). It covers the
+whole editing period with default settings and writes
+`<file name>-heatmap-<that file's last-modified time>.svg`.
 
 Why this needs a wrapper at all: macOS Finder only delivers dropped files to
 proper application bundles (via an Apple Event), never directly as command-line
@@ -342,6 +353,95 @@ Edits made after the rewrite are timestamped; timestamps already removed cannot 
 
 ---
 
+## 3. `docx-revision-heatmap` — edit heatmap per editing session
+
+Splits the Track Changes history into sessions of continuous editing and draws, left to right in time order, the
+document at the start of the first session and at the end of every session as columns of page thumbnails (a
+schematic, not Word's real layout). Between two columns, bands connect each paragraph/figure/table as it changed during
+that session. Nothing changes between sessions, so each session's end column doubles as the next session's start.
+
+```bash
+node dist/cli/heatmap.js fixtures/heatmap-demo.docx -o heatmap.svg
+
+# Limit the period and split sessions at idle gaps longer than 2 hours
+node dist/cli/heatmap.js report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
+```
+
+![Sample docx-revision-heatmap output](./fixtures/heatmap-demo.png)
+
+| Option | Description | Default |
+|---|---|---|
+| `-o, --output <file.svg>` | Output SVG path | `<input name>-heatmap.svg` |
+| `-p, --gap-threshold <hours>` | Start a new session after an idle gap longer than this | `1` |
+| `--from <datetime>` / `--to <datetime>` | Period to analyze (local time, `2026-06-01` or `"2026-06-01 09:30"`; a date-only `--to` includes that whole day) | everything |
+| `--bulk-chars <n>` | Treat insertions made at the same time totalling at least this many characters as a bulk insertion | `150` |
+| `--page-width <px>` | Width of each page thumbnail | `150` |
+| `--slope-width <px>` | Width of the band area between two thumbnail columns | `72` |
+| `-t, --title <text>` | Title | `編集ヒートマップ: <file name>` |
+| `--drop` / `--preserve-history` / `--check-history-settings` | Same as `docx-revision-chart`; `--drop` writes `<file name>-heatmap-<last-modified time>.svg` | |
+
+If there are no timestamped revisions, or none in the requested period, no SVG is written and the tool exits with an error.
+
+### How to read it
+
+- **Each column**: the first is the document just before session 1's first change; the others are the document at the
+  end of each session (earlier changes applied, later ones undone), page by page. Gray bars are body lines, dark bars
+  headings, bluish bars tables, crossed boxes figures. A column's heading also shows the idle gap that follows it.
+- **Bands between two columns** show one session: they connect each paragraph/figure (a whole table counts as one) from its start position
+  and height to its end position and height: a band that widens gained content, one that narrows lost it. A red band
+  that ends in the middle was deleted during the session; a band that grows out of the middle was added (orange if
+  bulk-inserted, green otherwise); gray means unchanged.
+- **Blue (moves/reordering)**: a blue band runs from where the text was to where it went; where the order changed it
+  crosses the other bands. Paragraphs that received moved text are painted blue.
+- **Marks at a page's right edge**: paragraphs/figures deleted (red) or moved away (blue) in the next session.
+- **Green (fine-grained editing)**: paragraphs that received many small insertions/deletions in the session.
+  Intensity is the larger of (fine-edit characters ÷ paragraph length) and (number of fine edits ÷ 8), capped at 1.
+- **Orange (bulk insertion / replacement)**: the share of the paragraph that arrived as a bulk insertion in the
+  session. Intensity is bulk-inserted characters ÷ paragraph length.
+- Green and orange are painted on the session's end column. A paragraph with both is filled with the stronger color, and
+  the other is shown as a thin bar on its left.
+- **Below each band area**: session start/end (month/day hour:minute), total inserted/deleted characters, and how much
+  of the insertion was bulk.
+
+### How bulk insertions are detected
+
+When you paste several paragraphs, Word records each paragraph as a separate insertion (`w:ins`) with the same
+timestamp. Insertions by the same author with the same timestamp are therefore grouped, and a group totalling at least
+`--bulk-chars` characters counts as a bulk insertion. Deletions by the same author at the same timestamp as a bulk
+insertion are treated as the replaced text and not counted as fine-grained editing.
+
+### How moves and reordering are detected
+
+How Word records reordering depends on how it was done:
+
+- **Cut + paste, or drag and drop**: with "Track moves" on (the default), Word records a move
+  (`w:moveFrom` / `w:moveTo`); source and destination are paired by the range name Word assigns.
+- **Copy + paste + delete**, and cut + paste that Word didn't record as a move: recorded as an insertion plus a
+  deletion. If inserted text (20+ characters) matches text deleted anywhere in the document, it's treated as
+  reordering/duplication within the document, and if the matching deletion is in the same session the two are
+  connected with a blue band.
+
+Either way, reordered text counts neither as a bulk insertion (orange) nor as fine-grained editing (green). The caption
+shows it as "移動・並べ替え N字" (the total inserted/deleted characters still include reordering recorded as
+insertion + deletion).
+
+### Limitations
+
+- Pages are a schematic, not Word's actual layout. Characters per line come from the page width and font size, lines
+  per page from the line pitch, calibrated so the final state matches the page count Word saved (`docProps/app.xml`).
+  Page breaks for earlier sessions reuse that calibration and are approximate.
+- Word keeps no record when you delete text you inserted yourself, so text written and deleted within a session is
+  not counted.
+- Word often records timestamps to the minute, so typing more than `--bulk-chars` characters within one minute can
+  also be classified as a bulk insertion.
+- Formatting-only changes are not colored. Reordering recorded as insertion + deletion is detected only when the text
+  matches exactly (ignoring whitespace); anything edited after pasting counts as editing, not reordering. An added figure with no text is
+  shown as "added" (green) in the bands, but its paragraph isn't painted. Only the body
+  (`word/document.xml`) is analyzed — footnotes, headers, and text boxes are not.
+- Bulk-insertion detection is a heuristic, not evidence of misconduct (same caveat as `docx-ai-suspicion-score`).
+
+---
+
 ## Test fixtures
 
 `scripts/makeFixtures.ts` generates synthetic `.docx` files with Track
@@ -360,6 +460,12 @@ npm run fixtures
   paste of externally-authored text (score: 93 / very_high)
 - `fixtures/multi-session.docx`: simulates writing spread across 3 days, with
   29-hour and 20.5-hour idle gaps in between (for exercising the `-p` option)
+- `fixtures/heatmap-demo.docx`: a multi-paragraph document with headings and a
+  figure, edited in three sessions — typing by hand; pasting three paragraphs
+  at once and touching them up; replacing and deleting paragraphs, making small
+  fixes and adding a figure; and a fourth session reordering paragraphs by cut +
+  paste (recorded as a move) and by copy + paste + delete (for `docx-revision-heatmap`; sample output in
+  `fixtures/heatmap-demo.svg`)
 
 Sample `docx-revision-chart` output for each is bundled under `fixtures/*.svg`
 (`*.png` versions are included for quick visual inspection).
@@ -385,6 +491,8 @@ docx-revision-analyzer/
 │   ├── index.ts           Library entry point for programmatic use
 │   ├── cli/
 │   │   ├── chart.ts       docx-revision-chart CLI
+│   │   ├── heatmap.ts     docx-revision-heatmap CLI
+│   │   ├── common.ts      Shared CLI code (--preserve-history prompts, multi-file processing and output)
 │   │   └── score.ts       docx-ai-suspicion-score CLI
 │   └── lib/
 │       ├── docxRevisions.ts  Shared library: extracts revision events from a .docx
@@ -392,6 +500,9 @@ docx-revision-analyzer/
 │       ├── timeBuckets.ts    Aggregates events into time buckets (for the chart)
 │       ├── sessions.ts       Splits events into sessions by idle gap, for -p
 │       ├── svgChart.ts       SVG rendering (single-chart and session-split variants)
+│       ├── docxLayout.ts     For heatmap: splits the body into paragraphs and revision-tagged pieces; reads page setup
+│       ├── heatmap.ts        For heatmap: start/end document reconstruction, schematic pagination, paragraph intensities and change classification
+│       ├── heatmapSvg.ts     For heatmap: SVG rendering
 │       ├── suspicionScore.ts The AI-misuse suspicion score algorithm
 │       └── filenames.ts      For --drop: builds the last-modified-time-based output filename
 ├── scripts/
