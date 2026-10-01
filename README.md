@@ -408,6 +408,25 @@ Edits made after the rewrite are timestamped; timestamps already removed cannot 
 package can also be used as a library from another Node.js / Bun project via
 `import { ... } from "docx-revision-analyzer"`.
 
+### Where each edit happened
+
+`extractRevisionPositions` returns one event per insertion/deletion (`w:id`) with its time, author, character
+count, text, and position: paragraph index, offset within the paragraph, and offset from the start of the
+document, both in the final document (all changes accepted) and at the moment of the edit (right after an
+insertion / right before a deletion). Offsets index into `finalDocumentText(model)` / `documentTextAt(model, date)`
+(paragraphs joined with `"\n"`, counted in UTF-16 code units). Moves (`w:moveFrom` / `w:moveTo`) are included with
+`move: true` and paired by `moveName`. `attachRevisionPositions` sets `position` on matching `RevisionEvent`s.
+
+```ts
+import { readFileSync } from "fs";
+import { parseDocxLayout, extractRevisionPositions } from "docx-revision-analyzer";
+
+const model = await parseDocxLayout(readFileSync("report.docx"));
+for (const e of extractRevisionPositions(model)) {
+  console.log(e.type, e.date, e.chars, e.final.start.paraIndex, e.final.start.offsetInPara);
+}
+```
+
 ---
 
 ## Contributing

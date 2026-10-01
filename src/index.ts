@@ -12,6 +12,7 @@ export * from "./lib/timeBuckets";
 export * from "./lib/sessions";
 export * from "./lib/svgChart";
 export * from "./lib/docxLayout";
+export * from "./lib/revisionPositions";
 export * from "./lib/flow";
 export * from "./lib/flowSvg";
 export * from "./lib/suspicionScore";
