@@ -32,8 +32,10 @@ export interface ExtensionManifest {
 }
 
 export interface ExtensionPermissions {
-  /** 使う UI */
-  ui?: ("dialog" | "panel" | "form")[];
+  /** 使う UI ("figure" は図の部分への注釈 = マウスオーバーの説明とポップアップ) */
+  ui?: ("dialog" | "panel" | "form" | "figure")[];
+  /** 図の注釈のリンク (クリックで既定のブラウザで開く) に使ってよいオリジン (https のみ) */
+  links?: string[];
   /** net.post で送ってよい宛先のオリジン (https のみ) */
   network?: string[];
   /** 拡張ごとのローカル保存 */
@@ -205,6 +207,46 @@ export interface FormSpec {
 export type FormResult = Record<string, string | number | boolean>;
 
 // ---------------------------------------------------------------------------
+// 図の部分への注釈
+// ---------------------------------------------------------------------------
+
+/**
+ * 図の部分 (figureTargets.ts と同じ)。key を注釈の target に使う。
+ *  - chart の棒: chart:bar:<カテゴリ id>:<バケットの開始時刻>
+ *  - flow の段落: flow:para:<列>:<段落>、帯: flow:band:<区間>:<単位>、移動の帯: flow:move:...、キャプション: flow:caption:<区間>
+ */
+export type FigureTarget =
+  | { key: string; figure: "chart"; kind: "bar"; categoryId: string; start: string; end: string; chars: number }
+  | { key: string; figure: "flow"; kind: "paragraph"; column: number; paraIndex: number; session: number | null }
+  | { key: string; figure: "flow"; kind: "band"; session: number; unitKey: string; paraIndexes: number[]; change: string }
+  | { key: string; figure: "flow"; kind: "move"; session: number; fromKey: string; toKey: string; chars: number }
+  | { key: string; figure: "flow"; kind: "caption"; session: number; start: string; end: string };
+
+export interface FigureContext {
+  figure: "chart" | "flow";
+  targets: FigureTarget[];
+  analysis: AnalysisResult;
+}
+
+export interface FigureAnnotationSpec {
+  /** 部分のキー (FigureTarget.key) */
+  target: string;
+  /** マウスオーバーで出る短い説明 (書き出した SVG では <title> になる) */
+  tooltip?: LocalizedText;
+  /** マウスオーバーで出るポップアップの中身 (アプリの中だけ。パネルと同じブロック) */
+  popup?: { title?: LocalizedText; blocks: PanelBlock[] };
+  /** クリックで開くリンク (https。permissions.links で宣言したオリジンだけ) */
+  href?: string;
+}
+
+export interface FigureAnnotatorSpec {
+  /** 拡張の id を接頭辞にすること */
+  id: string;
+  version: string;
+  annotate(ctx: FigureContext): FigureAnnotationSpec[] | Promise<FigureAnnotationSpec[]>;
+}
+
+// ---------------------------------------------------------------------------
 // ホスト API
 // ---------------------------------------------------------------------------
 
@@ -231,6 +273,8 @@ export interface PostOptions {
 export interface HostApi {
   registerCategory(c: CategorySpec): void;
   registerClassifier(c: ClassifierSpec): void;
+  /** 図の部分に、マウスオーバーの説明・ポップアップ・クリックで開くリンクを付ける (ui: "figure" の権限が必要) */
+  registerFigureAnnotator(a: FigureAnnotatorSpec): void;
   onAnalysisComplete(cb: (r: AnalysisResult) => void | Promise<void>): void;
   ui: {
     showDialog(d: DialogSpec): Promise<DialogResult>;

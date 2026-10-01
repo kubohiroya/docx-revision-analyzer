@@ -20,6 +20,7 @@ import type {
   FormSpec,
   FormResult,
   LocalizedText,
+  PanelBlock,
   PanelSpec,
   PositionedEvent,
 } from "../extension-api";
@@ -209,6 +210,46 @@ export function clearPanels(): void {
   panels.clear();
 }
 
+/** パネル・ポップアップのブロックを要素にする (文字列は textContent でだけ表示する) */
+export function renderBlocks(blocks: PanelBlock[]): HTMLElement[] {
+  const lang = ui.lang();
+  const out: HTMLElement[] = [];
+  for (const b of blocks) {
+    if (b.type === "heading") out.push(el("h4", loc(b.text, lang)));
+    else if (b.type === "text") out.push(el("p", loc(b.text, lang)));
+    else if (b.type === "list") {
+      const ul = el("ul");
+      for (const i of b.items ?? []) ul.append(el("li", loc(i, lang)));
+      out.push(ul);
+    } else if (b.type === "keyValue") {
+      const t = el("table");
+      for (const r of b.rows ?? []) {
+        const tr = el("tr");
+        tr.append(el("th", loc(r.key, lang)), el("td", String(r.value)));
+        t.append(tr);
+      }
+      out.push(t);
+    } else if (b.type === "table") {
+      const t = el("table");
+      const head = el("tr");
+      for (const c of b.columns ?? []) head.append(el("th", loc(c, lang)));
+      t.append(head);
+      for (const r of b.rows ?? []) {
+        const tr = el("tr");
+        for (const c of r) tr.append(el("td", String(c)));
+        t.append(tr);
+      }
+      out.push(t);
+    }
+  }
+  return out;
+}
+
+/** 画面の表示言語と文言 (figures.ts から使う) */
+export function uiContext(): ExtUiContext {
+  return ui;
+}
+
 /** ハイライトのタブの下に、拡張のパネルを描く */
 export function renderPanels(container: HTMLElement): void {
   container.querySelectorAll(".ext-panel, .ext-panels-title").forEach((n) => n.remove());
@@ -219,34 +260,7 @@ export function renderPanels(container: HTMLElement): void {
   for (const { extName, spec } of panels.values()) {
     const box = el("section", undefined, "ext-panel");
     box.append(el("h3", loc(spec.title, lang)), el("p", S.fromExtension(loc(extName, lang)), "hint"));
-    for (const b of spec.blocks ?? []) {
-      if (b.type === "heading") box.append(el("h4", loc(b.text, lang)));
-      else if (b.type === "text") box.append(el("p", loc(b.text, lang)));
-      else if (b.type === "list") {
-        const ul = el("ul");
-        for (const i of b.items ?? []) ul.append(el("li", loc(i, lang)));
-        box.append(ul);
-      } else if (b.type === "keyValue") {
-        const t = el("table");
-        for (const r of b.rows ?? []) {
-          const tr = el("tr");
-          tr.append(el("th", loc(r.key, lang)), el("td", String(r.value)));
-          t.append(tr);
-        }
-        box.append(t);
-      } else if (b.type === "table") {
-        const t = el("table");
-        const head = el("tr");
-        for (const c of b.columns ?? []) head.append(el("th", loc(c, lang)));
-        t.append(head);
-        for (const r of b.rows ?? []) {
-          const tr = el("tr");
-          for (const c of r) tr.append(el("td", String(c)));
-          t.append(tr);
-        }
-        box.append(t);
-      }
-    }
+    box.append(...renderBlocks(spec.blocks ?? []));
     container.append(box);
   }
 }
@@ -289,6 +303,25 @@ function confirmSend(extName: LocalizedText, spec: { url: string; body: string }
   }, false).finally(() => (document.getElementById("modal") as HTMLDialogElement).classList.remove("wide"));
 }
 
+/** 図の注釈のリンクを開く前に、URL 全体を見せて確認する (URL にデータを含めて外へ出せるため) */
+function confirmOpen(extName: LocalizedText, url: string): Promise<boolean> {
+  const S = ui.strings();
+  const lang = ui.lang();
+  return modal<boolean>((root, close) => {
+    header(root, S.openConfirmTitle, S.fromExtension(loc(extName, lang)));
+    root.append(el("p", S.openConfirmBody(originOf(url))));
+    root.append(el("pre", url));
+    const buttons = el("div", undefined, "buttons");
+    const no = el("button", S.openDecline);
+    no.onclick = () => close(false);
+    const yes = el("button", S.openAllow, "primary");
+    yes.onclick = () => close(true);
+    buttons.append(no, yes);
+    root.append(buttons);
+    setTimeout(() => no.focus(), 0);
+  }, false);
+}
+
 /** 拡張の送信履歴を表示する */
 export async function showSendLog(item: ExtensionListItem): Promise<void> {
   const S = ui.strings();
@@ -323,6 +356,7 @@ export function initExtensionUi(ctx: ExtUiContext): void {
   ui = ctx;
   window.app.extensions.onUiRequest(async (req: ExtensionUiRequest) => {
     if (req.kind === "confirmSend") return confirmSend(req.ext.name, req.spec as { url: string; body: string });
+    if (req.kind === "confirmOpen") return confirmOpen(req.ext.name, (req.spec as { url: string }).url);
     if (req.kind === "dialog") return showDialog(req.ext.name, req.spec as DialogSpec);
     if (req.kind === "form") return openForm(req.ext.name, req.spec as FormSpec);
     const spec = req.spec as PanelSpec;

@@ -10,6 +10,8 @@ import type {
   ClassifierContext,
   ClassifierSpec,
   DialogSpec,
+  FigureAnnotatorSpec,
+  FigureContext,
   FormSpec,
   HighlightSpec,
   HostApi,
@@ -35,6 +37,7 @@ const bridge: Bridge = {
     }),
 };
 const classifiers = new Map<string, ClassifierSpec>();
+const annotators = new Map<string, FigureAnnotatorSpec>();
 const analysisCallbacks: ((r: AnalysisResult) => void | Promise<void>)[] = [];
 
 /** JSON の位置付きイベントを、ライブラリの型 (日時は Date) に戻す */
@@ -54,6 +57,10 @@ function makeHost(app: HostApi["app"]): HostApi {
     registerClassifier: (c: ClassifierSpec) => {
       classifiers.set(c.id, c);
       void bridge.call("registerClassifier", { id: c.id, version: c.version });
+    },
+    registerFigureAnnotator: (a: FigureAnnotatorSpec) => {
+      annotators.set(a.id, a);
+      void bridge.call("registerFigureAnnotator", { id: a.id, version: a.version });
     },
     onAnalysisComplete: (cb) => void analysisCallbacks.push(cb),
     ui: {
@@ -111,6 +118,13 @@ bridge.onInvoke(async (method, args) => {
     if (!Array.isArray(out)) throw new Error("classify must return an array");
     // JSON にできる形だけを返す
     return JSON.parse(JSON.stringify(out)) as HighlightSpec[];
+  }
+  if (method === "annotateFigure") {
+    const an = annotators.get(String(a.annotatorId));
+    if (!an) throw new Error(`unknown figure annotator ${String(a.annotatorId)}`);
+    const out = await an.annotate(a.ctx as FigureContext);
+    if (!Array.isArray(out)) throw new Error("annotate must return an array");
+    return JSON.parse(JSON.stringify(out));
   }
   if (method === "analysisComplete") {
     for (const cb of analysisCallbacks) await cb(a as unknown as AnalysisResult);

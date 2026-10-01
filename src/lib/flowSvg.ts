@@ -19,6 +19,15 @@ import { FlowResult, FlowSession, PageLayout, ParaHeat, SlopeUnit } from "./flow
 import { esc, formatGapHours, renderNote } from "./svgChart";
 import { estimateLabelWidth, t } from "./i18n";
 import { Category, CategoryRegistry, patternOverlay, renderPatternDefs } from "./categories";
+import {
+  decorateElement,
+  DecorateOptions,
+  flowBandKey,
+  flowCaptionKey,
+  flowMoveKey,
+  flowParaKey,
+  ResolvedAnnotation,
+} from "./figureTargets";
 
 export interface FlowSvgOptions {
   title?: string;
@@ -36,6 +45,11 @@ export interface FlowSvgOptions {
    * data-para (段落の番号) を付ける (アプリで該当箇所を探すため)
    */
   annotate?: boolean;
+  /**
+   * 部分ごとの注釈 (マウスオーバーの説明・クリックで開くリンク)。figureTargets.ts の resolveAnnotations で作る。
+   * 部分のキーは段落 flow:para:<列>:<段落>、帯 flow:band:<区間>:<単位>、移動の帯、キャプション
+   */
+  annotations?: Map<string, ResolvedAnnotation>;
 }
 
 /** これ未満の度合いは塗らない */
@@ -97,20 +111,33 @@ function renderPage(
   x: number,
   y: number,
   g: PageGeom,
-  annotate = false
+  deco: DecorateOptions & { column: number } = { column: 0 }
 ): string {
   const parts: string[] = [];
+  const annotate = !!deco.annotate;
   const dataPara = (i: number) => (annotate ? ` data-para="${i}"` : "");
+  // 注釈を付けるときは、段落全体を覆う透明な矩形を最後に重ね、マウス操作を受けるようにする (細い行の上でなくても反応する)
+  const decorated = annotate || !!deco.annotations?.size;
+  const hits: string[] = [];
   parts.push(
     `<rect x="${x}" y="${y}" width="${g.width}" height="${g.height.toFixed(1)}" fill="#ffffff" stroke="#b8b8b8"/>`
   );
 
   // 段落ごとの塗り (このページに載っている範囲)
   for (const [paraIndex, r] of paraRanges([page])) {
-    const t = tintOf(paraIndex);
-    if (!t) continue;
     const top = y + g.textY + r.top * g.lineHeight;
     const height = (r.bottom - r.top) * g.lineHeight;
+    if (decorated) {
+      hits.push(
+        decorateElement(
+          `<rect x="${(x + g.textX - 2).toFixed(1)}" y="${top.toFixed(1)}" width="${(g.textWidth + 4).toFixed(1)}" height="${height.toFixed(1)}" fill="transparent"/>`,
+          flowParaKey(deco.column, paraIndex),
+          deco
+        )
+      );
+    }
+    const t = tintOf(paraIndex);
+    if (!t) continue;
     if (t.main && t.mainV) {
       parts.push(
         `<rect x="${(x + g.textX - 2).toFixed(1)}" y="${top.toFixed(1)}" width="${(g.textWidth + 4).toFixed(1)}" height="${height.toFixed(1)}" fill="${fill(t.main, t.mainV)}"${dataPara(paraIndex)}/>` +
@@ -153,6 +180,7 @@ function renderPage(
       `<rect x="${(x + g.textX).toFixed(1)}" y="${(top + (h - barH) / 2).toFixed(1)}" width="${Math.max(1, g.textWidth * it.widthFrac).toFixed(1)}" height="${Math.max(0.6, barH).toFixed(2)}" fill="${color}"${dataPara(it.paraIndex)}/>`
     );
   }
+  parts.push(...hits);
   return parts.join("\n");
 }
 
@@ -234,7 +262,9 @@ function renderSlopes(
   rx: number,
   stackTop: number,
   g: PageGeom,
-  reg: CategoryRegistry
+  reg: CategoryRegistry,
+  sessionIndex = 0,
+  deco: DecorateOptions = {}
 ): string {
   const BLUE = reg.rgb(reg.byRole("moved"));
   const left = stackPositions(s.startPages, stackTop, g);
@@ -275,7 +305,13 @@ function renderSlopes(
       d = `M${f(mx)},${f(c)} ${curve(mx, c, rx, R.top)} L${f(rx)},${f(R.bottom)} ${curve(rx, R.bottom, mx, c)} Z`;
     }
     if (!d) continue;
-    parts.push(`<path d="${d}" fill="rgb(${color})" fill-opacity="${opacity.toFixed(2)}" stroke="rgb(${color})" stroke-opacity="${Math.min(1, opacity + 0.2).toFixed(2)}" stroke-width="0.5"/>`);
+    parts.push(
+      decorateElement(
+        `<path d="${d}" fill="rgb(${color})" fill-opacity="${opacity.toFixed(2)}" stroke="rgb(${color})" stroke-opacity="${Math.min(1, opacity + 0.2).toFixed(2)}" stroke-width="0.5"/>`,
+        flowBandKey(sessionIndex, u.key),
+        deco
+      )
+    );
   }
 
   // 移動の帯: 移動元の単位の開始時点の位置 → 移動先の単位の終了時点の位置
@@ -293,7 +329,11 @@ function renderSlopes(
       return { top: c - 1.5, bottom: c + 1.5 };
     };
     parts.push(
-      `<path d="${band(whole ? L : narrow(L), whole ? R : narrow(R))}" fill="rgb(${BLUE})" fill-opacity="0.55" stroke="rgb(${BLUE})" stroke-opacity="0.9" stroke-width="0.6"/>`
+      decorateElement(
+        `<path d="${band(whole ? L : narrow(L), whole ? R : narrow(R))}" fill="rgb(${BLUE})" fill-opacity="0.55" stroke="rgb(${BLUE})" stroke-opacity="0.9" stroke-width="0.6"/>`,
+        flowMoveKey(sessionIndex, l.fromKey, l.toKey),
+        deco
+      )
     );
   }
   return parts.join("\n");
@@ -307,7 +347,8 @@ function renderCaption(
   y: number,
   width: number,
   font: string,
-  reg: CategoryRegistry
+  reg: CategoryRegistry,
+  deco: DecorateOptions = {}
 ): string {
   const RED = reg.rgb(reg.byRole("deleted"));
   // 一括挿入の色は、区間で最も多くを占めたハイライトのカテゴリ
@@ -336,7 +377,7 @@ function renderCaption(
       `<text x="${cx}" y="${y + 49 + i * 15}" text-anchor="middle" font-size="11" fill="rgb(${rgb})">${esc(text)}</text>`
     );
   });
-  return `<g font-family="${font}">${lines.join("")}</g>`;
+  return decorateElement(`<g font-family="${font}">${lines.join("")}</g>`, flowCaptionKey(index), deco);
 }
 
 /** 凡例。返り値の width は凡例全体の幅 (図の幅を決めるのに使う) */
@@ -468,15 +509,15 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
     };
     if (opts.annotate) parts.push(`<g data-column="${k}">`);
     pages.forEach((page, j) => {
-      parts.push(renderPage(page, tintOf, x, stackTop + j * (geom.height + PAGE_GAP), geom, opts.annotate));
+      parts.push(renderPage(page, tintOf, x, stackTop + j * (geom.height + PAGE_GAP), geom, { ...opts, column: k }));
     });
     if (opts.annotate) parts.push(`</g>`);
   });
 
   sessions.forEach((s, i) => {
-    parts.push(renderSlopes(s, columnX(i) + pageWidth, columnX(i + 1), stackTop, geom, reg));
+    parts.push(renderSlopes(s, columnX(i) + pageWidth, columnX(i + 1), stackTop, geom, reg, i, opts));
     parts.push(
-      renderCaption(s, i, columnX(i) + pageWidth / 2, captionY, pageWidth + slopeWidth, font, reg)
+      renderCaption(s, i, columnX(i) + pageWidth / 2, captionY, pageWidth + slopeWidth, font, reg, opts)
     );
   });
 
