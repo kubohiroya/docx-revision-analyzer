@@ -150,6 +150,9 @@ const en = {
   rulesNotPositive: "must be a positive number",
   rulesBadLabel: "must be a string or { ja: ..., en: ... }",
   rulesBadColor: 'must be a color like "#F28C28"',
+  rulesBadPattern: (allowed: string) => `must be one of ${allowed}`,
+  rulesLowContrast: (id: string, ratio: string) =>
+    `the color of level "${id}" has low contrast against white (${ratio}:1; 3:1 or more recommended)`,
   rulesMissing: "is required",
   rulesDuplicateLevel: (id: string) => `level id "${id}" is used more than once`,
   defaultTitle: (prefix: string, name: string, time: string) => `${prefix}: ${name} (last modified ${time})`,
@@ -342,6 +345,8 @@ const ja: Catalog = {
   rulesNotPositive: "正の数値にしてください",
   rulesBadLabel: "文字列か { ja: ..., en: ... } にしてください",
   rulesBadColor: '"#F28C28" のような色にしてください',
+  rulesBadPattern: (allowed) => `${allowed} のいずれかにしてください`,
+  rulesLowContrast: (id, ratio) => `レベル "${id}" の色は白地とのコントラストが低いです (${ratio}:1。3:1 以上を推奨)`,
   rulesMissing: "が必要です",
   rulesDuplicateLevel: (id) => `レベルの id "${id}" が重複しています`,
   defaultTitle: (prefix, name, time) => `${prefix}: ${name} (最終更新 ${time})`,

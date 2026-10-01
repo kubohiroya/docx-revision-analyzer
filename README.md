@@ -441,11 +441,11 @@ window: { seconds: 60, chars: 2000 }   # optional: also paras, byAuthor
 levels:
   - id: level-2
     label: { ja: 大量の一括挿入, en: Large bulk insertion with little editing afterwards }
-    color: "#C2410C"
+    color: "#9A3412"
     when: { all: [ { insertedChars: { gte: 800 } }, { postEditRatio: { lt: 0.05 } } ] }
   - id: level-1
     label: { ja: 一括挿入文字数過多, en: Large bulk insertion }
-    color: "#F28C28"
+    color: "#EA6C00"
     when: { insertedChars: { gte: 300 } }
 ```
 
@@ -455,7 +455,12 @@ levels:
   `insertedChars >= --bulk-chars`. This gives exactly the same result as before.
 - `--bulk-chars` is still used to decide which large deletions don't count as fine-grained edits in
   `docx-revision-flow`.
-- Per-level colors in the figures aren't drawn yet; every level is drawn in the bulk-insertion color.
+- Each level is drawn in its own color and replaces "bulk insertion" in the legends. In the chart, levels are stacked
+  between fine-grained edits and moves (lower levels below). In `docx-revision-flow`, a paragraph is filled with the
+  highest level that applies to it; other categories are shown by the thin strip at its left.
+- So that levels aren't told apart by color alone, each level also gets a pattern (`hatch`, `cross`, `dots` in order;
+  set `pattern:` on a level to choose, or `pattern: none`). A warning is shown when a level's color has less than 3:1
+  contrast against white.
 
 ## Using it as a library
 
@@ -463,6 +468,14 @@ levels:
 `computeSuspicionScore`, `renderRevisionChart`, etc.), so beyond the CLIs, the
 package can also be used as a library from another Node.js / Bun project via
 `import { ... } from "docx-revision-analyzer"`.
+
+### Color categories
+
+The colors in the figures come from a `CategoryRegistry` (`{ id, role, color, label, priority, pattern }`). The
+built-in categories are fine-grained edits, bulk insertion, moves, deletions and unchanged; register more
+`highlight` categories and pass the registry as `categories` to `renderRevisionChart` /
+`renderSessionedRevisionChart` / `renderFlowSvg`. Insertions are tied to a category through
+`RevisionEvent.category` (chart) or `FlowOptions.highlightOf` (flow).
 
 ### Where each edit happened
 

@@ -34,10 +34,10 @@ export interface FlowOptions {
   /** 同時刻の挿入の合計がこれ以上なら一括挿入とみなす (文字数)。大きな削除の判定にも使う */
   bulkChars: number;
   /**
-   * 一括挿入とみなす挿入の w:id (判定ルールで決めたもの)。指定すると、挿入の一括挿入の判定には
-   * bulkChars の代わりにこれを使う
+   * 一括挿入 (ハイライト) とみなす挿入の w:id → 図のカテゴリの id (判定ルールで決めたもの)。
+   * 指定すると、挿入の一括挿入の判定には bulkChars の代わりにこれを使う
    */
-  bulkInsIds?: Set<string>;
+  highlightOf?: Map<string, string>;
   /** 対象期間 (この範囲の変更だけを区間分け・集計に使う) */
   from?: Date;
   to?: Date;
@@ -58,6 +58,8 @@ export interface ParaHeat {
   insChars: number;
   delChars: number;
   bulkInsChars: number;
+  /** bulkInsChars のカテゴリごとの内訳 */
+  highlightChars: Record<string, number>;
   /** 移動・並べ替えで入ってきた / 出ていった文字数 */
   movedInChars: number;
   movedOutChars: number;
@@ -109,6 +111,8 @@ export interface SlopeUnit {
   addedByBulk: boolean;
   /** 色の濃さ (0〜1) */
   intensity: number;
+  /** bulk / 一括挿入で追加された単位の、最も多くを占めたハイライトのカテゴリ */
+  category?: string;
 }
 
 export interface FlowSession {
@@ -119,6 +123,8 @@ export interface FlowSession {
   insChars: number;
   delChars: number;
   bulkInsChars: number;
+  /** bulkInsChars のカテゴリごとの内訳 */
+  highlightChars: Record<string, number>;
   /** 区間開始時点 (最初の変更の直前) の文書 */
   startPages: PageLayout[];
   /** 区間終了時点の文書 */
@@ -382,6 +388,7 @@ interface SessionHeat {
   insChars: number;
   delChars: number;
   bulkInsChars: number;
+  highlightChars: Record<string, number>;
   movedChars: number;
   /** 段落単位の移動元 → 移動先 */
   paraLinks: { from: number[]; to: number[]; kind: SlopeLink["kind"]; chars: number }[];
@@ -394,7 +401,7 @@ function computeHeat(
   visibleChars: Map<number, number>,
   bulkChars: number,
   reloc: Relocations,
-  bulkInsIds: Set<string> | undefined
+  highlightOf: Map<string, string> | undefined
 ): SessionHeat {
   const isRelocIns = (p: Para, r: RevRef) => reloc.ins.has(pieceKey(p.index, r));
   const isRelocDel = (p: Para, r: RevRef) => reloc.del.has(pieceKey(p.index, r));
@@ -403,27 +410,29 @@ function computeHeat(
   const insGroup = new Map<string, number>();
   const delTotal = new Map<string, number>();
   const groupKey = (r: RevRef) => `${r.author ?? ""}|${r.date!.getTime()}`;
-  /** 一括挿入と同じ作成者・同じ日時 (bulkInsIds を指定した場合) */
+  /** 一括挿入と同じ作成者・同じ日時 (highlightOf を指定した場合) */
   const bulkGroups = new Set<string>();
   for (const p of model.paras) {
     for (const s of p.segs) {
       if (s.kind !== "text") continue;
       if (inRange(s.ins, start, end) && !isRelocIns(p, s.ins)) {
         insGroup.set(groupKey(s.ins), (insGroup.get(groupKey(s.ins)) ?? 0) + s.chars);
-        if (bulkInsIds?.has(s.ins.id)) bulkGroups.add(groupKey(s.ins));
+        if (highlightOf?.has(s.ins.id)) bulkGroups.add(groupKey(s.ins));
       }
       if (inRange(s.del, start, end)) delTotal.set(s.del.id, (delTotal.get(s.del.id) ?? 0) + s.chars);
     }
   }
   const isBulkIns = (r: RevRef) =>
-    bulkInsIds ? bulkInsIds.has(r.id) : (insGroup.get(groupKey(r)) ?? 0) >= bulkChars;
+    highlightOf ? highlightOf.has(r.id) : (insGroup.get(groupKey(r)) ?? 0) >= bulkChars;
   const isBulkGroup = (r: RevRef) =>
-    bulkInsIds ? bulkGroups.has(groupKey(r)) : (insGroup.get(groupKey(r)) ?? 0) >= bulkChars;
+    highlightOf ? bulkGroups.has(groupKey(r)) : (insGroup.get(groupKey(r)) ?? 0) >= bulkChars;
+  const categoryOf = (r: RevRef) => highlightOf?.get(r.id) ?? "bulk";
 
   const heat = new Map<number, ParaHeat>();
   let insChars = 0;
   let delChars = 0;
   let bulkInsChars = 0;
+  const highlightChars: Record<string, number> = {};
   let movedChars = 0;
   // Word の移動: 範囲名ごとの移動元・移動先の段落
   const moves = new Map<string, { from: Set<number>; to: Set<number>; chars: number }>();
@@ -437,6 +446,7 @@ function computeHeat(
     let pIns = 0;
     let pDel = 0;
     let pBulk = 0;
+    const pHigh: Record<string, number> = {};
     let movedIn = 0;
     let movedOut = 0;
     let fineChars = 0;
@@ -449,6 +459,8 @@ function computeHeat(
           movedIn += s.chars;
         } else if (isBulkIns(s.ins)) {
           pBulk += s.chars;
+          const cat = categoryOf(s.ins);
+          pHigh[cat] = (pHigh[cat] ?? 0) + s.chars;
         } else {
           fineChars += s.chars;
           fineIds.add(`ins:${s.ins.id}`);
@@ -480,6 +492,7 @@ function computeHeat(
     insChars += pIns;
     delChars += pDel;
     bulkInsChars += pBulk;
+    for (const [cat, n] of Object.entries(pHigh)) highlightChars[cat] = (highlightChars[cat] ?? 0) + n;
     movedChars += movedIn;
     if (pIns === 0 && pDel === 0 && movedIn === 0 && movedOut === 0) continue;
 
@@ -491,6 +504,7 @@ function computeHeat(
       insChars: pIns,
       delChars: pDel,
       bulkInsChars: pBulk,
+      highlightChars: pHigh,
       movedInChars: movedIn,
       movedOutChars: movedOut,
     });
@@ -518,7 +532,7 @@ function computeHeat(
       paraLinks.push({ from: [...new Set(from)], to: [ins.para], kind: "relocate", chars: [...ins.text].length });
     }
   }
-  return { heat, insChars, delChars, bulkInsChars, movedChars, paraLinks };
+  return { heat, insChars, delChars, bulkInsChars, highlightChars, movedChars, paraLinks };
 }
 
 const unitKeyOf = (p: Para) => (p.tableId !== undefined ? `t${p.tableId}` : `p${p.index}`);
@@ -549,11 +563,13 @@ function classifyUnits(
     let movedOut = 0;
     let deletedChars = 0;
     let visible = 0;
+    const high: Record<string, number> = {};
     for (const i of paraIndexes) {
       visible += atEnd.get(i) ?? 0;
       const h = heat.get(i);
       if (!h) continue;
       bulk += h.bulkInsChars;
+      for (const [cat, n] of Object.entries(h.highlightChars)) high[cat] = (high[cat] ?? 0) + n;
       fine += h.insChars - h.bulkInsChars - h.movedInChars + h.delChars - h.movedOutChars;
       movedIn += h.movedInChars;
       movedOut += h.movedOutChars;
@@ -582,6 +598,11 @@ function classifyUnits(
       paraIndexes,
       change,
       addedByBulk: change === "added" && byBulk,
+      // 最も多くを占めたカテゴリ (同じなら先に現れたもの)
+      category:
+        change === "bulk" || (change === "added" && byBulk)
+          ? Object.entries(high).reduce<[string, number] | undefined>((a, e) => (!a || e[1] > a[1] ? e : a), undefined)?.[0]
+          : undefined,
       intensity:
         change === "bulk"
           ? Math.min(1, bulk / Math.max(visible, 1))
@@ -652,7 +673,7 @@ export function buildFlow(model: DocxLayoutModel, opts: FlowOptions): FlowResult
     // 開始時点は区間の最初の変更の直前 (同じ時刻の変更は区間に含まれるため 1ms 前)
     const before = layoutAt(model, start - 1, charsPerLine, linesPerPage);
     const after = layoutAt(model, end, charsPerLine, linesPerPage);
-    const h = computeHeat(model, start, end, after.visibleChars, opts.bulkChars, reloc, opts.bulkInsIds);
+    const h = computeHeat(model, start, end, after.visibleChars, opts.bulkChars, reloc, opts.highlightOf);
     return {
       start: new Date(start),
       end: new Date(end),
@@ -660,6 +681,7 @@ export function buildFlow(model: DocxLayoutModel, opts: FlowOptions): FlowResult
       insChars: h.insChars,
       delChars: h.delChars,
       bulkInsChars: h.bulkInsChars,
+      highlightChars: h.highlightChars,
       movedChars: h.movedChars,
       startPages: before.pages,
       endPages: after.pages,

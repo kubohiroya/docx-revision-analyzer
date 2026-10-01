@@ -56,6 +56,7 @@ async function processOne(
   const rules = resolveRules(options, bulkChars);
   const analysis = analyzeWithRules(await parseDocxLayout(buf), rules);
   classifyInsertionsByLevels(data.events, analysis.levelOf);
+  warnings.push(...analysis.warnings);
   const rulesNote = options.rules ? t("rulesNote", rules.ruleSet) : undefined;
 
   let bucketSpec: BucketSpec = options.bucket;
@@ -95,6 +96,7 @@ async function processOne(
       title: options.title ?? buildDefaultTitle(t("chartTitlePrefix"), inputFile, fs.statSync(resolved).mtime),
       gapThresholdHours: thresholdHours,
       note: rulesNote,
+      categories: analysis.categories,
     });
     fs.writeFileSync(outFile, svg, "utf-8");
     await writeJson(outFile);
@@ -115,6 +117,7 @@ async function processOne(
       height: parseInt(options.height, 10),
       title: options.title ?? buildDefaultTitle(t("chartTitlePrefix"), inputFile, fs.statSync(resolved).mtime),
       note: rulesNote,
+      categories: analysis.categories,
     });
     fs.writeFileSync(outFile, svg, "utf-8");
     await writeJson(outFile);

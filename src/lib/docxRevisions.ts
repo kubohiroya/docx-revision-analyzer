@@ -47,6 +47,8 @@ export interface RevisionEvent {
   insKind?: InsertionKind;
   /** 判定ルールで付いたレベルの id (classifyInsertionsByLevels で設定する) */
   level?: string;
+  /** 図で使うカテゴリの id (categories.ts。classifyInsertionsByLevels で設定する) */
+  category?: string;
   /** 抽出元パート (例: word/document.xml) */
   part: string;
   /**

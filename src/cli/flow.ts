@@ -5,6 +5,7 @@ import * as path from "path";
 import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxRevisions";
 import { parseDocxLayout } from "../lib/docxLayout";
 import { buildFlow, DEFAULT_FLOW_OPTIONS } from "../lib/flow";
+import { categoryIdOfLevel } from "../lib/insertionRules";
 import { renderFlowSvg } from "../lib/flowSvg";
 import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
 import {
@@ -80,8 +81,9 @@ async function processOne(
 
   const model = await parseDocxLayout(await fs.promises.readFile(resolved));
   const analysis = analyzeWithRules(model, rules);
-  const bulkInsIds = new Set(analysis.levelOf.keys());
-  const result = buildFlow(model, { gapThresholdHours, bulkChars, bulkInsIds, from, to });
+  notes.push(...analysis.warnings);
+  const highlightOf = new Map([...analysis.levelOf].map(([id, lv]) => [id, categoryIdOfLevel(lv)]));
+  const result = buildFlow(model, { gapThresholdHours, bulkChars, highlightOf, from, to });
 
   if (result.sessions.length === 0) {
     // 変更履歴そのものが無い (または日時が無い) のか、期間の指定で外れたのかを区別して伝える
@@ -109,6 +111,7 @@ async function processOne(
     pageWidth,
     slopeWidth,
     note: options.rules ? t("rulesNote", rules.ruleSet) : undefined,
+    categories: analysis.categories,
   });
   fs.writeFileSync(outFile, svg, "utf-8");
   const jsonOut = writeAnalysisJson(options, outFile, TOOL, inputFile, analysis);
