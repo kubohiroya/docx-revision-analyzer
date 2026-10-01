@@ -1,0 +1,13 @@
+# Example rules file for --rules (docx-revision-chart / docx-revision-flow).
+# Levels are evaluated top to bottom; the first level whose condition matches is used.
+ruleSet: example-v1
+window: { seconds: 60, chars: 2000 }
+levels:
+  - id: level-2
+    label: { ja: 大量の一括挿入 (直後の手直しが少ない), en: Large bulk insertion with little editing afterwards }
+    color: "#C2410C"
+    when: { all: [ { insertedChars: { gte: 800 } }, { postEditRatio: { lt: 0.05 } } ] }
+  - id: level-1
+    label: { ja: 一括挿入文字数過多, en: Large bulk insertion }
+    color: "#F28C28"
+    when: { insertedChars: { gte: 300 } }

@@ -45,6 +45,8 @@ export interface RevisionEvent {
   text: string;
   /** 挿入の種類 (classifyInsertions で設定する。削除イベントでは undefined) */
   insKind?: InsertionKind;
+  /** 判定ルールで付いたレベルの id (classifyInsertionsByLevels で設定する) */
+  level?: string;
   /** 抽出元パート (例: word/document.xml) */
   part: string;
   /**

@@ -18,15 +18,24 @@ import {
   parseHistorySettings,
 } from "../lib/historySettings";
 import { t } from "../lib/i18n";
-import { parseDocxLayout } from "../lib/docxLayout";
+import { parse as parseYaml } from "yaml";
+import type { DocxLayoutModel } from "../lib/docxLayout";
 import { extractRevisionPositions } from "../lib/revisionPositions";
 import {
-  DEFAULT_WINDOW_OPTIONS,
   detectInsertionWindows,
   InsertionWindowResult,
   insertionWindowsToJson,
   WindowOptions,
 } from "../lib/insertionWindows";
+import {
+  assignLevels,
+  defaultRuleSet,
+  levelsByInsertion,
+  parseRuleSet,
+  RuleLevel,
+  RuleSet,
+  RuleSetError,
+} from "../lib/insertionRules";
 
 export interface FileResult {
   input: string;
@@ -161,34 +170,65 @@ export function addCommonOptions(program: Command): Command {
     .addOption(langOption());
 }
 
-/** 解析結果の JSON 出力 (--json) と挿入の窓 (--window-*) のオプションを登録する */
+/** 判定ルール (--rules)、解析結果の JSON 出力 (--json)、挿入の窓 (--window-*) のオプションを登録する */
 export function addAnalysisOptions(program: Command): Command {
   return program
+    .option("--rules <file>", t("optRules"))
     .option("--json [file.json]", t("optJson"))
-    .option("--window-seconds <s>", t("optWindowSeconds"), String(DEFAULT_WINDOW_OPTIONS.seconds))
-    .option("--window-chars <n>", t("optWindowChars"), String(DEFAULT_WINDOW_OPTIONS.chars))
+    .option("--window-seconds <s>", t("optWindowSeconds"))
+    .option("--window-chars <n>", t("optWindowChars"))
     .option("--window-paras <n>", t("optWindowParas"));
 }
 
-function positiveOption(value: unknown, name: string): number {
+function nonNegativeOption(value: unknown, name: string): number {
   const n = parseFloat(String(value));
-  if (!Number.isFinite(n) || n <= 0) throw new Error(t("errPositive", name));
+  if (!Number.isFinite(n) || n < 0) throw new Error(t("errNonNegative", name));
   return n;
 }
 
-/** --window-* の値から窓の設定を作る (不正な値ならエラー) */
-export function windowOptionsFrom(options: Record<string, any>): WindowOptions {
-  return {
-    seconds: positiveOption(options.windowSeconds, "--window-seconds"),
-    chars: positiveOption(options.windowChars, "--window-chars"),
-    paras: options.windowParas !== undefined ? positiveOption(options.windowParas, "--window-paras") : undefined,
-  };
+/** ルールファイルを読み込んで検証する。不正ならエラー */
+export function loadRuleSetFile(file: string): RuleSet {
+  let raw: unknown;
+  try {
+    raw = parseYaml(fs.readFileSync(file, "utf-8"));
+  } catch (err) {
+    throw new Error(t("rulesInvalid", file, err instanceof Error ? err.message : String(err)));
+  }
+  try {
+    return parseRuleSet(raw);
+  } catch (err) {
+    if (err instanceof RuleSetError) throw new Error(t("rulesInvalid", file, err.message));
+    throw err;
+  }
 }
 
-/** docx のバイト列から挿入の窓を求める */
-export async function analyzeInsertionWindows(buf: Buffer, windowOptions: WindowOptions): Promise<InsertionWindowResult> {
-  const model = await parseDocxLayout(buf);
-  return detectInsertionWindows(extractRevisionPositions(model), windowOptions);
+/**
+ * 使う判定ルールと窓の設定を決める。--rules が無ければ --bulk-chars から作る既定ルール。
+ * --window-* を指定した場合は、ルールの窓の設定のうちその項目を置き換える。
+ */
+export function resolveRules(options: Record<string, any>, bulkChars: number): RuleSet {
+  const rules = options.rules ? loadRuleSetFile(String(options.rules)) : defaultRuleSet(bulkChars);
+  const window: WindowOptions = { ...rules.window };
+  if (options.windowSeconds !== undefined) window.seconds = nonNegativeOption(options.windowSeconds, "--window-seconds");
+  if (options.windowChars !== undefined) window.chars = nonNegativeOption(options.windowChars, "--window-chars");
+  if (options.windowParas !== undefined) window.paras = nonNegativeOption(options.windowParas, "--window-paras");
+  return { ...rules, window };
+}
+
+export interface RuleAnalysis {
+  rules: RuleSet;
+  windows: InsertionWindowResult;
+  /** 窓ごとのレベル (windows.windows と同じ順) */
+  levels: (RuleLevel | undefined)[];
+  /** 挿入の w:id → レベル */
+  levelOf: Map<string, RuleLevel>;
+}
+
+/** レイアウトモデルから挿入の窓を求め、判定ルールでレベルを付ける */
+export function analyzeWithRules(model: DocxLayoutModel, rules: RuleSet): RuleAnalysis {
+  const windows = detectInsertionWindows(extractRevisionPositions(model), rules.window);
+  const levels = assignLevels(rules, windows);
+  return { rules, windows, levels, levelOf: levelsByInsertion(windows, levels) };
 }
 
 /**
@@ -200,17 +240,20 @@ export function writeAnalysisJson(
   svgOut: string,
   tool: string,
   inputFile: string,
-  windows: InsertionWindowResult,
-  extra: Record<string, unknown> = {}
+  analysis: RuleAnalysis
 ): string | undefined {
   const json = options.json;
   if (json === undefined || json === false || json === "false") return undefined;
   const outFile = json === true || json === "true" ? svgOut.replace(/\.svg$/i, "") + ".json" : String(json);
+  const w = insertionWindowsToJson(analysis.windows);
   const body = {
     tool,
     input: path.basename(inputFile),
-    ...extra,
-    ...insertionWindowsToJson(windows),
+    ruleSet: analysis.rules.ruleSet,
+    levels: analysis.rules.levels.map((lv) => ({ id: lv.id, label: lv.label, color: lv.color, when: lv.when })),
+    window: w.window,
+    timeResolutionSec: w.timeResolutionSec,
+    windows: w.windows.map((x, i) => ({ ...x, level: analysis.levels[i]?.id ?? null })),
   };
   fs.writeFileSync(outFile, JSON.stringify(body, null, 2) + "\n", "utf-8");
   return outFile;

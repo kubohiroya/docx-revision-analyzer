@@ -75,7 +75,8 @@ be used with a single input file.
 | `-t, --title <text>` | Chart title | `Revision history: <file name> (last modified <last-modified time>)` |
 | `--bulk-chars <n>` | Treat insertions by the same author at the same time totalling at least this many characters as a bulk insertion (same rule as `docx-revision-flow`) | `150` |
 | `--json [file.json]` | Also write the analysis (insertion windows and their features) as JSON. See "Analysis JSON" below | off (`<output>.json` when given without a name) |
-| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | Insertion windows: time window Δt, and distance in the document in characters / paragraphs | `60` / `2000` / unset |
+| `--rules <file>` | Rules file that assigns highlight levels to insertion windows (replaces `--bulk-chars`). See "Highlight rules" below | none |
+| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | Insertion windows: time window Δt, and distance in the document in characters / paragraphs. Overrides the rules' `window` | from the rules |
 | `--preserve-history` | If the document removes personal information (tracked-change authors and dates) on save, remove that setting, turn Track Changes on, and save it in place (the original is kept as a backup; fails if the document is open). `--preserveHistory` also works. See "When timestamps are missing" below | off |
 | `--check-history-settings` | Don't draw a chart; only check the settings and print `ok` or `needs-fix` on the first line, followed by the confirmation text when `needs-fix` | off |
 | `--drop` | Desktop drag-and-drop launch mode. When `-o` isn't given, names each output `<same directory as its input>/<filename>-<that input file's last-modified time>.svg` instead of the plain `<filename>.svg` default. Intended for the macOS Finder droplet or a direct Windows Explorer drop (see [INSTALL.md](./INSTALL.md)) (or any other double-click/drag-drop launch with no terminal attached). On Windows, also shows a native message box summarizing the result | off |
@@ -169,7 +170,8 @@ node dist/cli/flow.js report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 | `--from <datetime>` / `--to <datetime>` | Period to analyze (local time, `2026-06-01` or `"2026-06-01 09:30"`; a date-only `--to` includes that whole day) | everything |
 | `--bulk-chars <n>` | Treat insertions made at the same time totalling at least this many characters as a bulk insertion | `150` |
 | `--json [file.json]` | Also write the analysis (insertion windows and their features) as JSON. See "Analysis JSON" below | off (`<output>.json` when given without a name) |
-| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | Insertion windows: time window Δt, and distance in the document in characters / paragraphs | `60` / `2000` / unset |
+| `--rules <file>` | Rules file that assigns highlight levels to insertion windows (replaces `--bulk-chars`). See "Highlight rules" below | none |
+| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | Insertion windows: time window Δt, and distance in the document in characters / paragraphs. Overrides the rules' `window` | from the rules |
 | `--page-width <px>` | Width of each page thumbnail | `150` |
 | `--slope-width <px>` | Width of the band area between two thumbnail columns | `72` |
 | `-t, --title <text>` | Title | `Edit flow: <file name> (last modified <last-modified time>)` |
@@ -372,7 +374,7 @@ lang: en
   `burst-low`, `pretty`, ...). Flags such as `pretty` take `true` / `false`.
 - Options given on the command line take precedence over the settings file, which takes precedence over the
   built-in defaults.
-- A relative `output` path is resolved against the folder containing the settings file. `output` is ignored when
+- A relative `output` or `rules` path is resolved against the folder containing the settings file. `output` is ignored when
   several files are processed at once.
 - Unknown keys and invalid values are reported as warnings and ignored; a file that isn't valid YAML is an error.
   The tool prints which settings file it used.
@@ -408,9 +410,10 @@ Edits made after the rewrite are timestamped; timestamps already removed cannot 
 ## Analysis JSON (`--json`)
 
 With `--json`, `docx-revision-chart` and `docx-revision-flow` also write the analysis as JSON. It contains
-*insertion windows*: insertions made within a short time (`--window-seconds`, from the window's first insertion)
-and close together in the document (`--window-chars`, and `--window-paras` if given), measured in the final
-document. Moves and reordering are excluded. Each window has these features:
+*insertion windows*: insertions made within a short time (`seconds`, from the window's first insertion)
+and close together in the document (`chars`, and `paras` if given), measured in the final document. The window
+settings come from the rules (see below; by default, the same author and the same timestamp) and can be
+overridden with `--window-*`. Moves and reordering are excluded. Each window has these features:
 
 | Feature | Meaning |
 |---|---|
@@ -424,6 +427,35 @@ document. Moves and reordering are excluded. Each window has these features:
 | `insertCount` | Number of insertions |
 
 The features don't judge anything by themselves; thresholds are applied separately.
+
+### Highlight rules (`--rules`)
+
+A rules file (YAML or JSON) assigns *levels* to insertion windows based on their features. Levels are checked
+from the top, and the first match is used. Insertions in a window with a level are drawn as bulk insertions
+(orange), and the JSON output records each window's `level` and the rules' `ruleSet`; with `--rules`, the
+figures also show the `ruleSet` at the bottom right. See [examples/rules.example.yml](examples/rules.example.yml).
+
+```yaml
+ruleSet: example-v1        # identifier recorded in the outputs
+window: { seconds: 60, chars: 2000 }   # optional: also paras, byAuthor
+levels:
+  - id: level-2
+    label: { ja: 大量の一括挿入, en: Large bulk insertion with little editing afterwards }
+    color: "#C2410C"
+    when: { all: [ { insertedChars: { gte: 800 } }, { postEditRatio: { lt: 0.05 } } ] }
+  - id: level-1
+    label: { ja: 一括挿入文字数過多, en: Large bulk insertion }
+    color: "#F28C28"
+    when: { insertedChars: { gte: 300 } }
+```
+
+- Comparisons: `gte` / `gt` / `lte` / `lt` / `eq` (several in one mapping must all hold); `{ precededByDeletion: true }`
+  is short for `eq`. Combine with `all: [...]`, `any: [...]`, `not: ...`. Any number of levels.
+- Without `--rules`, the default rule is used: window = same author and same timestamp, one level
+  `insertedChars >= --bulk-chars`. This gives exactly the same result as before.
+- `--bulk-chars` is still used to decide which large deletions don't count as fine-grained edits in
+  `docx-revision-flow`.
+- Per-level colors in the figures aren't drawn yet; every level is drawn in the bulk-insertion color.
 
 ## Using it as a library
 

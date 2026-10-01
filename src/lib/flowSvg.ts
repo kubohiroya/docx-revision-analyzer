@@ -16,7 +16,7 @@
  */
 
 import { FlowResult, FlowSession, PageLayout, ParaHeat, SlopeUnit } from "./flow";
-import { esc, formatGapHours } from "./svgChart";
+import { esc, formatGapHours, renderNote } from "./svgChart";
 import { estimateLabelWidth, t } from "./i18n";
 
 export interface FlowSvgOptions {
@@ -26,6 +26,8 @@ export interface FlowSvgOptions {
   /** 開始時点と終了時点のサムネイルの間 (スロープ図) の幅 (px) */
   slopeWidth?: number;
   fontFamily?: string;
+  /** 図の右下に小さく添える注記 (判定ルールの識別子など) */
+  note?: string;
 }
 
 const GREEN = "22,128,61";
@@ -446,7 +448,7 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
   });
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height.toFixed(0)}" viewBox="0 0 ${width} ${height.toFixed(0)}">
-${parts.join("\n")}
+${parts.join("\n")}${renderNote(opts.note, width, Math.round(height), ` font-family="${font}"`)}
 </svg>
 `;
 }
