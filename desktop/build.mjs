@@ -32,6 +32,25 @@ await esbuild.build({
 });
 await esbuild.build({
   ...common,
+  entryPoints: [path.join(dir, "src/ext-preload.ts")],
+  outfile: path.join(out, "ext-preload.js"),
+  platform: "node",
+  format: "cjs",
+  target: "node22",
+  external: ["electron"],
+});
+// 拡張の実行環境: 拡張のエントリを import() で読み込むため ES モジュールにする
+await esbuild.build({
+  ...common,
+  entryPoints: [path.join(dir, "src/ext-host/runtime.ts")],
+  outfile: path.join(out, "ext-host/runtime.js"),
+  platform: "browser",
+  format: "esm",
+  target: "chrome130",
+});
+fs.copyFileSync(path.join(dir, "src/ext-host/index.html"), path.join(out, "ext-host/index.html"));
+await esbuild.build({
+  ...common,
   entryPoints: [path.join(dir, "src/renderer/app.ts")],
   outfile: path.join(out, "renderer/app.js"),
   platform: "browser",

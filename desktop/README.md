@@ -15,7 +15,7 @@ its text are never sent anywhere (the app blocks all network access).
   チャートとフローのタブ。区間のしきい値・期間・一括挿入の文字数・時間の刻みを変更できる
 - Highlights tab: the classifiers' highlights with reasons and the inserted text; click to show where they are in
   the figures. / ハイライトの一覧 (理由・本文)。クリックで図の該当箇所を示す
-- Settings: language, rules file (`--rules`), extensions (#15). / 設定: 表示言語・ルールファイル・拡張機能
+- Settings: language, rules file (`--rules`), extensions ([EXTENSIONS.md](EXTENSIONS.md)). / 設定: 表示言語・ルールファイル・拡張機能
 - Save the figure as SVG or PNG. / 図を SVG / PNG で保存
 
 ## Development / 開発

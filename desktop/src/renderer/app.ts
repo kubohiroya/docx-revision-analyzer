@@ -17,6 +17,7 @@ import {
   DocxRevisionData,
   extractRevisionPositions,
   extractRevisions,
+  finalDocumentText,
   FlowResult,
   highlightCategoryMap,
   Highlight,
@@ -34,8 +35,18 @@ import {
   splitIntoSessions,
   t as libT,
 } from "../../../src/core";
-import type { AppLang, AppSettings, OpenedFile } from "../shared";
+import type { AppLang, AppSettings, ExtensionListItem, OpenedFile } from "../shared";
 import { STRINGS, Strings } from "./strings";
+import {
+  buildAnalysisResult,
+  clearPanels,
+  confirmPermissions,
+  extensionClassifiers,
+  initExtensionUi,
+  loc,
+  permissionList,
+  renderPanels,
+} from "./extensions";
 
 type Tab = "chart" | "flow" | "highlights" | "settings";
 
@@ -65,6 +76,9 @@ let analysis: Analysis | undefined;
 let tab: Tab = "chart";
 let smokeReported = false;
 let updatesAvailable = false;
+let extList: ExtensionListItem[] = [];
+/** 解析中に起きた拡張のエラー (案内に表示する) */
+let extErrors: string[] = [];
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -120,6 +134,12 @@ function applyLang(): void {
 
 function showTab(next: Tab): void {
   tab = next;
+  if (next === "settings") {
+    void window.app.extensions.list().then((l) => {
+      extList = l;
+      renderExtensions();
+    });
+  }
   for (const b of document.querySelectorAll<HTMLButtonElement>(".tabs button")) {
     b.setAttribute("aria-selected", String(b.dataset.tab === next));
   }
@@ -192,6 +212,8 @@ async function analyze(): Promise<void> {
   const positioned = extractRevisionPositions(model);
   const ruleSet = rules ?? defaultRuleSet(a.bulkChars);
   const ctx = createAnalysisContext(model, positioned, a.gapThresholdHours);
+  extErrors = [];
+  clearPanels();
   const classification = await runPipeline(ruleSet, ctx);
   applyClassification(data.events, classification);
 
@@ -237,6 +259,17 @@ async function analyze(): Promise<void> {
     }
   }
   analysis = result;
+  window.app.extensions.analysisComplete(
+    buildAnalysisResult({
+      file: { name: file.name, mtime: file.mtime },
+      data,
+      ctx,
+      rules: ruleSet,
+      classification,
+      flow: result.flow,
+      finalText: finalDocumentText(model),
+    })
+  );
 
   // 文書の設定・変更履歴の有無の案内
   const missing = describeMissingRevisions(data);
@@ -246,6 +279,8 @@ async function analyze(): Promise<void> {
     banner(missing);
   } else if (rulesError) {
     banner(S.rulesError(rulesError));
+  } else if (extErrors.length) {
+    banner(extErrors.join(" / "));
   } else {
     banner(undefined);
   }
@@ -266,7 +301,8 @@ async function analyze(): Promise<void> {
 
 /** 既定の分類器 (並べ替え・判定ルール) のパイプライン。拡張の分類器 (#15) はここに加える */
 async function runPipeline(ruleSet: RuleSet, ctx: ReturnType<typeof createAnalysisContext>): Promise<ClassificationResult> {
-  return runClassifiers(defaultClassifiers(ruleSet), ctx);
+  const fromExtensions = await extensionClassifiers((msg) => extErrors.push(msg));
+  return runClassifiers([...defaultClassifiers(ruleSet), ...fromExtensions], ctx);
 }
 
 function escapeHtml(s: string): string {
@@ -305,6 +341,7 @@ function renderHighlights(): void {
   const items = [...a.classification.highlights].sort((x, y) => x.timeRange.start.getTime() - y.timeRange.start.getTime());
   if (items.length === 0) {
     pane.innerHTML = `<p class="hint">${escapeHtml(S.highlightsEmpty)}</p>`;
+    renderPanels(pane);
     return;
   }
   const reg = a.classification.categories;
@@ -333,6 +370,7 @@ function renderHighlights(): void {
       else locateInFlow(h);
     });
   }
+  renderPanels(pane);
 }
 
 function clearFocus(): void {
@@ -477,8 +515,62 @@ function renderSettings(): void {
   $<HTMLInputElement>("updates").checked = !!settings.checkForUpdates;
   $<HTMLInputElement>("updates").disabled = !updatesAvailable;
   setText("updates-note", updatesAvailable ? S.updatesNote : `${S.updatesNote} ${S.updatesDevBuild}`);
-  const ext = Object.keys(settings.extensions);
-  $("ext-list").innerHTML = ext.length === 0 ? `<p class="hint">${escapeHtml(S.extensionsNone)}</p>` : "";
+  renderExtensions();
+}
+
+function renderExtensions(): void {
+  const box = $("ext-list");
+  box.replaceChildren();
+  if (extList.length === 0) {
+    box.innerHTML = `<p class="hint">${escapeHtml(S.extensionsNone)}</p>`;
+    return;
+  }
+  const intro = document.createElement("p");
+  intro.className = "hint";
+  intro.textContent = S.extensionsIntro;
+  box.append(intro);
+  for (const item of extList) {
+    const div = document.createElement("div");
+    div.className = "ext-item";
+    const head = document.createElement("div");
+    head.className = "head";
+    const title = document.createElement("strong");
+    title.textContent = `${loc(item.manifest?.name ?? item.id, lang)} ${item.manifest ? `v${item.manifest.version}` : ""}`;
+    const toggle = document.createElement("label");
+    toggle.className = "check-row";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = item.enabled;
+    cb.disabled = !item.manifest;
+    cb.onchange = () =>
+      void runSafely(async () => {
+        if (cb.checked && !(await confirmPermissions(item))) {
+          cb.checked = false;
+          return;
+        }
+        extList = await window.app.extensions.setEnabled(item.id, cb.checked);
+        renderExtensions();
+        if (file) await analyze();
+      });
+    toggle.append(cb, document.createTextNode(` ${S.extEnable}`));
+    head.append(title, toggle);
+    div.append(head);
+    const desc = document.createElement("p");
+    desc.className = "hint";
+    desc.textContent = [
+      loc(item.manifest?.description, lang),
+      item.state === "active" ? S.extStateActive : item.state === "starting" ? S.extStateStarting : "",
+      item.error ? S.extStateError(item.error) : "",
+    ]
+      .filter(Boolean)
+      .join(" — ");
+    div.append(desc);
+    const permTitle = document.createElement("span");
+    permTitle.className = "hint";
+    permTitle.textContent = S.extPermissions;
+    div.append(permTitle, permissionList(item));
+    box.append(div);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -487,6 +579,8 @@ function renderSettings(): void {
 
 async function main(): Promise<void> {
   settings = await window.app.getSettings();
+  initExtensionUi({ lang: () => lang, strings: () => S, onPanelsChanged: () => renderHighlights() });
+  extList = await window.app.extensions.list();
   updatesAvailable = await window.app.updatesAvailable();
   lang = settings.lang ?? (await window.app.systemLang());
   await loadRules();

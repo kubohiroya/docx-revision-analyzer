@@ -1,0 +1,15 @@
+{
+  "id": "io.github.kubohiroya.sample-summary",
+  "name": { "en": "Writing summary (sample)", "ja": "執筆のまとめ (サンプル)" },
+  "description": {
+    "en": "A sample extension: highlights single long insertions and shows a summary panel.",
+    "ja": "拡張機能のサンプル: 1回で長く挿入された箇所をハイライトし、まとめのパネルを表示します。"
+  },
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "index.js",
+  "permissions": {
+    "ui": ["panel"],
+    "storage": true
+  }
+}
