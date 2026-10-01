@@ -462,6 +462,12 @@ levels:
   set `pattern:` on a level to choose, or `pattern: none`). A warning is shown when a level's color has less than 3:1
   contrast against white.
 
+## Desktop app (preview)
+
+[`desktop/`](desktop/) contains a desktop app (Electron) for people who don't use the command line: open or drop a
+.docx to see the chart, the flow and the highlighted insertions. Everything runs locally and the app blocks network
+access. Installers aren't published yet.
+
 ## Using it as a library
 
 `src/index.ts` re-exports the main functions and types (`extractRevisionsFromFile`,

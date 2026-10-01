@@ -15,6 +15,8 @@ export interface ChartOptions {
   note?: string;
   /** 色のカテゴリ (省略時は既定のカテゴリ) */
   categories?: CategoryRegistry;
+  /** 棒に data-start / data-end (バケットの時間範囲、ISO 8601) を付ける (アプリで該当箇所を探すため) */
+  annotate?: boolean;
 }
 
 /** 図の右下の注記 (無ければ空文字列) */
@@ -47,10 +49,12 @@ function renderBucketBars(
   zeroY: number,
   yAdded: (v: number) => number,
   yDeleted: (v: number) => number,
-  reg: CategoryRegistry
+  reg: CategoryRegistry,
+  annotate = false
 ): string {
   const parts: string[] = [];
   const when = b.start.toISOString();
+  const data = annotate ? ` data-start="${when}" data-end="${b.end.toISOString()}"` : "";
   let base = 0;
   const stack: [number, Category][] = [
     [b.addedFine, reg.byRole("fine")],
@@ -63,7 +67,7 @@ function renderBucketBars(
     const bottom = yAdded(base);
     const [rx, ry, rw, rh] = [x.toFixed(2), top.toFixed(2), barW.toFixed(2), (bottom - top).toFixed(2)];
     parts.push(
-      `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fillOf(reg, c)}" fill-opacity="0.85"><title>${esc(
+      `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fillOf(reg, c)}" fill-opacity="0.85"${data}><title>${esc(
         t("barTooltip", reg.label(c), v, when)
       )}</title></rect>` + patternOverlay(c, rx, ry, rw, rh)
     );
@@ -75,7 +79,7 @@ function renderBucketBars(
     parts.push(
       `<rect x="${x.toFixed(2)}" y="${zeroY.toFixed(2)}" width="${barW.toFixed(2)}" height="${(y - zeroY).toFixed(
         2
-      )}" fill="${fillOf(reg, del)}" fill-opacity="0.85"><title>${esc(t("barTooltip", reg.label(del), b.deleted, when))}</title></rect>`
+      )}" fill="${fillOf(reg, del)}" fill-opacity="0.85"${data}><title>${esc(t("barTooltip", reg.label(del), b.deleted, when))}</title></rect>`
     );
   }
   return parts.join("");
@@ -182,7 +186,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   for (let i = 0; i < n; i++) {
     const b = buckets[i];
     const x = marginLeft + bandW * i + (bandW - barW) / 2;
-    bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted, reg));
+    bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted, reg, opts.annotate));
   }
 
   // --- 総文字数の折れ線 ---
@@ -480,7 +484,7 @@ export function renderSessionedRevisionChart(
     for (let i = 0; i < n; i++) {
       const b = p.buckets[i];
       const x = p.x + bandW * i + (bandW - barW) / 2;
-      bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted, reg));
+      bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted, reg, opts.annotate));
     }
 
     const linePoints = p.buckets
