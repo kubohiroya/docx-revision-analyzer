@@ -7,7 +7,9 @@ import { buildBuckets, BucketSpec } from "../lib/timeBuckets";
 import { renderRevisionChart, renderSessionedRevisionChart } from "../lib/svgChart";
 import { splitIntoSessions } from "../lib/sessions";
 import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
-import { classifyInsertionsByLevels, DEFAULT_BULK_CHARS } from "../lib/insertionKinds";
+import { DEFAULT_BULK_CHARS } from "../lib/insertionKinds";
+import { applyClassification } from "../lib/classifiers";
+import { DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { parseDocxLayout } from "../lib/docxLayout";
 import {
   addAnalysisOptions,
@@ -54,8 +56,13 @@ async function processOne(
     return { input: inputFile, ok: false, notes: warnings, message: t("errPositive", "--bulk-chars") };
   }
   const rules = resolveRules(options, bulkChars);
-  const analysis = analyzeWithRules(await parseDocxLayout(buf), rules);
-  classifyInsertionsByLevels(data.events, analysis.levelOf);
+  // 時間区間は -p の指定があればそれで、無ければ docx-revision-flow の既定値で分ける
+  const gapHours =
+    options.gapThreshold !== undefined && Number.isFinite(parseFloat(options.gapThreshold))
+      ? parseFloat(options.gapThreshold)
+      : DEFAULT_FLOW_OPTIONS.gapThresholdHours;
+  const analysis = await analyzeWithRules(await parseDocxLayout(buf), rules, gapHours);
+  applyClassification(data.events, analysis.classification);
   warnings.push(...analysis.warnings);
   const rulesNote = options.rules ? t("rulesNote", rules.ruleSet) : undefined;
 

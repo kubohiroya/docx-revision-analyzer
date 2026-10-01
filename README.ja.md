@@ -440,6 +440,16 @@ levels:
 他の Node.js / Bun プロジェクトから `import { ... } from "docx-revision-analyzer"`
 としてライブラリ的に使うこともできます。
 
+### 分類器
+
+ハイライトは「分類器」のパイプラインで決めます。分類器 (`{ id, version, categories?, classify(ctx) }`) は解析結果
+(`ctx.positioned` の位置付きイベント、`ctx.windowsFor(options)` の挿入の窓と特徴量、`ctx.sessions` の時間区間) を受け取り、
+ハイライト (カテゴリ id・対象の挿入の `w:id`・時間範囲・文書範囲・特徴量・理由の文章) を返します。`runClassifiers` は
+分類器を順に実行し、挿入ごとにカテゴリの priority が最も高いハイライト (同じなら先の分類器のもの) を採用します。
+既定のパイプライン (`defaultClassifiers(rules)`) は `builtin.relocation` (並べ替え・複製 → 移動) と `builtin.rules`
+(判定ルールのレベル) です。JSON 出力には分類器の id とバージョン (`classifiers`) と、すべてのハイライトを理由付きで
+(`highlights`) 記録します。
+
 ### 色のカテゴリ
 
 図の色は `CategoryRegistry` (`{ id, role, color, label, priority, pattern }`) から取ります。既定のカテゴリは

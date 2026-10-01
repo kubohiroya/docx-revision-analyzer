@@ -22,17 +22,21 @@ import { parse as parseYaml } from "yaml";
 import type { DocxLayoutModel } from "../lib/docxLayout";
 import { extractRevisionPositions } from "../lib/revisionPositions";
 import {
-  detectInsertionWindows,
   InsertionWindowResult,
   insertionWindowsToJson,
   WindowOptions,
 } from "../lib/insertionWindows";
-import { CATEGORY_IDS, CategoryRegistry, contrastWithWhite, MIN_GRAPHIC_CONTRAST } from "../lib/categories";
+import { CategoryRegistry, contrastWithWhite, MIN_GRAPHIC_CONTRAST } from "../lib/categories";
+import {
+  ClassificationResult,
+  createAnalysisContext,
+  defaultClassifiers,
+  highlightToJson,
+  runClassifiers,
+} from "../lib/classifiers";
 import {
   assignLevels,
-  categoriesFromRules,
   defaultRuleSet,
-  levelsByInsertion,
   parseRuleSet,
   RuleLevel,
   RuleSet,
@@ -219,28 +223,38 @@ export function resolveRules(options: Record<string, any>, bulkChars: number): R
 
 export interface RuleAnalysis {
   rules: RuleSet;
-  /** 図の色のカテゴリ (既定のカテゴリ + ルールのレベル。レベルが既定の一括挿入を置き換える) */
+  /** 図の色のカテゴリ (既定のカテゴリ + 分類器のカテゴリ。ルールのレベルが既定の一括挿入を置き換える) */
   categories: CategoryRegistry;
   /** ルールについての注意 (色のコントラストが低いなど) */
   warnings: string[];
+  /** ルールの窓の設定で求めた挿入の窓 */
   windows: InsertionWindowResult;
   /** 窓ごとのレベル (windows.windows と同じ順) */
   levels: (RuleLevel | undefined)[];
-  /** 挿入の w:id → レベル */
-  levelOf: Map<string, RuleLevel>;
+  /** 分類器のパイプラインの結果 */
+  classification: ClassificationResult;
 }
 
-/** レイアウトモデルから挿入の窓を求め、判定ルールでレベルを付ける */
-export function analyzeWithRules(model: DocxLayoutModel, rules: RuleSet): RuleAnalysis {
-  const windows = detectInsertionWindows(extractRevisionPositions(model), rules.window);
-  const levels = assignLevels(rules, windows);
-  const categories = new CategoryRegistry();
-  categories.unregister(CATEGORY_IDS.bulk);
-  for (const c of categoriesFromRules(rules)) categories.register(c);
+/** レイアウトモデルから解析結果を作り、既定の分類器 (並べ替え・判定ルール) で分類する */
+export async function analyzeWithRules(
+  model: DocxLayoutModel,
+  rules: RuleSet,
+  gapThresholdHours: number
+): Promise<RuleAnalysis> {
+  const ctx = createAnalysisContext(model, extractRevisionPositions(model), gapThresholdHours);
+  const classification = await runClassifiers(defaultClassifiers(rules), ctx);
+  const windows = ctx.windowsFor(rules.window);
   const warnings = rules.levels
     .filter((lv) => contrastWithWhite(lv.color) < MIN_GRAPHIC_CONTRAST)
     .map((lv) => t("warning", t("rulesLowContrast", lv.id, contrastWithWhite(lv.color).toFixed(1))));
-  return { rules, categories, warnings, windows, levels, levelOf: levelsByInsertion(windows, levels) };
+  return {
+    rules,
+    categories: classification.categories,
+    warnings,
+    windows,
+    levels: assignLevels(rules, windows),
+    classification,
+  };
 }
 
 /**
@@ -262,10 +276,12 @@ export function writeAnalysisJson(
     tool,
     input: path.basename(inputFile),
     ruleSet: analysis.rules.ruleSet,
+    classifiers: analysis.classification.classifiers,
     levels: analysis.rules.levels.map((lv) => ({ id: lv.id, label: lv.label, color: lv.color, when: lv.when })),
     window: w.window,
     timeResolutionSec: w.timeResolutionSec,
     windows: w.windows.map((x, i) => ({ ...x, level: analysis.levels[i]?.id ?? null })),
+    highlights: analysis.classification.highlights.map(highlightToJson),
   };
   fs.writeFileSync(outFile, JSON.stringify(body, null, 2) + "\n", "utf-8");
   return outFile;
