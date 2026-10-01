@@ -9,6 +9,9 @@ its text are never sent anywhere (the app blocks all network access).
 
 ## Features / 機能 (MVP)
 
+- Open from a OneDrive / SharePoint URL ("Open from URL…"): paste the link from Share → Copy link; recently opened
+  documents are listed for one-click reopening. Signs in to Microsoft in your browser the first time
+  (setup: [DISTRIBUTION.md](DISTRIBUTION.md)). / OneDrive・SharePoint の URL から開く (最近開いた文書の一覧付き)
 - Open / drop a .docx. If Word removes tracked-change dates on save, the app offers to fix the setting (keeping a backup) —
   same as `--preserve-history`. / ファイルを開く・ドロップ。日時が削除される設定なら修正を案内 (バックアップを残す)
 - Chart and Flow tabs; change the idle-gap threshold, period, bulk-insertion size, and time step. /

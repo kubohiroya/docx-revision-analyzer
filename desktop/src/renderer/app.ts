@@ -42,7 +42,7 @@ import {
   splitIntoSessions,
   t as libT,
 } from "../../../src/core";
-import type { AppLang, AppSettings, ExtensionListItem, OpenedFile } from "../shared";
+import type { AppLang, AppSettings, ExtensionListItem, MicrosoftStatus, OpenedFile, RecentUrl } from "../shared";
 import { STRINGS, Strings } from "./strings";
 import {
   annotationsForExport,
@@ -54,6 +54,9 @@ import {
   buildAnalysisResult,
   clearPanels,
   confirmPermissions,
+  el,
+  header,
+  modal,
   extensionClassifiers,
   initExtensionUi,
   loc,
@@ -117,6 +120,8 @@ function applyLang(): void {
   setLang(lang);
   document.documentElement.lang = lang;
   setText("open", S.open);
+  setText("open-url", S.openUrl);
+  setText("open-url2", S.openUrl);
   setText("tab-chart", S.tabChart);
   setText("tab-flow", S.tabFlow);
   setText("tab-highlights", S.tabHighlights);
@@ -326,7 +331,9 @@ async function analyze(): Promise<void> {
   // 文書の設定・変更履歴の有無の案内
   const missing = describeMissingRevisions(data);
   if (needsHistoryFix(data.settings)) {
-    banner(describeHistorySettingsProblem(data.settings), { label: S.fixHistory, run: () => void fixHistory() });
+    // OneDrive / SharePoint の文書はアプリから書き換えられないため、案内だけを出す
+    if (file.source?.kind === "url") banner(`${describeHistorySettingsProblem(data.settings)} ${S.cloudFixHint}`);
+    else banner(describeHistorySettingsProblem(data.settings), { label: S.fixHistory, run: () => void fixHistory() });
   } else if (missing) {
     banner(missing);
   } else if (rulesError) {
@@ -523,6 +530,154 @@ async function runSafely(fn: () => Promise<void>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// OneDrive / SharePoint の URL から開く
+// ---------------------------------------------------------------------------
+
+let msStatus: MicrosoftStatus = { configured: false };
+let recentUrls: RecentUrl[] = [];
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleString(lang === "ja" ? "ja-JP" : "en-US", { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** 最近開いた文書の一覧 (クリックで開く、× で一覧から削除) */
+function recentList(onOpen: (r: RecentUrl) => void, limit = recentUrls.length): HTMLElement {
+  const box = el("div");
+  if (recentUrls.length === 0) {
+    box.append(el("p", S.urlRecentEmpty, "hint"));
+    return box;
+  }
+  for (const r of recentUrls.slice(0, limit)) {
+    const row = el("div", undefined, "recent-item");
+    const open = el("button", undefined, "open");
+    open.title = r.url;
+    open.append(el("span", r.name), el("small", `${hostOf(r.url)} — ${fmtDate(r.openedAt)}`));
+    open.onclick = () => onOpen(r);
+    const remove = el("button", "×", "remove");
+    remove.title = S.urlRemove;
+    remove.setAttribute("aria-label", `${S.urlRemove}: ${r.name}`);
+    remove.onclick = async (e) => {
+      e.stopPropagation();
+      recentUrls = await window.app.removeRecentUrl(r.url);
+      row.remove();
+      renderRecentWelcome();
+    };
+    row.append(open, remove);
+    box.append(row);
+  }
+  return box;
+}
+
+/** 起動画面の「最近開いた文書」 */
+function renderRecentWelcome(): void {
+  const box = $("recent-welcome");
+  box.replaceChildren();
+  if (!msStatus.configured || recentUrls.length === 0) return;
+  box.append(el("h3", S.urlRecent), recentList((r) => void openFromUrl({ recent: r.url }), 5));
+}
+
+async function refreshCloud(): Promise<void> {
+  [msStatus, recentUrls] = await Promise.all([window.app.microsoftStatus(), window.app.recentUrls()]);
+  renderRecentWelcome();
+  renderMicrosoftSettings();
+}
+
+/** URL を開く。失敗したら理由を返す (ダイアログに表示するため) */
+async function openFromUrl(target: { url: string } | { recent: string }): Promise<string | undefined> {
+  status(S.urlOpening);
+  const r = await window.app.openUrl(target);
+  await refreshCloud();
+  if (r.error) {
+    const msg = S.urlErrors[r.error.code] ?? r.error.message;
+    status(S.error(msg));
+    return r.error.message && r.error.code !== "badUrl" ? `${msg} (${r.error.message})` : msg;
+  }
+  await openFile(r.file ?? null);
+  return undefined;
+}
+
+/** 「URL から開く」ダイアログ: URL の入力欄と最近開いた文書の一覧 */
+async function showUrlDialog(): Promise<void> {
+  await refreshCloud();
+  await modal<void>((root, close) => {
+    header(root, S.urlDialogTitle);
+    if (!msStatus.configured) {
+      root.append(el("p", S.urlNotConfigured, "error"));
+    } else {
+      root.append(el("p", S.urlDialogHelp, "hint"));
+      const input = el("input");
+      input.type = "url";
+      input.className = "url-input mono";
+      input.placeholder = S.urlPlaceholder;
+      input.spellcheck = false;
+      const error = el("p", "", "error");
+      error.hidden = true;
+      const go = el("button", S.urlOpen, "primary");
+      const run = async (target: { url: string } | { recent: string }) => {
+        go.disabled = true;
+        error.hidden = true;
+        const msg = await openFromUrl(target);
+        go.disabled = false;
+        if (msg) {
+          error.textContent = msg;
+          error.hidden = false;
+        } else close();
+      };
+      go.onclick = () => void (input.value.trim() && run({ url: input.value.trim() }));
+      input.onkeydown = (e) => {
+        if (e.key === "Enter") go.click();
+      };
+      const row = el("div", undefined, "row");
+      row.append(input, go);
+      root.append(row, error);
+      const account = el("p", msStatus.account ? S.urlSignedInAs(msStatus.account) : S.urlNotSignedIn, "hint");
+      if (msStatus.account) {
+        const out = el("button", S.signOut, "link");
+        out.onclick = async () => {
+          msStatus = await window.app.microsoftSignOut();
+          account.textContent = S.urlNotSignedIn;
+          out.remove();
+          renderMicrosoftSettings();
+        };
+        account.append(" ", out);
+      }
+      root.append(account, el("h3", S.urlRecent), recentList((r) => void run({ recent: r.url })));
+      setTimeout(() => input.focus(), 0);
+    }
+    const buttons = el("div", undefined, "buttons");
+    const cancel = el("button", S.close);
+    cancel.onclick = () => close();
+    buttons.append(cancel);
+    root.append(buttons);
+  }, undefined);
+}
+
+function renderMicrosoftSettings(): void {
+  if (!settings) return;
+  setText("s-ms", S.settingsMicrosoft);
+  setText(
+    "ms-status",
+    !msStatus.configured ? S.msNotConfigured : msStatus.account ? S.urlSignedInAs(msStatus.account) : S.urlNotSignedIn
+  );
+  const out = $<HTMLButtonElement>("ms-signout");
+  out.textContent = S.signOut;
+  out.hidden = !msStatus.account;
+  setText("ms-advanced", S.msAdvanced);
+  setText("ms-client-help", S.msClientHelp);
+  setText("ms-client-save", S.save);
+  $<HTMLInputElement>("ms-client-id").value = settings.microsoft?.clientId ?? "";
+  $<HTMLInputElement>("ms-client-id").placeholder = "00000000-0000-0000-0000-000000000000";
+}
+
+// ---------------------------------------------------------------------------
 // 書き出し
 // ---------------------------------------------------------------------------
 
@@ -599,6 +754,8 @@ function renderSettings(): void {
   $<HTMLInputElement>("updates").disabled = !updatesAvailable;
   setText("updates-note", updatesAvailable ? S.updatesNote : `${S.updatesNote} ${S.updatesDevBuild}`);
   renderExtensions();
+  renderMicrosoftSettings();
+  renderRecentWelcome();
 }
 
 function renderExtensions(): void {
@@ -692,6 +849,23 @@ async function main(): Promise<void> {
 
   $("open").onclick = () => void runSafely(async () => openFile(await window.app.openDocxDialog()));
   $("open2").onclick = () => $("open").click();
+  $("open-url").onclick = () => void showUrlDialog();
+  $("open-url2").onclick = () => void showUrlDialog();
+  $("ms-signout").onclick = () =>
+    void runSafely(async () => {
+      msStatus = await window.app.microsoftSignOut();
+      renderMicrosoftSettings();
+    });
+  $("ms-client-save").onclick = () =>
+    void runSafely(async () => {
+      const id = $<HTMLInputElement>("ms-client-id").value.trim();
+      settings.microsoft = { ...(settings.microsoft ?? {}), clientId: id || undefined };
+      await persist();
+      await refreshCloud();
+    });
+  window.app.onOpenUrl((url) => void openFromUrl({ url }));
+  (window as unknown as { __showUrlDialog: () => void }).__showUrlDialog = () => void showUrlDialog();
+  await refreshCloud();
   for (const b of document.querySelectorAll<HTMLButtonElement>(".tabs button")) {
     b.onclick = () => showTab(b.dataset.tab as Tab);
   }

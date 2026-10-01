@@ -13,6 +13,7 @@
     <header class="topbar">
       <div class="file">
         <button id="open" class="primary"></button>
+        <button id="open-url"></button>
         <span id="file-name" class="file-name"></span>
       </div>
       <nav class="tabs" role="tablist">
@@ -51,6 +52,8 @@
       <section id="welcome" class="welcome">
         <div id="drop" class="drop">
           <p><span id="drop-here"></span> <button id="open2" class="link"></button></p>
+          <p><button id="open-url2" class="link"></button></p>
+          <div id="recent-welcome" class="recent"></div>
           <p id="drop-hint" class="hint"></p>
           <p id="purpose" class="hint"></p>
         </div>
@@ -74,6 +77,14 @@
         </div>
         <h2 id="s-ext"></h2>
         <div id="ext-list"></div>
+        <h2 id="s-ms"></h2>
+        <p id="ms-status"></p>
+        <div class="row"><button id="ms-signout"></button></div>
+        <details class="advanced">
+          <summary id="ms-advanced"></summary>
+          <p id="ms-client-help" class="hint"></p>
+          <div class="row"><input id="ms-client-id" class="mono wide-input" spellcheck="false" /><button id="ms-client-save"></button></div>
+        </details>
         <h2 id="s-updates"></h2>
         <label class="check-row"><input id="updates" type="checkbox" /> <span id="l-updates"></span></label>
         <p id="updates-note" class="hint"></p>

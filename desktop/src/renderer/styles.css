@@ -389,6 +389,60 @@ body.dragover .drop {
   cursor: pointer;
   font-size: 13px;
 }
+.recent {
+  margin-top: 14px;
+  text-align: left;
+}
+.recent h3 {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  background: var(--panel);
+}
+.recent-item .open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0;
+}
+.recent-item .open small {
+  display: block;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-item .remove {
+  border: none;
+  background: none;
+  color: var(--muted);
+  padding: 0 4px;
+}
+.url-input {
+  width: 100%;
+  margin: 6px 0;
+}
+.wide-input {
+  flex: 1;
+  min-width: 320px;
+}
+details.advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
 /* 図の注釈 */
 .pane.figure .dra-annotated {
   cursor: pointer;

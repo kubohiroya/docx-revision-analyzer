@@ -511,7 +511,8 @@ The desktop app shows the same list under the Highlights tab. Library: `checkInt
 
 [`desktop/`](desktop/) contains a desktop app (Electron) for people who don't use the command line: open or drop a
 .docx to see the chart, the flow and the highlighted insertions. Everything runs locally and the app blocks network
-access. Installers aren't published yet.
+access. It can also open a .docx from a OneDrive / SharePoint link (after signing in to Microsoft); the document is
+only downloaded for analysis. Installers aren't published yet.
 
 ## Using it as a library
 

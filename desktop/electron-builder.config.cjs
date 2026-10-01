@@ -21,7 +21,8 @@ module.exports = {
   productName: "Docx Revision Analyzer",
   copyright: "Copyright © Hiroya Kubo",
   directories: { output: "release", buildResources: "build" },
-  files: ["dist/**", "extensions/**", "package.json"],
+  // microsoft.json: OneDrive / SharePoint から開くための Microsoft のアプリ (クライアント) ID (DISTRIBUTION.md)
+  files: ["dist/**", "extensions/**", "package.json", "microsoft.json"],
   // 依存はすべて dist/main.js にバンドル済み。electron-updater だけは実行時に node_modules から読む
   asar: true,
   fileAssociations: [{ ext: "docx", name: "Word Document", role: "Viewer", rank: "Alternate" }],

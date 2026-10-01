@@ -19,7 +19,7 @@ await esbuild.build({
   format: "cjs",
   target: "node22",
   // electron-updater は実行時に node_modules から読む (electron-builder が配布物に含める)
-  external: ["electron", "electron-updater"],
+  external: ["electron", "electron-updater", "@azure/msal-node"],
 });
 await esbuild.build({
   ...common,

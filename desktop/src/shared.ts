@@ -38,6 +38,37 @@ export interface AppSettings {
   extensions: Record<string, boolean>;
   /** 解析の設定 (前回の値を覚えておく) */
   analysis: AnalysisSettings;
+  /** OneDrive / SharePoint の設定 (クライアント ID は配布物に同梱した値より優先する) */
+  microsoft?: { clientId?: string; authority?: string };
+  /** 最近 URL から開いた文書 (新しい順) */
+  recentUrls?: RecentUrl[];
+}
+
+export interface RecentUrl {
+  url: string;
+  name: string;
+  /** 次に開くときは、URL を解決し直さずにこれを使う */
+  driveId?: string;
+  itemId?: string;
+  /** 開いた日時 (ISO 8601) */
+  openedAt: string;
+}
+
+export type CloudErrorCode =
+  | "notConfigured"
+  | "badUrl"
+  | "notDocx"
+  | "notFound"
+  | "forbidden"
+  | "tooLarge"
+  | "signInCancelled"
+  | "network";
+
+export interface MicrosoftStatus {
+  /** クライアント ID が設定されていて、URL から開ける */
+  configured: boolean;
+  /** サインインしているアカウント (表示名またはユーザー名) */
+  account?: string;
 }
 
 export interface AnalysisSettings {
@@ -57,7 +88,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export interface OpenedFile {
+  /** ローカルのファイルのパス、または URL から開いた場合はその URL */
   path: string;
+  /** URL (OneDrive / SharePoint) から開いた場合 */
+  source?: { kind: "url"; url: string };
   name: string;
   /** 最終更新日時 (ISO 8601) */
   mtime: string;
@@ -129,6 +163,14 @@ export interface AppApi {
   openDocxDialog(): Promise<OpenedFile | null>;
   /** パスのファイルを読む (ドロップされたファイルなど) */
   readDocx(path: string): Promise<OpenedFile>;
+  /** OneDrive / SharePoint の URL (または最近開いた文書) を開く。必要ならブラウザでサインインする */
+  openUrl(target: { url: string } | { recent: string }): Promise<{ file?: OpenedFile; error?: { code: CloudErrorCode; message: string } }>;
+  recentUrls(): Promise<RecentUrl[]>;
+  removeRecentUrl(url: string): Promise<RecentUrl[]>;
+  microsoftStatus(): Promise<MicrosoftStatus>;
+  microsoftSignOut(): Promise<MicrosoftStatus>;
+  /** メインプロセスから「この URL を開いて」と指示されたとき (スモークテスト) */
+  onOpenUrl(cb: (url: string) => void): void;
   /** ドロップされた File のパス */
   pathForFile(file: File): string;
   /** 変更履歴の作成者・日時が保存されるよう文書の設定を書き換える (元のファイルはバックアップ)。バックアップのパスを返す */

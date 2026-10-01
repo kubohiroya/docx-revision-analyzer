@@ -95,6 +95,46 @@ const en = {
     opened: "Link opened",
   } as Record<string, string>,
   close: "Close",
+  openUrl: "Open from URL…",
+  urlDialogTitle: "Open from OneDrive / SharePoint",
+  urlDialogHelp:
+    "Paste the link to a .docx on OneDrive or SharePoint. In Word or OneDrive, use Share → Copy link (the address of " +
+    "the file also works). The document is downloaded into memory for analysis only.",
+  urlPlaceholder: "https://…sharepoint.com/… or https://1drv.ms/…",
+  urlOpen: "Open",
+  urlRecent: "Recently opened",
+  urlRecentEmpty: "Nothing opened from a URL yet.",
+  urlRemove: "Remove from the list",
+  urlOpening: "Opening… If your browser asks you to sign in to Microsoft, finish there and come back.",
+  urlSignedInAs: (name: string) => `Signed in to Microsoft as ${name}.`,
+  urlNotSignedIn: "Not signed in. The first time, you'll sign in to Microsoft in your browser.",
+  signOut: "Sign out",
+  urlNotConfigured:
+    "Opening from OneDrive / SharePoint isn't set up in this copy of the app (no Microsoft application ID). " +
+    "See Settings → Microsoft account.",
+  urlErrors: {
+    notConfigured: "Opening from OneDrive / SharePoint isn't set up (no Microsoft application ID).",
+    badUrl: "This isn't a OneDrive or SharePoint address. Copy the link with Share → Copy link in Word or OneDrive.",
+    notDocx: "The link points to something other than a .docx file.",
+    notFound:
+      "The file couldn't be found. If you copied the address of Word for the web, use Share → Copy link instead.",
+    forbidden:
+      "You don't have access to this file with the signed-in account, or your organization doesn't allow this app. " +
+      "Try signing out and signing in with the right account.",
+    tooLarge: "The file is too large (over 200 MB).",
+    signInCancelled: "Sign-in wasn't completed.",
+    network: "Couldn't reach OneDrive / SharePoint.",
+  } as Record<string, string>,
+  settingsMicrosoft: "Microsoft account (OneDrive / SharePoint)",
+  msNotConfigured: "Not set up: enter the application (client) ID below.",
+  msAdvanced: "Application (client) ID",
+  msClientHelp:
+    "The ID of the app registered in Microsoft Entra ID (Azure) for opening files from OneDrive / SharePoint. " +
+    "Usually built into the app; set it here only if your organization registered its own.",
+  save: "Save",
+  cloudFixHint:
+    "This document is on OneDrive / SharePoint, so the app can't change its settings. Open it in Word to change them, " +
+    "or download it and open the downloaded file here.",
   openConfirmTitle: "Open this link?",
   openConfirmBody: (origin: string) =>
     `The extension wants to open the following address in your browser (${origin}). A link can carry data in its address, so check it first.`,
@@ -213,6 +253,45 @@ const ja: Strings = {
     opened: "リンクを開いた",
   },
   close: "閉じる",
+  openUrl: "URL から開く…",
+  urlDialogTitle: "OneDrive / SharePoint から開く",
+  urlDialogHelp:
+    "OneDrive や SharePoint 上の .docx のリンクを貼り付けてください。Word や OneDrive の「共有」→「リンクのコピー」で" +
+    "コピーしたもの (ファイルのアドレスでも可) が使えます。文書は解析のためにメモリに読み込むだけです。",
+  urlPlaceholder: "https://…sharepoint.com/… または https://1drv.ms/…",
+  urlOpen: "開く",
+  urlRecent: "最近開いた文書",
+  urlRecentEmpty: "まだ URL から開いた文書はありません。",
+  urlRemove: "一覧から削除",
+  urlOpening: "読み込み中… ブラウザで Microsoft へのサインインを求められたら、サインインしてからアプリに戻ってください。",
+  urlSignedInAs: (name) => `Microsoft に ${name} としてサインインしています。`,
+  urlNotSignedIn: "サインインしていません。初回はブラウザで Microsoft にサインインします。",
+  signOut: "サインアウト",
+  urlNotConfigured:
+    "このアプリでは OneDrive / SharePoint から開く設定がされていません (Microsoft のアプリケーション ID がありません)。" +
+    "設定 → Microsoft アカウントを確認してください。",
+  urlErrors: {
+    notConfigured: "OneDrive / SharePoint から開く設定がされていません (Microsoft のアプリケーション ID がありません)。",
+    badUrl: "OneDrive / SharePoint のアドレスではありません。Word や OneDrive の「共有」→「リンクのコピー」でコピーしてください。",
+    notDocx: "リンク先が .docx ファイルではありません。",
+    notFound: "ファイルが見つかりません。Word for the web のアドレスをコピーした場合は、「共有」→「リンクのコピー」を使ってください。",
+    forbidden:
+      "サインインしているアカウントではこのファイルにアクセスできないか、組織がこのアプリを許可していません。" +
+      "サインアウトして、正しいアカウントでサインインし直してください。",
+    tooLarge: "ファイルが大きすぎます (200 MB 超)。",
+    signInCancelled: "サインインが完了しませんでした。",
+    network: "OneDrive / SharePoint に接続できませんでした。",
+  },
+  settingsMicrosoft: "Microsoft アカウント (OneDrive / SharePoint)",
+  msNotConfigured: "未設定: 下にアプリケーション (クライアント) ID を入力してください。",
+  msAdvanced: "アプリケーション (クライアント) ID",
+  msClientHelp:
+    "OneDrive / SharePoint から開くために Microsoft Entra ID (Azure) に登録したアプリの ID です。通常はアプリに組み込まれています。" +
+    "組織が独自に登録した場合だけ、ここで指定してください。",
+  save: "保存",
+  cloudFixHint:
+    "この文書は OneDrive / SharePoint 上にあるため、アプリからは設定を変更できません。Word で開いて変更するか、" +
+    "ダウンロードしたファイルをこのアプリで開いてください。",
   openConfirmTitle: "このリンクを開きますか?",
   openConfirmBody: (origin) =>
     `拡張機能が次のアドレスをブラウザで開こうとしています (${origin})。リンクのアドレスにはデータを含められるため、開く前に確認してください。`,
