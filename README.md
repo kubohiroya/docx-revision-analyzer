@@ -469,6 +469,26 @@ levels:
 package can also be used as a library from another Node.js / Bun project via
 `import { ... } from "docx-revision-analyzer"`.
 
+### In the browser (`docx-revision-analyzer/core`)
+
+The analysis and drawing code takes the .docx as bytes (`ArrayBuffer` / `Uint8Array`) and doesn't use the file
+system or child processes, so it also runs in a browser, a WebView or a sandboxed worker. Import it from
+`docx-revision-analyzer/core`; the default entry adds the Node.js-only helpers (`extractRevisionsFromFile`,
+`enableHistoryPreservation` that rewrites a file in place, `buildDropOutputPath`, and reading the macOS language
+setting).
+
+```ts
+import { extractRevisions, parseDocxLayout, buildFlow, renderFlowSvg, preserveHistoryInDocx } from "docx-revision-analyzer/core";
+
+const bytes = new Uint8Array(await file.arrayBuffer());
+const data = await extractRevisions(bytes);
+const svg = renderFlowSvg(buildFlow(await parseDocxLayout(bytes), { gapThresholdHours: 1, bulkChars: 150 }));
+const { output } = await preserveHistoryInDocx(bytes); // the fixed .docx as bytes, if it needed fixing
+```
+
+`npm test` bundles the core for the browser with esbuild (failing if it imports a Node.js module) and runs it on
+the fixtures in a sandbox without `process` / `require` / `Buffer`, checking that the results match Node.js.
+
 ### Classifiers
 
 Highlights are produced by a pipeline of *classifiers*. A classifier (`{ id, version, categories?, classify(ctx) }`)

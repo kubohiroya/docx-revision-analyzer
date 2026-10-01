@@ -440,6 +440,25 @@ levels:
 他の Node.js / Bun プロジェクトから `import { ... } from "docx-revision-analyzer"`
 としてライブラリ的に使うこともできます。
 
+### ブラウザで使う (`docx-revision-analyzer/core`)
+
+解析と描画のコードは .docx をバイト列 (`ArrayBuffer` / `Uint8Array`) で受け取り、ファイルシステムや子プロセスを
+使わないため、ブラウザ・WebView・隔離されたワーカーでも動きます。`docx-revision-analyzer/core` から import してください。
+既定のエントリは、これに Node.js 専用の機能 (`extractRevisionsFromFile`、ファイルを書き換える `enableHistoryPreservation`、
+`buildDropOutputPath`、macOS の言語設定の読み取り) を加えたものです。
+
+```ts
+import { extractRevisions, parseDocxLayout, buildFlow, renderFlowSvg, preserveHistoryInDocx } from "docx-revision-analyzer/core";
+
+const bytes = new Uint8Array(await file.arrayBuffer());
+const data = await extractRevisions(bytes);
+const svg = renderFlowSvg(buildFlow(await parseDocxLayout(bytes), { gapThresholdHours: 1, bulkChars: 150 }));
+const { output } = await preserveHistoryInDocx(bytes); // 書き換えが必要なら、書き換えた .docx のバイト列
+```
+
+`npm test` は、コアを esbuild でブラウザ向けにバンドルし (Node.js のモジュールを import していれば失敗)、`process` /
+`require` / `Buffer` の無い隔離環境で fixtures を処理して、Node.js での結果と一致することを確かめます。
+
 ### 分類器
 
 ハイライトは「分類器」のパイプラインで決めます。分類器 (`{ id, version, categories?, classify(ctx) }`) は解析結果

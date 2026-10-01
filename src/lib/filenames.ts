@@ -3,8 +3,12 @@
  * 主に「デスクトップからのドラッグ&ドロップ起動」モード (--drop) で、
  * 入力ファイルの最終更新日時をファイル名に埋め込むために使う。
  */
-import * as path from "path";
 import { t } from "./i18n";
+
+/** パスの最後の要素 (/ と \\ のどちらの区切りにも対応。path モジュールを使わない) */
+export function baseName(filePath: string): string {
+  return filePath.split(/[/\\]/).pop() ?? filePath;
+}
 
 function pad(n: number, width = 2): string {
   return String(n).padStart(width, "0");
@@ -24,11 +28,6 @@ export function formatTimestampForFilename(date: Date): string {
   return `${y}${mo}${d}-${h}${mi}${s}`;
 }
 
-/**
- * 入力ファイルパスと基準日時から、
- * "<同じディレクトリ>/<拡張子を除いたファイル名>-<YYYYMMDD-HHMMSS>.svg"
- * という出力パスを組み立てる。
- */
 /** 図の見出しに添える日時 (ローカル時刻。英語は YYYY-MM-DD HH:MM、日本語は YYYY/MM/DD HH:MM) */
 export function formatTimestampForTitle(date: Date): string {
   return t(
@@ -43,12 +42,5 @@ export function formatTimestampForTitle(date: Date): string {
 
 /** 既定の図の見出し: "<接頭辞>: <ファイル名> (last modified / 最終更新 <日時>)" */
 export function buildDefaultTitle(prefix: string, filePath: string, mtime: Date): string {
-  return t("defaultTitle", prefix, path.basename(filePath), formatTimestampForTitle(mtime));
-}
-
-export function buildDropOutputPath(inputPath: string, mtime: Date, ext = ".svg"): string {
-  const dir = path.dirname(inputPath);
-  const base = path.basename(inputPath).replace(/\.[^.]+$/, "");
-  const stamp = formatTimestampForFilename(mtime);
-  return path.join(dir, `${base}-${stamp}${ext}`);
+  return t("defaultTitle", prefix, baseName(filePath), formatTimestampForTitle(mtime));
 }

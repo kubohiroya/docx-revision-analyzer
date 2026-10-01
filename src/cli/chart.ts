@@ -2,11 +2,12 @@
 import { Command } from "commander";
 import * as fs from "fs";
 import * as path from "path";
-import { describeMissingRevisions, extractRevisionsFromBuffer } from "../lib/docxRevisions";
+import { describeMissingRevisions, extractRevisions } from "../lib/docxRevisions";
 import { buildBuckets, BucketSpec } from "../lib/timeBuckets";
 import { renderRevisionChart, renderSessionedRevisionChart } from "../lib/svgChart";
 import { splitIntoSessions } from "../lib/sessions";
-import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
+import { buildDefaultTitle } from "../lib/filenames";
+import { buildDropOutputPath } from "../node/files";
 import { DEFAULT_BULK_CHARS } from "../lib/insertionKinds";
 import { applyClassification } from "../lib/classifiers";
 import { DEFAULT_FLOW_OPTIONS } from "../lib/flow";
@@ -21,6 +22,7 @@ import {
   resolveRules,
   writeAnalysisJson,
 } from "./common";
+import "../node/locale";
 import { initLangFromArgv, t } from "../lib/i18n";
 import { applyToolConfig, loadToolConfig, loadToolConfigOrExit } from "./config";
 
@@ -44,7 +46,7 @@ async function processOne(
 
   const warnings: string[] = await checkAndFixHistorySettings(resolved, options, "docx-revision-chart");
   const buf = await fs.promises.readFile(resolved);
-  const data = await extractRevisionsFromBuffer(buf);
+  const data = await extractRevisions(buf);
   const missing = describeMissingRevisions(data);
   if (missing) {
     // 時系列解析できるイベントが無い場合は SVG を作らずにエラーとする

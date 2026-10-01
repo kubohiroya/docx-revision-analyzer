@@ -8,12 +8,10 @@
  *   2. 設定ファイル (<ツール名>.yml) の lang
  *   3. 環境変数 DOCX_REVISION_LANG
  *   4. 環境変数 LC_ALL / LC_MESSAGES / LANG / LANGUAGE
- *   5. macOS ではシステムの言語設定 (defaults read -g AppleLocale)、
- *      それ以外は Intl の既定ロケール
+ *   5. macOS ではシステムの言語設定 (defaults read -g AppleLocale。Node.js のみ)、
+ *      ブラウザでは navigator.language、それ以外は Intl の既定ロケール
  * いずれも日本語 (ja...) でなければ英語とする。
  */
-
-import { spawnSync } from "child_process";
 
 export type Lang = "en" | "ja";
 
@@ -27,15 +25,21 @@ export function langFromLocale(locale: string | undefined): Lang | undefined {
   return v.startsWith("ja") ? "ja" : "en";
 }
 
+/**
+ * OS の言語設定を返す関数。Node.js では node/locale.ts が macOS の設定 (AppleLocale) を読む関数を登録する。
+ * 登録されていなければ (ブラウザ等)、navigator.language か Intl の既定ロケールを使う。
+ */
+let systemLocaleProvider: (() => string | undefined) | undefined;
+
+export function setSystemLocaleProvider(provider: (() => string | undefined) | undefined): void {
+  systemLocaleProvider = provider;
+}
+
 function systemLocale(): string | undefined {
-  if (process.platform === "darwin") {
-    try {
-      const r = spawnSync("defaults", ["read", "-g", "AppleLocale"], { encoding: "utf-8", timeout: 2000 });
-      if (r.status === 0 && r.stdout.trim()) return r.stdout.trim();
-    } catch {
-      // 取得できなければ Intl に任せる
-    }
-  }
+  const fromProvider = systemLocaleProvider?.();
+  if (fromProvider) return fromProvider;
+  const nav = (globalThis as { navigator?: { language?: string } }).navigator;
+  if (nav?.language) return nav.language;
   try {
     return Intl.DateTimeFormat().resolvedOptions().locale;
   } catch {
@@ -43,8 +47,16 @@ function systemLocale(): string | undefined {
   }
 }
 
+type Env = Record<string, string | undefined>;
+
+/** 環境変数 (Node.js 以外では空) */
+function processEnv(): Env {
+  const p = (globalThis as { process?: { env?: Env } }).process;
+  return p?.env ?? {};
+}
+
 /** 環境 (環境変数・OS の設定) から表示言語を判定する */
-export function detectLang(env: NodeJS.ProcessEnv = process.env): Lang {
+export function detectLang(env: Env = processEnv()): Lang {
   const candidates = [
     env.DOCX_REVISION_LANG,
     env.LC_ALL,
@@ -74,7 +86,7 @@ export function getLang(): Lang {
  * CLI の引数から --lang / --lang=xx を読み、なければ環境から判定して言語を確定する。
  * コマンドのヘルプ文は定義時に作られるため、commander に渡す前に呼ぶ。
  */
-export function initLangFromArgv(argv: string[] = process.argv, configLang?: unknown): Lang {
+export function initLangFromArgv(argv: string[], configLang?: unknown): Lang {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const value = a === "--lang" ? argv[i + 1] : a.startsWith("--lang=") ? a.slice("--lang=".length) : undefined;

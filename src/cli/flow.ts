@@ -2,12 +2,13 @@
 import { Command } from "commander";
 import * as fs from "fs";
 import * as path from "path";
-import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxRevisions";
+import { describeMissingRevisions } from "../lib/docxRevisions";
 import { parseDocxLayout } from "../lib/docxLayout";
 import { buildFlow, DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { highlightCategoryMap } from "../lib/classifiers";
 import { renderFlowSvg } from "../lib/flowSvg";
-import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
+import { buildDefaultTitle } from "../lib/filenames";
+import { buildDropOutputPath, extractRevisionsFromFile } from "../node/files";
 import {
   addAnalysisOptions,
   addCommonOptions,
@@ -18,6 +19,7 @@ import {
   resolveRules,
   writeAnalysisJson,
 } from "./common";
+import "../node/locale";
 import { initLangFromArgv, t } from "../lib/i18n";
 import { applyToolConfig, loadToolConfig, loadToolConfigOrExit } from "./config";
 

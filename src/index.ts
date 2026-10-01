@@ -1,23 +1,14 @@
 /**
- * docx-revision-analyzer のライブラリエントリポイント。
+ * docx-revision-analyzer のライブラリエントリポイント (Node.js 用)。
  * CLI (`docx-revision-chart` / `docx-revision-flow` / `docx-ai-suspicion-score`) からだけでなく、
  * 他の Node.js / Bun プロジェクトから直接 import して使うこともできる。
  *
  *   import { extractRevisionsFromFile, computeSuspicionScore } from "docx-revision-analyzer";
+ *
+ * ファイルシステムを使わないコアだけが必要な場合 (ブラウザ等) は "docx-revision-analyzer/core" を使う。
  */
-export * from "./lib/docxRevisions";
-export * from "./lib/insertionKinds";
-export * from "./lib/historySettings";
-export * from "./lib/timeBuckets";
-export * from "./lib/sessions";
-export * from "./lib/svgChart";
-export * from "./lib/docxLayout";
-export * from "./lib/revisionPositions";
-export * from "./lib/insertionWindows";
-export * from "./lib/insertionRules";
-export * from "./lib/categories";
-export * from "./lib/classifiers";
-export * from "./lib/flow";
-export * from "./lib/flowSvg";
-export * from "./lib/suspicionScore";
-export * from "./lib/filenames";
+import "./node/locale";
+
+export * from "./core";
+export * from "./node/files";
+export * from "./node/historyFile";
