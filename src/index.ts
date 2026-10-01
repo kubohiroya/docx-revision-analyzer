@@ -16,6 +16,7 @@ export * from "./lib/revisionPositions";
 export * from "./lib/insertionWindows";
 export * from "./lib/insertionRules";
 export * from "./lib/categories";
+export * from "./lib/classifiers";
 export * from "./lib/flow";
 export * from "./lib/flowSvg";
 export * from "./lib/suspicionScore";

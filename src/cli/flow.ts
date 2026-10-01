@@ -5,7 +5,7 @@ import * as path from "path";
 import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxRevisions";
 import { parseDocxLayout } from "../lib/docxLayout";
 import { buildFlow, DEFAULT_FLOW_OPTIONS } from "../lib/flow";
-import { categoryIdOfLevel } from "../lib/insertionRules";
+import { highlightCategoryMap } from "../lib/classifiers";
 import { renderFlowSvg } from "../lib/flowSvg";
 import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
 import {
@@ -80,9 +80,9 @@ async function processOne(
   const notes = await checkAndFixHistorySettings(resolved, options, TOOL);
 
   const model = await parseDocxLayout(await fs.promises.readFile(resolved));
-  const analysis = analyzeWithRules(model, rules);
+  const analysis = await analyzeWithRules(model, rules, gapThresholdHours);
   notes.push(...analysis.warnings);
-  const highlightOf = new Map([...analysis.levelOf].map(([id, lv]) => [id, categoryIdOfLevel(lv)]));
+  const highlightOf = highlightCategoryMap(analysis.classification);
   const result = buildFlow(model, { gapThresholdHours, bulkChars, highlightOf, from, to });
 
   if (result.sessions.length === 0) {

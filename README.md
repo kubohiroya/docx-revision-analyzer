@@ -469,6 +469,17 @@ levels:
 package can also be used as a library from another Node.js / Bun project via
 `import { ... } from "docx-revision-analyzer"`.
 
+### Classifiers
+
+Highlights are produced by a pipeline of *classifiers*. A classifier (`{ id, version, categories?, classify(ctx) }`)
+receives the analysis (`ctx.positioned` events, `ctx.windowsFor(options)` insertion windows with features,
+`ctx.sessions` time ranges) and returns highlights: category id, target insertions (`w:id`), time range, document
+range, features and a reason. `runClassifiers` runs them in order and, for each insertion, keeps the highlight
+whose category has the highest priority (ties: the earlier classifier). The built-in pipeline
+(`defaultClassifiers(rules)`) is `builtin.relocation` (reordering/duplication → moves) followed by `builtin.rules`
+(the rule levels). The JSON output records the classifiers' ids and versions (`classifiers`) and every highlight
+with its reason (`highlights`).
+
 ### Color categories
 
 The colors in the figures come from a `CategoryRegistry` (`{ id, role, color, label, priority, pattern }`). The
