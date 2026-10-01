@@ -18,6 +18,7 @@
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
 import { t } from "./i18n";
+import type { DocxInput } from "./input";
 
 type XmlNode = Record<string, unknown>;
 
@@ -438,8 +439,8 @@ function parseGeometry(
   return geometry;
 }
 
-export async function parseDocxLayout(buf: Buffer): Promise<DocxLayoutModel> {
-  const zip = await JSZip.loadAsync(buf);
+export async function parseDocxLayout(input: DocxInput): Promise<DocxLayoutModel> {
+  const zip = await JSZip.loadAsync(input);
   const docFile = zip.file("word/document.xml");
   if (!docFile) throw new Error(t("errNoDocumentXml"));
   const docRoot = parser.parse(await docFile.async("string")) as XmlNode[];

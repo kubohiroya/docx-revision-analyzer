@@ -13,11 +13,11 @@ import {
   describeHistorySettingsProblem,
   describeHistorySettingsWarning,
   describePreserveHistoryAction,
-  enableHistoryPreservation,
   needsHistoryFix,
   parseHistorySettings,
 } from "../lib/historySettings";
 import { t } from "../lib/i18n";
+import { enableHistoryPreservation } from "../node/historyFile";
 import { parse as parseYaml } from "yaml";
 import type { DocxLayoutModel } from "../lib/docxLayout";
 import { extractRevisionPositions } from "../lib/revisionPositions";

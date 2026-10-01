@@ -15,11 +15,8 @@
 
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
-import * as fs from "fs";
-import * as path from "path";
-import { spawnSync } from "child_process";
-import { formatTimestampForFilename } from "./filenames";
 import { t } from "./i18n";
+import type { DocxInput } from "./input";
 
 export interface DocxRevisionSettings {
   /** word/settings.xml が存在するか (無い場合、以下はすべて false で書き換えもできない) */
@@ -231,93 +228,32 @@ export function patchSettingsXml(xml: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// ファイルが他で開かれていないかの確認
+// バイト列の書き換え
 // ---------------------------------------------------------------------------
 
-/**
- * Word が文書を開いている間に同じフォルダへ作る所有者ファイル (~$xxxx.docx) を探す。
- * Word はファイル名が長い場合、先頭の1〜2文字を "~$" で置き換えた名前にする。
- */
-function findWordLockFile(filePath: string): string | undefined {
-  const dir = path.dirname(filePath);
-  const name = path.basename(filePath).normalize("NFC");
-  let entries: string[];
-  try {
-    entries = fs.readdirSync(dir);
-  } catch {
-    return undefined;
-  }
-  for (const entry of entries) {
-    const e = entry.normalize("NFC");
-    if (!e.startsWith("~$")) continue;
-    const rest = e.slice(2);
-    if (rest.length > 0 && rest.length >= name.length - 2 && name.endsWith(rest)) {
-      return path.join(dir, entry);
-    }
-  }
-  return undefined;
-}
-
-/** 他のプロセスがファイルを開いているか (OS ごとのベストエフォート) */
-function isOpenByAnotherProcess(filePath: string): boolean {
-  if (process.platform === "win32") {
-    // Windows では Word が開いているファイルは共有違反で書き込みオープンできない
-    try {
-      fs.closeSync(fs.openSync(filePath, "r+"));
-      return false;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      return code === "EBUSY" || code === "EPERM" || code === "EACCES";
-    }
-  }
-  // macOS / Linux: lsof が使えれば、ファイルを開いているプロセスの有無を調べる
-  const r = spawnSync("lsof", ["-t", "--", filePath], { encoding: "utf-8" });
-  if (r.error) return false;
-  return r.stdout.trim().length > 0;
-}
-
-/**
- * ファイルが Word 等で開かれていないことを確認する。
- * 開かれている可能性がある場合は、その理由を説明する文字列を返す。
- */
-export function checkNotOpenElsewhere(filePath: string): string | undefined {
-  const lock = findWordLockFile(filePath);
-  if (lock) {
-    return t("openInWord", path.basename(lock));
-  }
-  if (isOpenByAnotherProcess(filePath)) {
-    return t("openElsewhere");
-  }
-  return undefined;
-}
-
-// ---------------------------------------------------------------------------
-// ファイルへの適用
-// ---------------------------------------------------------------------------
-
-export interface EnableHistoryResult {
+export interface PreserveHistoryResult {
   /** 設定を書き換えたか (もともと問題が無ければ false) */
   changed: boolean;
-  /** 書き換え前のファイルのバックアップ先 */
-  backupPath?: string;
   before: DocxRevisionSettings;
+  /** 書き換えた docx のバイト列 (changed のときだけ) */
+  output?: Uint8Array;
+}
+
+/** docx のバイト列から変更履歴に関する設定を読み取る */
+export async function readHistorySettings(input: DocxInput): Promise<DocxRevisionSettings> {
+  return readHistorySettingsFromZip(await JSZip.loadAsync(input));
 }
 
 /**
- * 文書の設定を書き換え、変更履歴の作成者・日時が保存されるようにする。
- * 元のファイルは "<名前>.backup-<YYYYMMDD-HHMMSS>.docx" として同じフォルダに残す。
- * ファイルが他で開かれている場合はエラーを投げる。
+ * docx のバイト列の設定を書き換え、変更履歴の作成者・日時が保存されるようにした docx を返す。
+ * ファイルシステムは使わない (ファイルへの保存は node/historyFile.ts の enableHistoryPreservation)。
  */
-export async function enableHistoryPreservation(filePath: string): Promise<EnableHistoryResult> {
-  const buf = await fs.promises.readFile(filePath);
-  const zip = await JSZip.loadAsync(buf);
+export async function preserveHistoryInDocx(input: DocxInput): Promise<PreserveHistoryResult> {
+  const zip = await JSZip.loadAsync(input);
   const settingsFile = zip.file(SETTINGS_PART);
   const xml = settingsFile ? await settingsFile.async("string") : undefined;
   const before = parseHistorySettings(xml);
   if (xml === undefined || !needsHistoryFix(before)) return { changed: false, before };
-
-  const openReason = checkNotOpenElsewhere(filePath);
-  if (openReason) throw new Error(openReason);
 
   const patched = patchSettingsXml(xml);
   const after = parseHistorySettings(patched);
@@ -325,21 +261,6 @@ export async function enableHistoryPreservation(filePath: string): Promise<Enabl
     throw new Error(t("errPatchFailed"));
   }
   zip.file(SETTINGS_PART, patched);
-  const out = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
-
-  const dir = path.dirname(filePath);
-  const base = path.basename(filePath).replace(/\.docx$/i, "");
-  const backupPath = path.join(dir, `${base}.backup-${formatTimestampForFilename(new Date())}.docx`);
-  await fs.promises.copyFile(filePath, backupPath, fs.constants.COPYFILE_EXCL);
-
-  // 途中で失敗しても元のファイルが壊れないよう、一時ファイルに書いてから置き換える
-  const tmpPath = path.join(dir, `.${base}.tmp-${process.pid}.docx`);
-  try {
-    await fs.promises.writeFile(tmpPath, out);
-    await fs.promises.rename(tmpPath, filePath);
-  } catch (err) {
-    await fs.promises.rm(tmpPath, { force: true });
-    throw err;
-  }
-  return { changed: true, backupPath, before };
+  const output = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  return { changed: true, before, output };
 }

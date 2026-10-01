@@ -24,13 +24,13 @@ import JSZip from "jszip";
 import type { InsertionKind } from "./insertionKinds";
 import type { RevisionRange } from "./revisionPositions";
 import { XMLParser } from "fast-xml-parser";
-import * as fs from "fs";
 import {
   DocxRevisionSettings,
   readHistorySettingsFromZip,
   removesAuthorAndDate,
 } from "./historySettings";
 import { t } from "./i18n";
+import type { DocxInput } from "./input";
 
 export type RevisionType = "ins" | "del";
 
@@ -222,11 +222,12 @@ export interface ExtractOptions {
   parts?: string[];
 }
 
-export async function extractRevisionsFromBuffer(
-  buf: Buffer,
+/** docx のバイト列から変更履歴を取り出す (ファイルシステムを使わない。ブラウザでも動く) */
+export async function extractRevisions(
+  input: DocxInput,
   opts: ExtractOptions = {}
 ): Promise<DocxRevisionData> {
-  const zip = await JSZip.loadAsync(buf);
+  const zip = await JSZip.loadAsync(input);
   const parts = opts.parts ?? DEFAULT_PARTS;
 
   const events: RevisionEvent[] = [];
@@ -265,10 +266,5 @@ export async function extractRevisionsFromBuffer(
   };
 }
 
-export async function extractRevisionsFromFile(
-  filePath: string,
-  opts: ExtractOptions = {}
-): Promise<DocxRevisionData> {
-  const buf = await fs.promises.readFile(filePath);
-  return extractRevisionsFromBuffer(buf, opts);
-}
+/** extractRevisions の別名 (互換のため残す) */
+export const extractRevisionsFromBuffer = extractRevisions;

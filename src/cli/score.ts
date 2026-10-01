@@ -2,12 +2,14 @@
 import { Command } from "commander";
 import * as fs from "fs";
 import * as path from "path";
-import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxRevisions";
+import { describeMissingRevisions } from "../lib/docxRevisions";
 import {
   computeSuspicionScore,
   DEFAULT_SUSPICION_OPTIONS,
 } from "../lib/suspicionScore";
 
+import "../node/locale";
+import { extractRevisionsFromFile } from "../node/files";
 import { initLangFromArgv, t } from "../lib/i18n";
 import { applyToolConfig, loadToolConfig, loadToolConfigOrExit } from "./config";
 import { langOption } from "./common";
