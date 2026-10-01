@@ -276,6 +276,92 @@ body.dragover .drop {
   align-items: center;
   gap: 8px;
 }
+.modal {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 20px 22px;
+  min-width: 380px;
+  max-width: 560px;
+}
+.modal::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+.modal h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.modal .from {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.modal .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0;
+}
+.modal .field.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.modal textarea {
+  min-height: 90px;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: inherit;
+  padding: 6px;
+}
+.modal .buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.ext-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  background: var(--panel);
+}
+.ext-item .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.ext-item ul {
+  margin: 4px 0 0 18px;
+  padding: 0;
+  font-size: 13px;
+}
+.ext-panel {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.ext-panel h3 {
+  margin: 0 0 2px;
+  font-size: 15px;
+}
+.ext-panel table {
+  border-collapse: collapse;
+  margin: 6px 0;
+}
+.ext-panel td,
+.ext-panel th {
+  border-bottom: 1px solid var(--line);
+  padding: 4px 10px 4px 0;
+  text-align: left;
+}
 .mono {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 12px;

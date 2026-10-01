@@ -8,7 +8,7 @@
  *    各タブの画面を DRA_SMOKE_OUT (フォルダ) に PNG で保存して終了する。
  */
 
-import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, session, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import * as fs from "fs";
 import * as path from "path";
@@ -16,12 +16,24 @@ import { parse as parseYaml } from "yaml";
 import { enableHistoryPreservation } from "../../src/node/historyFile";
 import { macSystemLocale } from "../../src/node/locale";
 import { langFromLocale } from "../../src/lib/i18n";
-import { AppLang, AppSettings, DEFAULT_SETTINGS, LoadedRules, OpenedFile } from "./shared";
+import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules, OpenedFile } from "./shared";
+import { defaultPost, EXT_SCHEME, ExtensionManager } from "./extensions";
+import type { AnalysisResult, ClassifierContext } from "./extension-api";
+
+// 拡張のページ (dra-ext://<id>/) を、ES モジュールを読み込める安全なオリジンとして扱う
+protocol.registerSchemesAsPrivileged([{ scheme: EXT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
 const smokeFile = process.env.DRA_SMOKE_FILE;
 const smokeOut = process.env.DRA_SMOKE_OUT;
 
 let mainWindow: BrowserWindow | undefined;
+let extensions: ExtensionManager | undefined;
+/** スモークテストで有効にする拡張 (設定には保存しない) */
+const smokeExtension = process.env.DRA_SMOKE_EXTENSION;
+let nextUiRequest = 1;
+/** 起動時の拡張の起動が終わったら解決する (ファイルを開くのはその後) */
+let extensionsReady: Promise<void> = Promise.resolve();
+const uiRequests = new Map<number, (value: unknown) => void>();
 /** 起動前に Finder から渡されたファイル (macOS の open-file) */
 let pendingOpenPath: string | undefined;
 
@@ -115,12 +127,31 @@ function registerIpc(): void {
     if (turnedOn) checkForUpdates();
   });
   ipcMain.handle("updates-available", () => app.isPackaged);
+
+  // 拡張
+  ipcMain.handle("ext:list", () => extensionList());
+  ipcMain.handle("ext:set-enabled", async (_e, id: string, enabled: boolean) => {
+    const s = loadSettings();
+    s.extensions[id] = enabled;
+    saveSettings(s);
+    await syncExtensions();
+    return extensionList();
+  });
+  ipcMain.handle("ext:registrations", () => extensions?.registrations() ?? []);
+  ipcMain.handle("ext:classify", (_e, extId: string, classifierId: string, ctx: Omit<ClassifierContext, "windowsFor">) =>
+    extensions ? extensions.classify(extId, classifierId, ctx) : { highlights: [], error: "extensions are not available" }
+  );
+  ipcMain.on("ext:analysis-complete", (_e, result: AnalysisResult) => extensions?.analysisComplete(result));
+  ipcMain.on("ext-ui-reply", (_e, msg: { reqId: number; value: unknown }) => {
+    uiRequests.get(msg.reqId)?.(msg.value);
+    uiRequests.delete(msg.reqId);
+  });
   ipcMain.handle("system-lang", () => systemLang());
   ipcMain.handle("version", () => app.getVersion());
   ipcMain.on("renderer-ready", () => {
     const p = smokeFile ?? pendingOpenPath;
     pendingOpenPath = undefined;
-    if (p) mainWindow?.webContents.send("open-path", path.resolve(p));
+    if (p) void extensionsReady.then(() => mainWindow?.webContents.send("open-path", path.resolve(p)));
   });
   ipcMain.on("smoke-analyzed", (_e, summary: { ok: boolean; message: string }) => void runSmokeCapture(summary));
 }
@@ -131,6 +162,8 @@ async function runSmokeCapture(summary: { ok: boolean; message: string }): Promi
   const out = smokeOut ?? process.cwd();
   fs.mkdirSync(out, { recursive: true });
   console.log(`smoke: ${summary.ok ? "ok" : "error"}: ${summary.message}`);
+  // 拡張のパネルなど、解析の後から届く表示を待つ (DRA_SMOKE_WAIT_MS)
+  await new Promise((r) => setTimeout(r, Number(process.env.DRA_SMOKE_WAIT_MS ?? 0)));
   for (const tab of ["chart", "flow", "highlights", "locate", "settings"]) {
     // locate: ハイライトの一覧の最初の行の「フロー」を押し、図の中の位置が示されることを確かめる
     const js =
@@ -145,6 +178,37 @@ async function runSmokeCapture(summary: { ok: boolean; message: string }): Promi
     console.log(`smoke: wrote ${file}`);
   }
   app.exit(summary.ok ? 0 : 1);
+}
+
+function extensionList(): ExtensionListItem[] {
+  const enabled = loadSettings().extensions;
+  return (extensions?.list() ?? []).map((x) => ({
+    id: x.id,
+    manifest: x.manifest,
+    state: x.state,
+    error: x.error,
+    enabled: !!enabled[x.id] || x.id === smokeExtension,
+  }));
+}
+
+async function syncExtensions(): Promise<void> {
+  const enabled = { ...loadSettings().extensions };
+  if (smokeExtension) enabled[smokeExtension] = true;
+  await extensions?.sync(enabled);
+}
+
+/** 拡張の UI をアプリのウィンドウで表示し、結果を待つ */
+function requestUi(kind: string, ext: { id: string; name: unknown }, spec: unknown): Promise<unknown> {
+  if (!mainWindow) return Promise.resolve(kind === "form" ? null : { buttonId: null });
+  const reqId = nextUiRequest++;
+  return new Promise((resolve) => {
+    uiRequests.set(reqId, resolve);
+    mainWindow!.webContents.send("ext-ui", { reqId, kind, ext, spec });
+    if (kind === "panel") {
+      uiRequests.delete(reqId);
+      resolve(null);
+    }
+  });
 }
 
 /**
@@ -189,12 +253,25 @@ app.on("open-file", (e, p) => {
 app.whenReady().then(() => {
   lockDown();
   registerIpc();
+  extensions = new ExtensionManager(
+    path.join(app.getAppPath(), "extensions"),
+    path.join(__dirname, "ext-host"),
+    path.join(__dirname, "ext-preload.js"),
+    path.join(app.getPath("userData"), "extensions"),
+    () => ({ version: app.getVersion(), locale: loadSettings().lang ?? systemLang() }),
+    requestUi,
+    defaultPost
+  );
+  extensions.discover();
   createWindow();
+  extensionsReady = syncExtensions().catch((err) => console.error(`extensions: ${err}`));
   if (loadSettings().checkForUpdates) checkForUpdates();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on("before-quit", () => extensions?.stopAll());
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin" || smokeFile) app.quit();

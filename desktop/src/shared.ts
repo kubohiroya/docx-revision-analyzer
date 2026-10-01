@@ -6,6 +6,18 @@
  * 文書や解析結果をネットワークへ送る経路は無い (main.ts で外部への通信を遮断している)。
  */
 
+import type {
+  AnalysisResult,
+  CategorySpec,
+  ClassifierContext,
+  DialogSpec,
+  ExtensionManifest,
+  FormSpec,
+  HighlightSpec,
+  LocalizedText,
+  PanelSpec,
+} from "./extension-api";
+
 export type AppLang = "en" | "ja";
 
 export interface AppSettings {
@@ -54,7 +66,44 @@ export interface LoadedRules {
   value: unknown;
 }
 
+export interface ExtensionListItem {
+  id: string;
+  manifest?: ExtensionManifest;
+  state: "disabled" | "starting" | "active" | "error";
+  error?: string;
+  enabled: boolean;
+}
+
+export interface ExtensionRegistration {
+  extId: string;
+  categories: CategorySpec[];
+  classifiers: { id: string; version: string }[];
+}
+
+/** 拡張が求めた UI の表示 */
+export interface ExtensionUiRequest {
+  reqId: number;
+  kind: "dialog" | "panel" | "form";
+  ext: { id: string; name: LocalizedText };
+  spec: DialogSpec | PanelSpec | FormSpec;
+}
+
+export interface ExtensionsApi {
+  list(): Promise<ExtensionListItem[]>;
+  setEnabled(id: string, enabled: boolean): Promise<ExtensionListItem[]>;
+  registrations(): Promise<ExtensionRegistration[]>;
+  classify(
+    extId: string,
+    classifierId: string,
+    ctx: Omit<ClassifierContext, "windowsFor">
+  ): Promise<{ highlights: HighlightSpec[]; error?: string }>;
+  analysisComplete(result: AnalysisResult): void;
+  /** 拡張の UI の表示を受け取る。dialog / form は結果を返す */
+  onUiRequest(cb: (req: ExtensionUiRequest) => Promise<unknown>): void;
+}
+
 export interface AppApi {
+  extensions: ExtensionsApi;
   /** ファイルを開くダイアログ。キャンセルなら null */
   openDocxDialog(): Promise<OpenedFile | null>;
   /** パスのファイルを読む (ドロップされたファイルなど) */

@@ -3,9 +3,26 @@
  * レンダラは Node.js の機能を持たず (sandbox)、この API を通してだけメインプロセスとやり取りする。
  */
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { AppApi } from "./shared";
+import type { AppApi, ExtensionUiRequest } from "./shared";
 
 const api: AppApi = {
+  extensions: {
+    list: () => ipcRenderer.invoke("ext:list"),
+    setEnabled: (id, enabled) => ipcRenderer.invoke("ext:set-enabled", id, enabled),
+    registrations: () => ipcRenderer.invoke("ext:registrations"),
+    classify: (extId, classifierId, ctx) => ipcRenderer.invoke("ext:classify", extId, classifierId, ctx),
+    analysisComplete: (result) => ipcRenderer.send("ext:analysis-complete", result),
+    onUiRequest: (cb) => {
+      ipcRenderer.on("ext-ui", async (_e, req: ExtensionUiRequest) => {
+        let value: unknown = null;
+        try {
+          value = await cb(req);
+        } finally {
+          ipcRenderer.send("ext-ui-reply", { reqId: req.reqId, value });
+        }
+      });
+    },
+  },
   openDocxDialog: () => ipcRenderer.invoke("open-docx-dialog"),
   readDocx: (p) => ipcRenderer.invoke("read-docx", p),
   pathForFile: (file) => webUtils.getPathForFile(file),
