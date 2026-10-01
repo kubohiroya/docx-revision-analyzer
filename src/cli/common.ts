@@ -18,6 +18,15 @@ import {
   parseHistorySettings,
 } from "../lib/historySettings";
 import { t } from "../lib/i18n";
+import { parseDocxLayout } from "../lib/docxLayout";
+import { extractRevisionPositions } from "../lib/revisionPositions";
+import {
+  DEFAULT_WINDOW_OPTIONS,
+  detectInsertionWindows,
+  InsertionWindowResult,
+  insertionWindowsToJson,
+  WindowOptions,
+} from "../lib/insertionWindows";
 
 export interface FileResult {
   input: string;
@@ -150,6 +159,61 @@ export function addCommonOptions(program: Command): Command {
     .addOption(new Option("--preserveHistory", t("optPreserveHistoryAlias")).hideHelp())
     .option("--check-history-settings", t("optCheckHistorySettings"))
     .addOption(langOption());
+}
+
+/** 解析結果の JSON 出力 (--json) と挿入の窓 (--window-*) のオプションを登録する */
+export function addAnalysisOptions(program: Command): Command {
+  return program
+    .option("--json [file.json]", t("optJson"))
+    .option("--window-seconds <s>", t("optWindowSeconds"), String(DEFAULT_WINDOW_OPTIONS.seconds))
+    .option("--window-chars <n>", t("optWindowChars"), String(DEFAULT_WINDOW_OPTIONS.chars))
+    .option("--window-paras <n>", t("optWindowParas"));
+}
+
+function positiveOption(value: unknown, name: string): number {
+  const n = parseFloat(String(value));
+  if (!Number.isFinite(n) || n <= 0) throw new Error(t("errPositive", name));
+  return n;
+}
+
+/** --window-* の値から窓の設定を作る (不正な値ならエラー) */
+export function windowOptionsFrom(options: Record<string, any>): WindowOptions {
+  return {
+    seconds: positiveOption(options.windowSeconds, "--window-seconds"),
+    chars: positiveOption(options.windowChars, "--window-chars"),
+    paras: options.windowParas !== undefined ? positiveOption(options.windowParas, "--window-paras") : undefined,
+  };
+}
+
+/** docx のバイト列から挿入の窓を求める */
+export async function analyzeInsertionWindows(buf: Buffer, windowOptions: WindowOptions): Promise<InsertionWindowResult> {
+  const model = await parseDocxLayout(buf);
+  return detectInsertionWindows(extractRevisionPositions(model), windowOptions);
+}
+
+/**
+ * --json が指定されていれば、解析結果の JSON を書き出してそのパスを返す。
+ * ファイル名が省略された場合 (設定ファイルの json: true を含む) は、SVG と同じ名前の .json にする。
+ */
+export function writeAnalysisJson(
+  options: Record<string, any>,
+  svgOut: string,
+  tool: string,
+  inputFile: string,
+  windows: InsertionWindowResult,
+  extra: Record<string, unknown> = {}
+): string | undefined {
+  const json = options.json;
+  if (json === undefined || json === false || json === "false") return undefined;
+  const outFile = json === true || json === "true" ? svgOut.replace(/\.svg$/i, "") + ".json" : String(json);
+  const body = {
+    tool,
+    input: path.basename(inputFile),
+    ...extra,
+    ...insertionWindowsToJson(windows),
+  };
+  fs.writeFileSync(outFile, JSON.stringify(body, null, 2) + "\n", "utf-8");
+  return outFile;
 }
 
 /** --lang <en|ja>。値は initLangFromArgv が先に読むため、ここではヘルプと引数の検証のために登録する */

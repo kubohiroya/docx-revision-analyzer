@@ -74,6 +74,8 @@ be used with a single input file.
 | `-H, --height <px>` | Image height | `550` |
 | `-t, --title <text>` | Chart title | `Revision history: <file name> (last modified <last-modified time>)` |
 | `--bulk-chars <n>` | Treat insertions by the same author at the same time totalling at least this many characters as a bulk insertion (same rule as `docx-revision-flow`) | `150` |
+| `--json [file.json]` | Also write the analysis (insertion windows and their features) as JSON. See "Analysis JSON" below | off (`<output>.json` when given without a name) |
+| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | Insertion windows: time window Δt, and distance in the document in characters / paragraphs | `60` / `2000` / unset |
 | `--preserve-history` | If the document removes personal information (tracked-change authors and dates) on save, remove that setting, turn Track Changes on, and save it in place (the original is kept as a backup; fails if the document is open). `--preserveHistory` also works. See "When timestamps are missing" below | off |
 | `--check-history-settings` | Don't draw a chart; only check the settings and print `ok` or `needs-fix` on the first line, followed by the confirmation text when `needs-fix` | off |
 | `--drop` | Desktop drag-and-drop launch mode. When `-o` isn't given, names each output `<same directory as its input>/<filename>-<that input file's last-modified time>.svg` instead of the plain `<filename>.svg` default. Intended for the macOS Finder droplet or a direct Windows Explorer drop (see [INSTALL.md](./INSTALL.md)) (or any other double-click/drag-drop launch with no terminal attached). On Windows, also shows a native message box summarizing the result | off |
@@ -166,6 +168,8 @@ node dist/cli/flow.js report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 | `-p, --gap-threshold <hours>` | Start a new session after an idle gap longer than this | `1` |
 | `--from <datetime>` / `--to <datetime>` | Period to analyze (local time, `2026-06-01` or `"2026-06-01 09:30"`; a date-only `--to` includes that whole day) | everything |
 | `--bulk-chars <n>` | Treat insertions made at the same time totalling at least this many characters as a bulk insertion | `150` |
+| `--json [file.json]` | Also write the analysis (insertion windows and their features) as JSON. See "Analysis JSON" below | off (`<output>.json` when given without a name) |
+| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | Insertion windows: time window Δt, and distance in the document in characters / paragraphs | `60` / `2000` / unset |
 | `--page-width <px>` | Width of each page thumbnail | `150` |
 | `--slope-width <px>` | Width of the band area between two thumbnail columns | `72` |
 | `-t, --title <text>` | Title | `Edit flow: <file name> (last modified <last-modified time>)` |
@@ -400,6 +404,26 @@ file can be opened for writing; on macOS/Linux, `lsof`) and fails without touchi
 Edits made after the rewrite are timestamped; timestamps already removed cannot be recovered.
 
 ---
+
+## Analysis JSON (`--json`)
+
+With `--json`, `docx-revision-chart` and `docx-revision-flow` also write the analysis as JSON. It contains
+*insertion windows*: insertions made within a short time (`--window-seconds`, from the window's first insertion)
+and close together in the document (`--window-chars`, and `--window-paras` if given), measured in the final
+document. Moves and reordering are excluded. Each window has these features:
+
+| Feature | Meaning |
+|---|---|
+| `insertedChars` | Total inserted characters |
+| `durationSec` / `cps` | Time span (seconds) / insertion speed (chars per second). The span adds the estimated timestamp resolution (`timeResolutionSec`: 60 when Word recorded minutes only; at least 1 second), since an insertion may have happened anywhere within it |
+| `spanChars` / `spanParas` | Extent in the final document (characters / paragraphs) |
+| `maxSingleInsert` | Largest single `w:ins` (characters) |
+| `paraCount` | Number of paragraphs the insertions touch |
+| `postEditRatio` | Characters inserted/deleted in that range after the window ÷ `insertedChars` |
+| `precededByDeletion` / `precedingDeletedChars` | Whether text in that range was deleted just before or during the window (a replacement), and how much |
+| `insertCount` | Number of insertions |
+
+The features don't judge anything by themselves; thresholds are applied separately.
 
 ## Using it as a library
 
