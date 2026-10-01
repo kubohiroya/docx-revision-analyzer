@@ -22,6 +22,7 @@
 
 import JSZip from "jszip";
 import type { InsertionKind } from "./insertionKinds";
+import type { RevisionRange } from "./revisionPositions";
 import { XMLParser } from "fast-xml-parser";
 import * as fs from "fs";
 import {
@@ -46,6 +47,11 @@ export interface RevisionEvent {
   insKind?: InsertionKind;
   /** 抽出元パート (例: word/document.xml) */
   part: string;
+  /**
+   * 最終文書での位置 (attachRevisionPositions で設定する。word/document.xml のみ)。
+   * 位置の表し方は revisionPositions.ts を参照
+   */
+  position?: RevisionRange;
 }
 
 export interface DocxRevisionData {

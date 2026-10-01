@@ -381,6 +381,25 @@ Windows では書き込みオープンの可否、macOS/Linux では `lsof`) を
 他の Node.js / Bun プロジェクトから `import { ... } from "docx-revision-analyzer"`
 としてライブラリ的に使うこともできます。
 
+### 各編集の位置
+
+`extractRevisionPositions` は、挿入・削除 (`w:id`) ごとに、時刻・作成者・文字数・本文と、位置 (段落インデックス・
+段落内の文字オフセット・文書先頭からの文字オフセット) を持つイベント列を返します。位置は、最終文書 (すべての変更を
+反映した状態) と、編集の時点 (挿入は挿入直後、削除は削除直前) の両方で求めます。オフセットは
+`finalDocumentText(model)` / `documentTextAt(model, date)` (段落を `"\n"` で連結した文字列、UTF-16 単位) の中の位置です。
+移動 (`w:moveFrom` / `w:moveTo`) は `move: true` として含め、`moveName` で移動元と移動先を対応づけます。
+`attachRevisionPositions` で、`w:id` の対応する `RevisionEvent` に `position` を設定できます。
+
+```ts
+import { readFileSync } from "fs";
+import { parseDocxLayout, extractRevisionPositions } from "docx-revision-analyzer";
+
+const model = await parseDocxLayout(readFileSync("report.docx"));
+for (const e of extractRevisionPositions(model)) {
+  console.log(e.type, e.date, e.chars, e.final.start.paraIndex, e.final.start.offsetInPara);
+}
+```
+
 ---
 
 ## コントリビュート
