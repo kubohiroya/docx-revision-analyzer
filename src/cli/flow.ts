@@ -5,6 +5,7 @@ import * as path from "path";
 import { describeMissingRevisions } from "../lib/docxRevisions";
 import { parseDocxLayout } from "../lib/docxLayout";
 import { checkIntegrity } from "../lib/integrity";
+import { flowTargets } from "../lib/figureTargets";
 import { buildFlow, DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { highlightCategoryMap } from "../lib/classifiers";
 import { renderFlowSvg } from "../lib/flowSvg";
@@ -17,6 +18,7 @@ import {
   FileResult,
   runForFiles,
   analyzeWithRules,
+  loadAnnotations,
   resolveRules,
   writeAnalysisJson,
 } from "./common";
@@ -115,11 +117,12 @@ async function processOne(
     pageWidth,
     slopeWidth,
     note: options.rules ? t("rulesNote", rules.ruleSet) : undefined,
+    annotations: loadAnnotations(options),
     categories: analysis.categories,
   });
   fs.writeFileSync(outFile, svg, "utf-8");
   const jsonOut = writeAnalysisJson(options, outFile, TOOL, inputFile, analysis,
-    options.json ? await checkIntegrity(buf) : undefined);
+    options.json ? await checkIntegrity(buf) : undefined, flowTargets(result));
   if (jsonOut) notes.push(t("jsonWritten", jsonOut));
 
   const pages = Math.max(...result.sessions.flatMap((s) => [s.startPages.length, s.endPages.length]));

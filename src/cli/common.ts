@@ -27,6 +27,7 @@ import {
   WindowOptions,
 } from "../lib/insertionWindows";
 import type { IntegrityReport } from "../lib/integrity";
+import { FigureAnnotation, FigureTarget, ResolvedAnnotation, resolveAnnotations } from "../lib/figureTargets";
 import { CategoryRegistry, contrastWithWhite, MIN_GRAPHIC_CONTRAST } from "../lib/categories";
 import {
   ClassificationResult,
@@ -181,6 +182,7 @@ export function addCommonOptions(program: Command): Command {
 export function addAnalysisOptions(program: Command): Command {
   return program
     .option("--rules <file>", t("optRules"))
+    .option("--annotations <file>", t("optAnnotations"))
     .option("--json [file.json]", t("optJson"))
     .option("--window-seconds <s>", t("optWindowSeconds"))
     .option("--window-chars <n>", t("optWindowChars"))
@@ -191,6 +193,21 @@ function nonNegativeOption(value: unknown, name: string): number {
   const n = parseFloat(String(value));
   if (!Number.isFinite(n) || n < 0) throw new Error(t("errNonNegative", name));
   return n;
+}
+
+/** 注釈ファイル (YAML / JSON) を読む。--annotations が無ければ undefined */
+export function loadAnnotations(options: Record<string, any>): Map<string, ResolvedAnnotation> | undefined {
+  if (!options.annotations) return undefined;
+  const file = String(options.annotations);
+  let raw: unknown;
+  try {
+    raw = parseYaml(fs.readFileSync(file, "utf-8"));
+  } catch (err) {
+    throw new Error(t("annotationsInvalid", file, err instanceof Error ? err.message : String(err)));
+  }
+  const list = Array.isArray(raw) ? raw : (raw as { annotations?: unknown })?.annotations;
+  if (!Array.isArray(list)) throw new Error(t("annotationsInvalid", file, t("annotationsNotList")));
+  return resolveAnnotations(list as FigureAnnotation[]);
 }
 
 /** ルールファイルを読み込んで検証する。不正ならエラー */
@@ -268,7 +285,8 @@ export function writeAnalysisJson(
   tool: string,
   inputFile: string,
   analysis: RuleAnalysis,
-  integrity?: IntegrityReport
+  integrity?: IntegrityReport,
+  figureTargets?: FigureTarget[]
 ): string | undefined {
   const json = options.json;
   if (json === undefined || json === false || json === "false") return undefined;
@@ -286,6 +304,8 @@ export function writeAnalysisJson(
     highlights: analysis.classification.highlights.map(highlightToJson),
     // 整合性の簡易チェック (判定ではなく情報として)
     integrity: integrity ?? null,
+    // 図の部分の一覧 (--annotations の target に使うキー)
+    figureTargets: figureTargets ?? [],
   };
   fs.writeFileSync(outFile, JSON.stringify(body, null, 2) + "\n", "utf-8");
   return outFile;

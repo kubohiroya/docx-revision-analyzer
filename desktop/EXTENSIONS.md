@@ -132,6 +132,33 @@ Extensions describe UI as JSON; the app renders it (as plain text — no HTML), 
 
 All texts are `LocalizedText`: a string or `{ ja, en }`.
 
+## Figure annotations / 図の部分への注釈
+
+`host.registerFigureAnnotator({ id, version, annotate(ctx) })` adds mouse-over explanations, pop-ups and click-through
+links to parts of the chart and flow figures. Requires `permissions.ui: ["figure"]`; links additionally require the
+link's https origin in `permissions.links`.
+
+`ctx` is `{ figure: "chart" | "flow", targets, analysis }`. Each target has a stable `key`:
+
+| Part | Key | Extra fields |
+|---|---|---|
+| chart bar | `chart:bar:<category id>:<bucket start>` | `categoryId`, `start`, `end`, `chars` |
+| flow paragraph | `flow:para:<column>:<paragraph>` (column 0 = start of session 1, column k = end of session k) | `column`, `paraIndex`, `session` |
+| flow band | `flow:band:<session>:<unit>` | `session`, `unitKey`, `paraIndexes`, `change` |
+| flow move band | `flow:move:<session>:<from>:<to>` | `session`, `fromKey`, `toKey`, `chars` |
+| flow caption | `flow:caption:<session>` | `session`, `start`, `end` |
+
+Return `{ target, tooltip?, popup?: { title?, blocks }, href? }` per part (blocks are the same as panels).
+In the app, hovering a part shows a pop-up (marked with the extension's name); clicking opens the link in the default
+browser. Because a URL can carry data, opening a link is handled like a send: it's confirmed (same per-extension
+setting as sends) and recorded in the send history as *opened* / *declined*; undeclared origins are dropped.
+Saved SVG files embed the annotations as `<title>` (tooltip) and `<a href>` (link), so they also work when the SVG is
+opened in a browser — without the app's confirmation, since the user chose to save them.
+
+`host.registerFigureAnnotator` で、chart / flow の図の部分に、マウスオーバーの説明・ポップアップ・クリックで開くリンクを
+付けられます (`ui: ["figure"]` の権限、リンクには `links` で宣言したオリジンが必要)。リンクを開く操作は送信と同じく確認して
+送信履歴に記録します。保存した SVG には `<title>` と `<a href>` として埋め込まれます。
+
 ## Sending data (`net.post`) / 外部への送信
 
 `host.net.post(url, body, { confirm? })` is the only way an extension can reach the network. The app mediates every

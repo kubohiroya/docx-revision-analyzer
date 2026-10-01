@@ -19,7 +19,7 @@ import { langFromLocale } from "../../src/lib/i18n";
 import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules, OpenedFile } from "./shared";
 import { EXT_SCHEME, ExtensionManager } from "./extensions";
 import { NetMediator } from "./sendLog";
-import type { AnalysisResult, ClassifierContext } from "./extension-api";
+import type { AnalysisResult, ClassifierContext, FigureContext } from "./extension-api";
 
 // 拡張のページ (dra-ext://<id>/) を、ES モジュールを読み込める安全なオリジンとして扱う
 protocol.registerSchemesAsPrivileged([{ scheme: EXT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -144,6 +144,14 @@ function registerIpc(): void {
     return extensionList();
   });
   ipcMain.handle("ext:send-log", (_e, id: string) => mediator?.log(id) ?? []);
+  ipcMain.handle("ext:annotate-figure", (_e, extId: string, annotatorId: string, ctx: FigureContext) =>
+    extensions ? extensions.annotateFigure(extId, annotatorId, ctx) : { annotations: [], error: "extensions are not available" }
+  );
+  ipcMain.handle("ext:open-link", async (_e, extId: string, url: string) => {
+    const m = extensions?.manifest(extId);
+    if (!m || !mediator) return false;
+    return mediator.openLink(m, url, extensions!.linkAllowed(extId, url));
+  });
   ipcMain.handle("ext:registrations", () => extensions?.registrations() ?? []);
   ipcMain.handle("ext:classify", (_e, extId: string, classifierId: string, ctx: Omit<ClassifierContext, "windowsFor">) =>
     extensions ? extensions.classify(extId, classifierId, ctx) : { highlights: [], error: "extensions are not available" }
@@ -171,12 +179,26 @@ async function runSmokeCapture(summary: { ok: boolean; message: string }): Promi
   console.log(`smoke: ${summary.ok ? "ok" : "error"}: ${summary.message}`);
   // 拡張のパネルなど、解析の後から届く表示を待つ (DRA_SMOKE_WAIT_MS)
   await new Promise((r) => setTimeout(r, Number(process.env.DRA_SMOKE_WAIT_MS ?? 0)));
-  for (const tab of ["chart", "flow", "highlights", "locate", "settings"]) {
+  // hover: フローの、注釈のある最初の部分にマウスを重ねる。click: それをクリックする (リンクを開く確認が出る)
+  const hoverJs = (click: boolean) => `(() => {
+    window.__showTab("flow");
+    const el = document.querySelector("#pane-flow .dra-annotated");
+    if (!el) return false;
+    el.scrollIntoView({ block: "center", inline: "center" });
+    const r = el.getBoundingClientRect();
+    const o = { bubbles: true, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 };
+    el.dispatchEvent(new MouseEvent("mouseenter", o));
+    if (${click}) el.dispatchEvent(new MouseEvent("click", o));
+    return true;
+  })()`;
+  for (const tab of ["chart", "flow", "highlights", "locate", "hover", "click", "settings"]) {
     // locate: ハイライトの一覧の最初の行の「フロー」を押し、図の中の位置が示されることを確かめる
     const js =
       tab === "locate"
         ? `window.__showTab("highlights"); document.querySelector('tr.item button[data-goto="flow"]')?.click()`
-        : `window.__showTab(${JSON.stringify(tab)})`;
+        : tab === "hover" || tab === "click"
+          ? hoverJs(tab === "click")
+          : `window.__showTab(${JSON.stringify(tab)})`;
     await mainWindow.webContents.executeJavaScript(js);
     await new Promise((r) => setTimeout(r, 400));
     const img = await mainWindow.webContents.capturePage();
@@ -206,11 +228,11 @@ async function syncExtensions(): Promise<void> {
 
 /** 拡張の UI をアプリのウィンドウで表示し、結果を待つ */
 function requestUi(kind: string, ext: { id: string; name: unknown }, spec: unknown): Promise<unknown> {
-  if (kind === "confirmSend" && process.env.DRA_SMOKE_CONFIRM) {
+  if ((kind === "confirmSend" || kind === "confirmOpen") && process.env.DRA_SMOKE_CONFIRM) {
     // スモークテスト: 確認に自動で答える (accept / reject)
     return Promise.resolve(process.env.DRA_SMOKE_CONFIRM === "accept");
   }
-  if (!mainWindow) return Promise.resolve(kind === "form" ? null : kind === "confirmSend" ? false : { buttonId: null });
+  if (!mainWindow) return Promise.resolve(kind === "form" ? null : kind.startsWith("confirm") ? false : { buttonId: null });
   const reqId = nextUiRequest++;
   return new Promise((resolve) => {
     uiRequests.set(reqId, resolve);
@@ -268,6 +290,8 @@ app.whenReady().then(() => {
     dir: path.join(app.getPath("userData"), "extensions"),
     confirmByDefault: (id) => loadSettings().extensionConfirmSends?.[id] !== false,
     askUser: async (ext, url, body) => (await requestUi("confirmSend", { id: ext.id, name: ext.name }, { url, body })) === true,
+    askOpen: async (ext, url) => (await requestUi("confirmOpen", { id: ext.id, name: ext.name }, { url, body: "" })) === true,
+    openExternal: (url) => shell.openExternal(url),
     onChange: (id) => mainWindow?.webContents.send("ext-send-log-changed", id),
   });
   extensions = new ExtensionManager(

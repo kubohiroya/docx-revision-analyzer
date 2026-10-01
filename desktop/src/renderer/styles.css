@@ -389,6 +389,54 @@ body.dragover .drop {
   cursor: pointer;
   font-size: 13px;
 }
+/* 図の注釈 */
+.pane.figure .dra-annotated {
+  cursor: pointer;
+}
+.pane.figure .dra-annotated.dra-hover {
+  stroke: #111111;
+  stroke-width: 1.5px;
+  fill-opacity: 0.25;
+}
+.pane.figure rect.dra-annotated.dra-hover[fill="transparent"] {
+  fill: #111111;
+  fill-opacity: 0.08;
+}
+.figure-popup {
+  position: fixed;
+  z-index: 10;
+  max-width: 360px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+}
+.figure-popup section + section {
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.figure-popup .from {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.figure-popup h4,
+.figure-popup p {
+  margin: 0 0 4px;
+}
+.figure-popup table {
+  border-collapse: collapse;
+  margin: 4px 0;
+}
+.figure-popup td,
+.figure-popup th {
+  padding: 2px 8px 2px 0;
+  text-align: left;
+}
 .mono {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 12px;
