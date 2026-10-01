@@ -43,7 +43,7 @@ export function loc(v: LocalizedText | undefined, lang: AppLang): string {
   return v[lang] ?? v.en ?? v.ja ?? "";
 }
 
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string): HTMLElementTagNameMap[K] {
+export function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
   if (text !== undefined) e.textContent = text;
   if (cls) e.className = cls;
@@ -57,7 +57,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: 
 let modalQueue: Promise<unknown> = Promise.resolve();
 
 /** モーダルを1つずつ表示する。build は中身を作り、close(value) で閉じる */
-function modal<T>(build: (root: HTMLDialogElement, close: (v: T) => void) => void, onCancel: T): Promise<T> {
+export function modal<T>(build: (root: HTMLDialogElement, close: (v: T) => void) => void, onCancel: T): Promise<T> {
   const run = () =>
     new Promise<T>((resolve) => {
       const d = document.getElementById("modal") as HTMLDialogElement;
@@ -81,7 +81,7 @@ function modal<T>(build: (root: HTMLDialogElement, close: (v: T) => void) => voi
   return p;
 }
 
-function header(root: HTMLElement, title: string, from?: string): void {
+export function header(root: HTMLElement, title: string, from?: string): void {
   root.append(el("h3", title));
   if (from) root.append(el("p", from, "from"));
 }

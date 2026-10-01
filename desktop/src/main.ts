@@ -16,7 +16,8 @@ import { parse as parseYaml } from "yaml";
 import { enableHistoryPreservation } from "../../src/node/historyFile";
 import { macSystemLocale } from "../../src/node/locale";
 import { langFromLocale } from "../../src/lib/i18n";
-import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules, OpenedFile } from "./shared";
+import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules, MicrosoftStatus, OpenedFile, RecentUrl } from "./shared";
+import { MicrosoftClient, MicrosoftConfig, MicrosoftError } from "./microsoft";
 import { EXT_SCHEME, ExtensionManager } from "./extensions";
 import { NetMediator } from "./sendLog";
 import type { AnalysisResult, ClassifierContext } from "./extension-api";
@@ -24,7 +25,7 @@ import type { AnalysisResult, ClassifierContext } from "./extension-api";
 // 拡張のページ (dra-ext://<id>/) を、ES モジュールを読み込める安全なオリジンとして扱う
 protocol.registerSchemesAsPrivileged([{ scheme: EXT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
-const smokeFile = process.env.DRA_SMOKE_FILE;
+const smokeFile = process.env.DRA_SMOKE_FILE ?? process.env.DRA_SMOKE_URL;
 // テスト用: 設定・拡張のデータの置き場所を変える (利用者のデータに触れないため)
 if (process.env.DRA_USER_DATA) app.setPath("userData", path.resolve(process.env.DRA_USER_DATA));
 const smokeOut = process.env.DRA_SMOKE_OUT;
@@ -32,6 +33,43 @@ const smokeOut = process.env.DRA_SMOKE_OUT;
 let mainWindow: BrowserWindow | undefined;
 let extensions: ExtensionManager | undefined;
 let mediator: NetMediator | undefined;
+let microsoft: MicrosoftClient | undefined;
+const MAX_RECENT_URLS = 20;
+
+/**
+ * Microsoft のアプリ (クライアント) ID: 環境変数 DRA_MS_CLIENT_ID > 設定 > 配布物に同梱した microsoft.json の順。
+ * 登録の手順は DISTRIBUTION.md
+ */
+function microsoftConfig(): MicrosoftConfig | undefined {
+  const s = loadSettings().microsoft;
+  let bundled: MicrosoftConfig | undefined;
+  try {
+    bundled = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), "microsoft.json"), "utf-8"));
+  } catch {
+    bundled = undefined;
+  }
+  const clientId = process.env.DRA_MS_CLIENT_ID || s?.clientId || bundled?.clientId;
+  if (!clientId) return undefined;
+  return { clientId, authority: process.env.DRA_MS_AUTHORITY || s?.authority || bundled?.authority };
+}
+
+async function microsoftStatus(): Promise<MicrosoftStatus> {
+  if (!microsoft?.configured()) return { configured: false };
+  try {
+    const a = await microsoft.account();
+    return { configured: true, account: a ? a.name || a.username : undefined };
+  } catch {
+    return { configured: true };
+  }
+}
+
+function rememberUrl(entry: RecentUrl): RecentUrl[] {
+  const s = loadSettings();
+  const list = [entry, ...(s.recentUrls ?? []).filter((r) => r.url !== entry.url)].slice(0, MAX_RECENT_URLS);
+  s.recentUrls = list;
+  saveSettings(s);
+  return list;
+}
 /** スモークテストで有効にする拡張 (設定には保存しない) */
 const smokeExtension = process.env.DRA_SMOKE_EXTENSION;
 let nextUiRequest = 1;
@@ -103,6 +141,39 @@ function registerIpc(): void {
     return r.canceled || r.filePaths.length === 0 ? null : readDocx(r.filePaths[0]);
   });
   ipcMain.handle("read-docx", (_e, p: string) => readDocx(p));
+  ipcMain.handle("open-url", async (_e, target: { url: string } | { recent: string }) => {
+    if (!microsoft) return { error: { code: "notConfigured", message: "" } };
+    const recent = "recent" in target ? (loadSettings().recentUrls ?? []).find((r) => r.url === target.recent) : undefined;
+    const url = "url" in target ? target.url.trim() : target.recent;
+    try {
+      // 最近開いた文書は、前回の driveId / itemId で開く (共有リンクの解決を省く)。失敗したら URL から開き直す
+      let f;
+      try {
+        f = recent?.driveId && recent.itemId ? await microsoft.open({ driveId: recent.driveId, itemId: recent.itemId }) : undefined;
+      } catch {
+        f = undefined;
+      }
+      f ??= await microsoft.open({ url });
+      rememberUrl({ url, name: f.name, driveId: f.driveId, itemId: f.itemId, openedAt: new Date().toISOString() });
+      const file: OpenedFile = { path: url, name: f.name, mtime: f.mtime, bytes: f.bytes, source: { kind: "url", url } };
+      return { file };
+    } catch (err) {
+      const code = err instanceof MicrosoftError ? err.code : "network";
+      return { error: { code, message: err instanceof Error ? err.message : String(err) } };
+    }
+  });
+  ipcMain.handle("recent-urls", () => loadSettings().recentUrls ?? []);
+  ipcMain.handle("remove-recent-url", (_e, url: string) => {
+    const s = loadSettings();
+    s.recentUrls = (s.recentUrls ?? []).filter((r) => r.url !== url);
+    saveSettings(s);
+    return s.recentUrls;
+  });
+  ipcMain.handle("ms-status", () => microsoftStatus());
+  ipcMain.handle("ms-sign-out", async () => {
+    await microsoft?.signOut();
+    return microsoftStatus();
+  });
   ipcMain.handle("preserve-history", async (_e, p: string) => {
     const r = await enableHistoryPreservation(p);
     return { backupPath: r.backupPath };
@@ -156,9 +227,10 @@ function registerIpc(): void {
   ipcMain.handle("system-lang", () => systemLang());
   ipcMain.handle("version", () => app.getVersion());
   ipcMain.on("renderer-ready", () => {
-    const p = smokeFile ?? pendingOpenPath;
+    const p = process.env.DRA_SMOKE_FILE ?? pendingOpenPath;
     pendingOpenPath = undefined;
     if (p) void extensionsReady.then(() => mainWindow?.webContents.send("open-path", path.resolve(p)));
+    else if (process.env.DRA_SMOKE_URL) void extensionsReady.then(() => mainWindow?.webContents.send("open-url", process.env.DRA_SMOKE_URL));
   });
   ipcMain.on("smoke-analyzed", (_e, summary: { ok: boolean; message: string }) => void runSmokeCapture(summary));
 }
@@ -171,12 +243,14 @@ async function runSmokeCapture(summary: { ok: boolean; message: string }): Promi
   console.log(`smoke: ${summary.ok ? "ok" : "error"}: ${summary.message}`);
   // 拡張のパネルなど、解析の後から届く表示を待つ (DRA_SMOKE_WAIT_MS)
   await new Promise((r) => setTimeout(r, Number(process.env.DRA_SMOKE_WAIT_MS ?? 0)));
-  for (const tab of ["chart", "flow", "highlights", "locate", "settings"]) {
+  for (const tab of ["chart", "flow", "highlights", "locate", "settings", "url"]) {
     // locate: ハイライトの一覧の最初の行の「フロー」を押し、図の中の位置が示されることを確かめる
     const js =
       tab === "locate"
         ? `window.__showTab("highlights"); document.querySelector('tr.item button[data-goto="flow"]')?.click()`
-        : `window.__showTab(${JSON.stringify(tab)})`;
+        : tab === "url"
+          ? `window.__showTab("chart"); window.__showUrlDialog()`
+          : `window.__showTab(${JSON.stringify(tab)})`;
     await mainWindow.webContents.executeJavaScript(js);
     await new Promise((r) => setTimeout(r, 400));
     const img = await mainWindow.webContents.capturePage();
@@ -270,6 +344,7 @@ app.whenReady().then(() => {
     askUser: async (ext, url, body) => (await requestUi("confirmSend", { id: ext.id, name: ext.name }, { url, body })) === true,
     onChange: (id) => mainWindow?.webContents.send("ext-send-log-changed", id),
   });
+  microsoft = new MicrosoftClient(microsoftConfig, path.join(app.getPath("userData"), "msal-cache.bin"));
   extensions = new ExtensionManager(
     path.join(app.getAppPath(), "extensions"),
     path.join(__dirname, "ext-host"),

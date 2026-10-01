@@ -30,6 +30,14 @@ const api: AppApi = {
   openDocxDialog: () => ipcRenderer.invoke("open-docx-dialog"),
   readDocx: (p) => ipcRenderer.invoke("read-docx", p),
   pathForFile: (file) => webUtils.getPathForFile(file),
+  openUrl: (target) => ipcRenderer.invoke("open-url", target),
+  recentUrls: () => ipcRenderer.invoke("recent-urls"),
+  removeRecentUrl: (url) => ipcRenderer.invoke("remove-recent-url", url),
+  microsoftStatus: () => ipcRenderer.invoke("ms-status"),
+  microsoftSignOut: () => ipcRenderer.invoke("ms-sign-out"),
+  onOpenUrl: (cb) => {
+    ipcRenderer.on("open-url", (_e, url: string) => cb(url));
+  },
   preserveHistory: (p) => ipcRenderer.invoke("preserve-history", p),
   chooseRulesDialog: () => ipcRenderer.invoke("choose-rules-dialog"),
   readRules: (p) => ipcRenderer.invoke("read-rules", p),
