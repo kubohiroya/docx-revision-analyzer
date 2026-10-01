@@ -1,0 +1,80 @@
+# デスクトップアプリの配布物を作り、GitHub Releases に下書きとして公開する。
+#  - タグ desktop-v* を push すると、macOS (dmg / zip) と Windows (インストーラ / zip) を作って下書きのリリースに添付する
+#  - 手動実行 (workflow_dispatch) では公開せず、配布物を Actions の成果物として残す
+# 署名・公証は Secrets があるときだけ行う (無ければ署名なし)。必要な Secrets は desktop/DISTRIBUTION.md を参照。
+name: Desktop release
+
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: desktop
+      - name: Check that the tag matches desktop/package.json
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: bash
+        working-directory: desktop
+        run: |
+          v=$(node -p "require('./package.json').version")
+          test "desktop-v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != desktop-v$v"; exit 1; }
+      - run: npm run build
+        working-directory: desktop
+      - name: Write the App Store Connect API key
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          [ -n "$APPLE_API_KEY_P8" ] || { echo "no API key: the app will not be notarized"; exit 0; }
+          echo "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+      - name: Package
+        shell: bash
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS: Developer ID Application の証明書 (.p12 を base64) と公証
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Windows: コード署名の証明書 (.pfx を base64) と発行者名 (自動更新での署名検証に使う)
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          WIN_PUBLISHER_NAME: ${{ vars.WIN_PUBLISHER_NAME }}
+          # 証明書が無いときに、キーチェーンの証明書を探しに行かない
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CSC_LINK != '' && 'true' || 'false' }}
+        run: |
+          publish=never
+          [[ "$GITHUB_REF" == refs/tags/desktop-v* ]] && publish=always
+          npx electron-builder --config electron-builder.config.cjs --publish "$publish"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.exe
+            desktop/release/*.yml
+          if-no-files-found: warn

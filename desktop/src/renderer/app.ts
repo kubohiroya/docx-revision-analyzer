@@ -64,6 +64,7 @@ let rulesError: string | undefined;
 let analysis: Analysis | undefined;
 let tab: Tab = "chart";
 let smokeReported = false;
+let updatesAvailable = false;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -105,6 +106,8 @@ function applyLang(): void {
   setText("rules-choose", S.chooseRules);
   setText("rules-clear", S.clearRules);
   setText("s-ext", S.settingsExtensions);
+  setText("s-updates", S.settingsUpdates);
+  setText("l-updates", S.checkForUpdates);
   setText("s-about", S.settingsAbout);
   setText("about-text", S.aboutText);
   if (!file) setText("file-name", S.noFile);
@@ -471,6 +474,9 @@ function renderSettings(): void {
   $("rules-error").hidden = !rulesError;
   setText("rules-error", rulesError ? S.rulesError(rulesError) : "");
   $<HTMLButtonElement>("rules-clear").disabled = !settings.rulesPath;
+  $<HTMLInputElement>("updates").checked = !!settings.checkForUpdates;
+  $<HTMLInputElement>("updates").disabled = !updatesAvailable;
+  setText("updates-note", updatesAvailable ? S.updatesNote : `${S.updatesNote} ${S.updatesDevBuild}`);
   const ext = Object.keys(settings.extensions);
   $("ext-list").innerHTML = ext.length === 0 ? `<p class="hint">${escapeHtml(S.extensionsNone)}</p>` : "";
 }
@@ -481,6 +487,7 @@ function renderSettings(): void {
 
 async function main(): Promise<void> {
   settings = await window.app.getSettings();
+  updatesAvailable = await window.app.updatesAvailable();
   lang = settings.lang ?? (await window.app.systemLang());
   await loadRules();
   applyLang();
@@ -513,6 +520,10 @@ async function main(): Promise<void> {
     writeControls();
     setText("about-version", S.version(await window.app.version()));
     if (file) await runSafely(analyze);
+  });
+  $("updates").addEventListener("change", () => {
+    settings.checkForUpdates = $<HTMLInputElement>("updates").checked;
+    void persist();
   });
   $("rules-choose").onclick = () =>
     void runSafely(async () => {

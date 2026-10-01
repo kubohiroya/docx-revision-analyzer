@@ -38,4 +38,4 @@ If Electron's binary wasn't downloaded (install scripts disabled), run `node nod
 - `src/preload.ts` — exposes `window.app` (`src/shared.ts`) to the sandboxed renderer.
 - `src/renderer/` — UI. Analysis and drawing use the library core (`../src/core.ts`, no file system).
 
-Packaging, signing and auto-update are tracked in #14.
+Packaging, signing, notarization, releases and auto-update: see [DISTRIBUTION.md](DISTRIBUTION.md).

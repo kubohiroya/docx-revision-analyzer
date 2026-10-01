@@ -13,6 +13,11 @@ export interface AppSettings {
   lang?: AppLang;
   /** 判定ルールのファイル。undefined なら --bulk-chars 相当の既定ルール */
   rulesPath?: string;
+  /**
+   * 起動時に GitHub Releases で新しいバージョンを確認するか (既定はしない)。
+   * 確認はメインプロセスだけが行い、文書や解析結果は送らない。署名した配布物でだけ動く
+   */
+  checkForUpdates?: boolean;
   /** 拡張モジュールの有効/無効 (id → 有効か)。拡張の仕組みは #15 */
   extensions: Record<string, boolean>;
   /** 解析の設定 (前回の値を覚えておく) */
@@ -72,6 +77,8 @@ export interface AppApi {
   onOpenPath(cb: (path: string) => void): void;
   /** アプリのバージョン */
   version(): Promise<string>;
+  /** 自動更新が使えるか (配布物として起動している場合だけ true) */
+  updatesAvailable(): Promise<boolean>;
 }
 
 declare global {

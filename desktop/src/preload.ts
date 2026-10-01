@@ -20,6 +20,7 @@ const api: AppApi = {
     ipcRenderer.on("open-path", (_e, p: string) => cb(p));
   },
   version: () => ipcRenderer.invoke("version"),
+  updatesAvailable: () => ipcRenderer.invoke("updates-available"),
 };
 
 contextBridge.exposeInMainWorld("app", api);

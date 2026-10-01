@@ -51,6 +51,11 @@ const en = {
   rulesError: (msg: string) => `The rules file can't be used: ${msg}`,
   settingsExtensions: "Extensions",
   extensionsNone: "No extensions are installed.",
+  settingsUpdates: "Updates",
+  checkForUpdates: "Check GitHub Releases for a new version at startup",
+  updatesNote:
+    "Only the app version is checked; no document or analysis data is sent. Updates are verified before installing.",
+  updatesDevBuild: "Not available when running from source.",
   settingsAbout: "About",
   aboutText:
     "Track Changes in a .docx saved on a computer can be turned off, accepted, or rewritten (including dates and " +
@@ -108,6 +113,10 @@ const ja: Strings = {
   rulesError: (msg) => `ルールファイルを使えません: ${msg}`,
   settingsExtensions: "拡張機能",
   extensionsNone: "インストールされている拡張機能はありません。",
+  settingsUpdates: "アップデート",
+  checkForUpdates: "起動時に GitHub Releases で新しいバージョンを確認する",
+  updatesNote: "確認するのはアプリのバージョンだけで、文書や解析結果は送りません。更新は検証してから入れ替えます。",
+  updatesDevBuild: "ソースから起動している場合は使えません。",
   settingsAbout: "このアプリについて",
   aboutText:
     "コンピュータに保存された .docx の変更履歴は、記録をオフにする・すべて承諾する・日時や作成者を書き換えるといった操作で" +
