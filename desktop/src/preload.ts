@@ -12,6 +12,10 @@ const api: AppApi = {
     registrations: () => ipcRenderer.invoke("ext:registrations"),
     classify: (extId, classifierId, ctx) => ipcRenderer.invoke("ext:classify", extId, classifierId, ctx),
     analysisComplete: (result) => ipcRenderer.send("ext:analysis-complete", result),
+    sendLog: (id) => ipcRenderer.invoke("ext:send-log", id),
+    onSendLogChanged: (cb) => {
+      ipcRenderer.on("ext-send-log-changed", (_e, id: string) => cb(id));
+    },
     onUiRequest: (cb) => {
       ipcRenderer.on("ext-ui", async (_e, req: ExtensionUiRequest) => {
         let value: unknown = null;

@@ -251,9 +251,78 @@ export function renderPanels(container: HTMLElement): void {
   }
 }
 
+function prettyJson(json: string): string {
+  try {
+    return JSON.stringify(JSON.parse(json), null, 2);
+  } catch {
+    return json;
+  }
+}
+
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
+}
+
+/** 拡張の送信の前に、宛先と本文を見せて確認する */
+function confirmSend(extName: LocalizedText, spec: { url: string; body: string }): Promise<boolean> {
+  const S = ui.strings();
+  const lang = ui.lang();
+  return modal<boolean>((root, close) => {
+    root.classList.add("wide");
+    header(root, S.sendConfirmTitle, S.fromExtension(loc(extName, lang)));
+    root.append(el("p", S.sendConfirmBody(originOf(spec.url))));
+    root.append(el("strong", S.sendTo), el("p", spec.url, "mono"));
+    root.append(el("strong", S.sendData), el("pre", prettyJson(spec.body)));
+    const buttons = el("div", undefined, "buttons");
+    const no = el("button", S.sendDecline);
+    no.onclick = () => close(false);
+    const yes = el("button", S.sendAllow, "primary");
+    yes.onclick = () => close(true);
+    buttons.append(no, yes);
+    root.append(buttons);
+    // 既定のボタンは「送信しない」(Enter で誤って送らない)
+    setTimeout(() => no.focus(), 0);
+  }, false).finally(() => (document.getElementById("modal") as HTMLDialogElement).classList.remove("wide"));
+}
+
+/** 拡張の送信履歴を表示する */
+export async function showSendLog(item: ExtensionListItem): Promise<void> {
+  const S = ui.strings();
+  const lang = ui.lang();
+  const entries = (await window.app.extensions.sendLog(item.id)).slice().reverse();
+  await modal<void>((root, close) => {
+    root.classList.add("wide");
+    header(root, S.sendLogTitle(loc(item.manifest?.name ?? item.id, lang)));
+    root.append(el("p", S.sendLogNote, "hint"));
+    const list = el("div", undefined, "sendlog");
+    if (entries.length === 0) list.append(el("p", S.sendLogEmpty, "hint"));
+    for (const e of entries) {
+      const d = el("details");
+      const when = new Date(e.time).toLocaleString(lang === "ja" ? "ja-JP" : "en-US");
+      const status = `${S.sendStatus[e.status] ?? e.status}${e.httpStatus ? ` (HTTP ${e.httpStatus})` : ""}`;
+      d.append(el("summary", `${when} — ${status} — ${e.url}`));
+      if (e.error) d.append(el("p", e.error, "hint"));
+      d.append(el("pre", prettyJson(e.body) + (e.truncated ? "\n…" : "")));
+      list.append(d);
+    }
+    root.append(list);
+    const buttons = el("div", undefined, "buttons");
+    const ok = el("button", S.close, "primary");
+    ok.onclick = () => close();
+    buttons.append(ok);
+    root.append(buttons);
+  }, undefined);
+  (document.getElementById("modal") as HTMLDialogElement).classList.remove("wide");
+}
+
 export function initExtensionUi(ctx: ExtUiContext): void {
   ui = ctx;
   window.app.extensions.onUiRequest(async (req: ExtensionUiRequest) => {
+    if (req.kind === "confirmSend") return confirmSend(req.ext.name, req.spec as { url: string; body: string });
     if (req.kind === "dialog") return showDialog(req.ext.name, req.spec as DialogSpec);
     if (req.kind === "form") return openForm(req.ext.name, req.spec as FormSpec);
     const spec = req.spec as PanelSpec;

@@ -67,7 +67,10 @@ function makeHost(app: HostApi["app"]): HostApi {
       delete: async (key) => void (await bridge.call("storage.delete", { key })),
       keys: () => bridge.call("storage.keys", {}) as Promise<string[]>,
     },
-    net: { post: (url, body) => bridge.call("net.post", { url, body }) as ReturnType<HostApi["net"]["post"]> },
+    net: {
+      post: (url, body, options) =>
+        bridge.call("net.post", { url, body, confirm: options?.confirm === true }) as ReturnType<HostApi["net"]["post"]>,
+    },
     app: Object.freeze({ ...app }),
   };
 }

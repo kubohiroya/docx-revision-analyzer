@@ -30,6 +30,8 @@ export interface AppSettings {
    * 確認はメインプロセスだけが行い、文書や解析結果は送らない。署名した配布物でだけ動く
    */
   checkForUpdates?: boolean;
+  /** 拡張の外部送信の前に毎回確認するか (id → 確認するか)。無ければ確認する */
+  extensionConfirmSends?: Record<string, boolean>;
   /** 拡張モジュールの有効/無効 (id → 有効か)。拡張の仕組みは #15 */
   extensions: Record<string, boolean>;
   /** 解析の設定 (前回の値を覚えておく) */
@@ -83,10 +85,13 @@ export interface ExtensionRegistration {
 /** 拡張が求めた UI の表示 */
 export interface ExtensionUiRequest {
   reqId: number;
-  kind: "dialog" | "panel" | "form";
+  kind: "dialog" | "panel" | "form" | "confirmSend";
   ext: { id: string; name: LocalizedText };
-  spec: DialogSpec | PanelSpec | FormSpec;
+  /** confirmSend では送信の宛先と本文 (JSON) */
+  spec: DialogSpec | PanelSpec | FormSpec | { url: string; body: string };
 }
+
+export type { SendLogEntry } from "./sendLog";
 
 export interface ExtensionsApi {
   list(): Promise<ExtensionListItem[]>;
@@ -98,6 +103,10 @@ export interface ExtensionsApi {
     ctx: Omit<ClassifierContext, "windowsFor">
   ): Promise<{ highlights: HighlightSpec[]; error?: string }>;
   analysisComplete(result: AnalysisResult): void;
+  /** 拡張の送信履歴 (古い順) */
+  sendLog(id: string): Promise<import("./sendLog").SendLogEntry[]>;
+  /** 送信履歴が変わったとき */
+  onSendLogChanged(cb: (id: string) => void): void;
   /** 拡張の UI の表示を受け取る。dialog / form は結果を返す */
   onUiRequest(cb: (req: ExtensionUiRequest) => Promise<unknown>): void;
 }
