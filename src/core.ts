@@ -21,5 +21,5 @@ export * from "./lib/flow";
 export * from "./lib/flowSvg";
 export * from "./lib/suspicionScore";
 export * from "./lib/filenames";
-export { getLang, setLang, detectLang, langFromLocale, setSystemLocaleProvider, SUPPORTED_LANGS } from "./lib/i18n";
+export { t, getLang, setLang, detectLang, langFromLocale, setSystemLocaleProvider, SUPPORTED_LANGS } from "./lib/i18n";
 export type { Lang } from "./lib/i18n";

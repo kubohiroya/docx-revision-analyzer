@@ -1,0 +1,19 @@
+{
+  "name": "docx-revision-analyzer-desktop",
+  "productName": "Docx Revision Analyzer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop app for docx-revision-analyzer: open a .docx and look back on how it was written.",
+  "license": "MIT",
+  "author": "Hiroya Kubo <kubo.hiroya@gmail.com>",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "npm run build && electron .",
+    "smoke": "npm run build && node smoke.mjs"
+  },
+  "devDependencies": {
+    "electron": "44.5.1"
+  }
+}

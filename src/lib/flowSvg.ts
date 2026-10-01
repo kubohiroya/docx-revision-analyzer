@@ -31,6 +31,11 @@ export interface FlowSvgOptions {
   note?: string;
   /** 色のカテゴリ (省略時は既定のカテゴリ) */
   categories?: CategoryRegistry;
+  /**
+   * 列を <g data-column="k"> で囲み (k = 0 は区間1の開始時点、k は区間 k の終了時点)、段落の要素に
+   * data-para (段落の番号) を付ける (アプリで該当箇所を探すため)
+   */
+  annotate?: boolean;
 }
 
 /** これ未満の度合いは塗らない */
@@ -91,9 +96,11 @@ function renderPage(
   tintOf: (paraIndex: number) => Tint | undefined,
   x: number,
   y: number,
-  g: PageGeom
+  g: PageGeom,
+  annotate = false
 ): string {
   const parts: string[] = [];
+  const dataPara = (i: number) => (annotate ? ` data-para="${i}"` : "");
   parts.push(
     `<rect x="${x}" y="${y}" width="${g.width}" height="${g.height.toFixed(1)}" fill="#ffffff" stroke="#b8b8b8"/>`
   );
@@ -106,7 +113,7 @@ function renderPage(
     const height = (r.bottom - r.top) * g.lineHeight;
     if (t.main && t.mainV) {
       parts.push(
-        `<rect x="${(x + g.textX - 2).toFixed(1)}" y="${top.toFixed(1)}" width="${(g.textWidth + 4).toFixed(1)}" height="${height.toFixed(1)}" fill="${fill(t.main, t.mainV)}"/>` +
+        `<rect x="${(x + g.textX - 2).toFixed(1)}" y="${top.toFixed(1)}" width="${(g.textWidth + 4).toFixed(1)}" height="${height.toFixed(1)}" fill="${fill(t.main, t.mainV)}"${dataPara(paraIndex)}/>` +
           (t.mainCat
             ? patternOverlay(t.mainCat, (x + g.textX - 2).toFixed(1), top.toFixed(1), (g.textWidth + 4).toFixed(1), height.toFixed(1))
             : "")
@@ -143,7 +150,7 @@ function renderPage(
     const barH = it.style === "heading" ? h * 0.6 : h * 0.45;
     const color = it.style === "heading" ? "#4a4f57" : it.style === "table" ? "#8ea0b8" : "#a3a8b0";
     parts.push(
-      `<rect x="${(x + g.textX).toFixed(1)}" y="${(top + (h - barH) / 2).toFixed(1)}" width="${Math.max(1, g.textWidth * it.widthFrac).toFixed(1)}" height="${Math.max(0.6, barH).toFixed(2)}" fill="${color}"/>`
+      `<rect x="${(x + g.textX).toFixed(1)}" y="${(top + (h - barH) / 2).toFixed(1)}" width="${Math.max(1, g.textWidth * it.widthFrac).toFixed(1)}" height="${Math.max(0.6, barH).toFixed(2)}" fill="${color}"${dataPara(it.paraIndex)}/>`
     );
   }
   return parts.join("\n");
@@ -459,9 +466,11 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
       }
       return t.main || t.nextMark ? t : undefined;
     };
+    if (opts.annotate) parts.push(`<g data-column="${k}">`);
     pages.forEach((page, j) => {
-      parts.push(renderPage(page, tintOf, x, stackTop + j * (geom.height + PAGE_GAP), geom));
+      parts.push(renderPage(page, tintOf, x, stackTop + j * (geom.height + PAGE_GAP), geom, opts.annotate));
     });
+    if (opts.annotate) parts.push(`</g>`);
   });
 
   sessions.forEach((s, i) => {

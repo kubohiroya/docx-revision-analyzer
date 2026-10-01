@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Docx Revision Analyzer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="file">
+        <button id="open" class="primary"></button>
+        <span id="file-name" class="file-name"></span>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="chart" id="tab-chart"></button>
+        <button role="tab" data-tab="flow" id="tab-flow"></button>
+        <button role="tab" data-tab="highlights" id="tab-highlights"></button>
+        <button role="tab" data-tab="settings" id="tab-settings"></button>
+      </nav>
+    </header>
+
+    <section id="controls" class="controls" hidden>
+      <label><span id="l-gap"></span><input id="gap" type="number" min="0.05" step="0.25" /></label>
+      <label class="flow-only"><span id="l-from"></span><input id="from" type="datetime-local" /></label>
+      <label class="flow-only"><span id="l-to"></span><input id="to" type="datetime-local" /></label>
+      <label><span id="l-bulk"></span><input id="bulk" type="number" min="1" step="10" /></label>
+      <label class="chart-only"><span id="l-bucket"></span>
+        <select id="bucket">
+          <option value="auto" id="o-auto"></option>
+          <option value="minute" id="o-minute"></option>
+          <option value="hour" id="o-hour"></option>
+          <option value="day" id="o-day"></option>
+        </select>
+      </label>
+      <label class="chart-only check"><input id="split" type="checkbox" /><span id="l-split"></span></label>
+      <span class="spacer"></span>
+      <button id="save-svg" class="figure-only"></button>
+      <button id="save-png" class="figure-only"></button>
+    </section>
+
+    <div id="banner" class="banner" hidden>
+      <span id="banner-text"></span>
+      <button id="banner-action" hidden></button>
+    </div>
+
+    <main>
+      <section id="welcome" class="welcome">
+        <div id="drop" class="drop">
+          <p><span id="drop-here"></span> <button id="open2" class="link"></button></p>
+          <p id="drop-hint" class="hint"></p>
+          <p id="purpose" class="hint"></p>
+        </div>
+      </section>
+      <section id="pane-chart" class="pane figure" hidden></section>
+      <section id="pane-flow" class="pane figure" hidden></section>
+      <section id="pane-highlights" class="pane" hidden></section>
+      <section id="pane-settings" class="pane settings" hidden>
+        <h2 id="s-lang"></h2>
+        <select id="lang">
+          <option value="" id="o-lang-system"></option>
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+        </select>
+        <h2 id="s-rules"></h2>
+        <p id="rules-current" class="mono"></p>
+        <p id="rules-error" class="error" hidden></p>
+        <div class="row">
+          <button id="rules-choose"></button>
+          <button id="rules-clear"></button>
+        </div>
+        <h2 id="s-ext"></h2>
+        <div id="ext-list"></div>
+        <h2 id="s-about"></h2>
+        <p id="about-text"></p>
+        <p id="about-version" class="hint"></p>
+      </section>
+    </main>
+    <footer id="status" class="status"></footer>
+    <script src="app.js"></script>
+  </body>
+</html>
