@@ -46,6 +46,7 @@ import {
   loc,
   permissionList,
   renderPanels,
+  showSendLog,
 } from "./extensions";
 
 type Tab = "chart" | "flow" | "highlights" | "settings";
@@ -569,6 +570,25 @@ function renderExtensions(): void {
     permTitle.className = "hint";
     permTitle.textContent = S.extPermissions;
     div.append(permTitle, permissionList(item));
+    if (item.manifest?.permissions?.network?.length) {
+      const row = document.createElement("div");
+      row.className = "row";
+      const confirm = document.createElement("label");
+      confirm.className = "check-row";
+      const ccb = document.createElement("input");
+      ccb.type = "checkbox";
+      ccb.checked = settings.extensionConfirmSends?.[item.id] !== false;
+      ccb.onchange = () => {
+        settings.extensionConfirmSends = { ...(settings.extensionConfirmSends ?? {}), [item.id]: ccb.checked };
+        void persist();
+      };
+      confirm.append(ccb, document.createTextNode(` ${S.extConfirmSends}`));
+      const logBtn = document.createElement("button");
+      logBtn.textContent = S.extSendLog;
+      logBtn.onclick = () => void showSendLog(item);
+      row.append(confirm, logBtn);
+      div.append(row);
+    }
     box.append(div);
   }
 }

@@ -214,6 +214,13 @@ export interface NetResponse {
   ok: boolean;
   status: number;
   body: string;
+  /** オフライン等で送れず、キューに入れた (つながったらアプリが送る)。このとき ok は false、status は 0 */
+  queued?: boolean;
+}
+
+export interface PostOptions {
+  /** true なら、利用者の設定にかかわらず送信前に確認を求める */
+  confirm?: boolean;
 }
 
 export interface HostApi {
@@ -227,8 +234,12 @@ export interface HostApi {
   };
   /** 拡張ごとのローカル保存 (storage の権限が必要) */
   storage: KeyValueStore;
-  /** manifest で許可したオリジンにだけ JSON を POST する (network の権限が必要) */
-  net: { post(url: string, body: unknown): Promise<NetResponse> };
+  /**
+   * manifest で許可したオリジンにだけ JSON を POST する (network の権限が必要)。
+   * アプリが仲介し、送信履歴に記録する。利用者が送信前の確認を有効にしている場合 (既定) や
+   * options.confirm のときは、宛先と本文を見せて確認する (拒否されたら例外)。
+   */
+  net: { post(url: string, body: unknown, options?: PostOptions): Promise<NetResponse> };
   app: { version: string; locale: "ja" | "en"; apiVersion: number };
 }
 

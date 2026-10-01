@@ -362,6 +362,33 @@ body.dragover .drop {
   padding: 4px 10px 4px 0;
   text-align: left;
 }
+.modal pre {
+  max-height: 320px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.modal.wide {
+  max-width: 820px;
+  width: 80vw;
+}
+.sendlog {
+  max-height: 60vh;
+  overflow: auto;
+}
+.sendlog details {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 0;
+}
+.sendlog summary {
+  cursor: pointer;
+  font-size: 13px;
+}
 .mono {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 12px;

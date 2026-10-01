@@ -32,7 +32,6 @@ const ACTIVATE_TIMEOUT_MS = 10_000;
 const CLASSIFY_TIMEOUT_MS = 10_000;
 const ANALYSIS_TIMEOUT_MS = 30_000;
 const MAX_STORAGE_BYTES = 1_000_000;
-const MAX_RESPONSE_BYTES = 1_000_000;
 
 export type ExtensionState = "disabled" | "starting" | "active" | "error";
 
@@ -48,13 +47,18 @@ export interface ExtensionInfo {
 
 /** アプリのウィンドウへ、拡張の UI の表示を頼む関数 */
 export type UiRequester = (
-  kind: "dialog" | "panel" | "form",
+  kind: "dialog" | "panel" | "form" | "confirmSend",
   ext: { id: string; name: ExtensionManifest["name"] },
-  spec: DialogSpec | PanelSpec | FormSpec
+  spec: DialogSpec | PanelSpec | FormSpec | { url: string; body: string }
 ) => Promise<unknown>;
 
-/** net.post を実際に送る関数 (#16 で送信の記録・確認を挟む) */
-export type NetPoster = (ext: ExtensionManifest, url: string, body: unknown) => Promise<NetResponse>;
+/** net.post を仲介する関数 (sendLog.ts。allowed は宛先が manifest で宣言されたオリジンか) */
+export type NetPoster = (
+  ext: ExtensionManifest,
+  url: string,
+  body: unknown,
+  opts: { confirm?: boolean; allowed: boolean }
+) => Promise<NetResponse>;
 
 interface Host {
   info: ExtensionInfo;
@@ -233,6 +237,7 @@ export class ExtensionManager {
       const app = this.appInfo();
       await this.invoke(host, "activate", { entryUrl: `${EXT_SCHEME}://${m.id}/${m.main}`, ...app, apiVersion: 1 }, ACTIVATE_TIMEOUT_MS);
       host.info.state = "active";
+      this.onActivated?.(m.id);
     } catch (err) {
       this.fail(host, err instanceof Error ? err.message : String(err));
     }
@@ -310,17 +315,15 @@ export class ExtensionManager {
         return this.storage(m.id, method.slice("storage.".length), a);
       case "net.post": {
         const url = String(a.url);
-        let origin: string;
+        let origin = "";
         try {
           origin = new URL(url).origin;
         } catch {
           throw new Error(`invalid URL: ${url}`);
         }
-        const allowed = (perms.network ?? []).map((o) => o.replace(/\/$/, ""));
-        if (!url.startsWith("https://") || !allowed.includes(origin)) {
-          throw new Error(`sending to ${origin} is not allowed (declared: ${allowed.join(", ") || "none"})`);
-        }
-        return this.post(m, url, a.body);
+        const declared = (perms.network ?? []).map((o) => o.replace(/\/$/, ""));
+        const allowed = url.startsWith("https://") && declared.includes(origin);
+        return this.post(m, url, a.body, { confirm: a.confirm === true, allowed });
       }
     }
     throw new Error(`unknown host API: ${method}`);
@@ -389,6 +392,9 @@ export class ExtensionManager {
     };
   }
 
+  /** 拡張が動き始めたら呼ぶ関数 (送信のキューを送るため) */
+  onActivated?: (id: string) => void;
+
   stopAll(): void {
     for (const h of this.hosts.values()) if (h.win) this.stop(h);
   }
@@ -408,18 +414,4 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
       }
     );
   });
-}
-
-/**
- * 既定の net.post: 送信専用のセッション (Cookie 等を持たない) から JSON を POST する (#16 で記録と確認を挟む)。
- * アプリのウィンドウの既定のセッションは通信を遮断しているため使わない。
- */
-export async function defaultPost(_ext: ExtensionManifest, url: string, body: unknown): Promise<NetResponse> {
-  const res = await session.fromPartition("dra-ext-net").fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
-  return { ok: res.ok, status: res.status, body: text.slice(0, MAX_RESPONSE_BYTES) };
 }

@@ -57,8 +57,8 @@ Each enabled extension runs in its own hidden, sandboxed renderer process:
 - no Node.js (`require`, `process`, file system), no access to the app's window or other extensions;
 - its own origin (`dra-ext://<id>/`) and in-memory session; it can only load files from its own directory;
 - no network: Content-Security-Policy `connect-src 'none'` and a request filter that blocks every non-`dra-ext:` URL.
-  The only way out is `host.net.post`, which the app performs after checking the manifest (#16 adds a send log and
-  confirmation);
+  The only way out is `host.net.post`, which the app performs after checking the manifest, with a send log and
+  confirmation (see "Sending data");
 - it talks to the app only through the host API (an RPC over IPC).
 
 拡張ごとに、表示しない sandbox のレンダラで動かします。Node.js の機能・アプリのウィンドウ・ほかの拡張には触れられず、
@@ -85,7 +85,8 @@ interface HostApi {
     openForm(f: FormSpec): Promise<FormResult | null>;                  // permission ui: "form"
   };
   storage: { get; set; delete; keys };     // permission storage (per extension, ≤ 1 MB, on this computer)
-  net: { post(url, body): Promise<{ ok; status; body }> };  // permission network (declared https origins only)
+  net: { post(url, body, options?: { confirm?: boolean }): Promise<{ ok; status; body; queued? }> };
+                                           // permission network (declared https origins only; see "Sending data")
   app: { version: string; locale: "ja" | "en"; apiVersion: number };
 }
 ```
@@ -130,6 +131,30 @@ Extensions describe UI as JSON; the app renders it (as plain text — no HTML), 
   the Highlights tab; a panel with the same id replaces the previous one. Panels are cleared on each analysis.
 
 All texts are `LocalizedText`: a string or `{ ja, en }`.
+
+## Sending data (`net.post`) / 外部への送信
+
+`host.net.post(url, body, { confirm? })` is the only way an extension can reach the network. The app mediates every
+call (`src/sendLog.ts`):
+
+- **Declared destinations only.** The URL must be `https` and its origin listed in `permissions.network`; anything
+  else is refused (and the attempt is logged as *blocked*).
+- **Confirmation.** By default the app shows the destination and the exact JSON body and asks the user before
+  sending; the user can turn this off per extension in Settings ("Ask before each send"). An extension can force the
+  confirmation with `{ confirm: true }`. A declined send throws `"the user declined to send this data"`.
+- **Send history.** Every attempt — sent, failed, declined, blocked, queued, discarded — is recorded with its time,
+  destination, HTTP status and body (latest 500 per extension, bodies over 64 KB truncated in the log). Users open it
+  from Settings → the extension → "Send history".
+- **Offline queue.** If the destination can't be reached (offline, DNS failure, connection refused…), the send is
+  queued and `post` resolves with `{ ok: false, status: 0, queued: true }`. The app retries every minute and when the
+  extension starts. Other failures (e.g. TLS errors) are logged as *failed* and throw. **Disabling the extension
+  discards its queue** (logged as *discarded*).
+- Requests use a separate session without cookies or credentials. Bodies are limited to 1 MB; responses are
+  truncated to 1 MB.
+
+送信はすべてアプリが仲介します。宣言した宛先以外は拒否し、既定では毎回、宛先と本文を見せて確認します。送信履歴に
+すべての試み (送信・失敗・拒否・ブロック・キュー・破棄) を記録し、設定画面から見られます。つながらないときはキューに
+入れてあとで送り、拡張を無効にするとキューを破棄します。
 
 ## Versioning / バージョンの方針
 

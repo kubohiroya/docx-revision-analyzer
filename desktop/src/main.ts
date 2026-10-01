@@ -17,17 +17,21 @@ import { enableHistoryPreservation } from "../../src/node/historyFile";
 import { macSystemLocale } from "../../src/node/locale";
 import { langFromLocale } from "../../src/lib/i18n";
 import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules, OpenedFile } from "./shared";
-import { defaultPost, EXT_SCHEME, ExtensionManager } from "./extensions";
+import { EXT_SCHEME, ExtensionManager } from "./extensions";
+import { NetMediator } from "./sendLog";
 import type { AnalysisResult, ClassifierContext } from "./extension-api";
 
 // 拡張のページ (dra-ext://<id>/) を、ES モジュールを読み込める安全なオリジンとして扱う
 protocol.registerSchemesAsPrivileged([{ scheme: EXT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
 const smokeFile = process.env.DRA_SMOKE_FILE;
+// テスト用: 設定・拡張のデータの置き場所を変える (利用者のデータに触れないため)
+if (process.env.DRA_USER_DATA) app.setPath("userData", path.resolve(process.env.DRA_USER_DATA));
 const smokeOut = process.env.DRA_SMOKE_OUT;
 
 let mainWindow: BrowserWindow | undefined;
 let extensions: ExtensionManager | undefined;
+let mediator: NetMediator | undefined;
 /** スモークテストで有効にする拡張 (設定には保存しない) */
 const smokeExtension = process.env.DRA_SMOKE_EXTENSION;
 let nextUiRequest = 1;
@@ -134,9 +138,12 @@ function registerIpc(): void {
     const s = loadSettings();
     s.extensions[id] = enabled;
     saveSettings(s);
+    // 無効にした拡張の、まだ送っていない送信は破棄する
+    if (!enabled) mediator?.discard(id);
     await syncExtensions();
     return extensionList();
   });
+  ipcMain.handle("ext:send-log", (_e, id: string) => mediator?.log(id) ?? []);
   ipcMain.handle("ext:registrations", () => extensions?.registrations() ?? []);
   ipcMain.handle("ext:classify", (_e, extId: string, classifierId: string, ctx: Omit<ClassifierContext, "windowsFor">) =>
     extensions ? extensions.classify(extId, classifierId, ctx) : { highlights: [], error: "extensions are not available" }
@@ -199,7 +206,11 @@ async function syncExtensions(): Promise<void> {
 
 /** 拡張の UI をアプリのウィンドウで表示し、結果を待つ */
 function requestUi(kind: string, ext: { id: string; name: unknown }, spec: unknown): Promise<unknown> {
-  if (!mainWindow) return Promise.resolve(kind === "form" ? null : { buttonId: null });
+  if (kind === "confirmSend" && process.env.DRA_SMOKE_CONFIRM) {
+    // スモークテスト: 確認に自動で答える (accept / reject)
+    return Promise.resolve(process.env.DRA_SMOKE_CONFIRM === "accept");
+  }
+  if (!mainWindow) return Promise.resolve(kind === "form" ? null : kind === "confirmSend" ? false : { buttonId: null });
   const reqId = nextUiRequest++;
   return new Promise((resolve) => {
     uiRequests.set(reqId, resolve);
@@ -253,6 +264,12 @@ app.on("open-file", (e, p) => {
 app.whenReady().then(() => {
   lockDown();
   registerIpc();
+  mediator = new NetMediator({
+    dir: path.join(app.getPath("userData"), "extensions"),
+    confirmByDefault: (id) => loadSettings().extensionConfirmSends?.[id] !== false,
+    askUser: async (ext, url, body) => (await requestUi("confirmSend", { id: ext.id, name: ext.name }, { url, body })) === true,
+    onChange: (id) => mainWindow?.webContents.send("ext-send-log-changed", id),
+  });
   extensions = new ExtensionManager(
     path.join(app.getAppPath(), "extensions"),
     path.join(__dirname, "ext-host"),
@@ -260,8 +277,9 @@ app.whenReady().then(() => {
     path.join(app.getPath("userData"), "extensions"),
     () => ({ version: app.getVersion(), locale: loadSettings().lang ?? systemLang() }),
     requestUi,
-    defaultPost
+    (ext, url, body, opts) => mediator!.post(ext, url, body, opts)
   );
+  extensions.onActivated = (id) => void mediator?.flush(id);
   extensions.discover();
   createWindow();
   extensionsReady = syncExtensions().catch((err) => console.error(`extensions: ${err}`));
