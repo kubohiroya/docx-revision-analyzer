@@ -434,6 +434,24 @@ overridden with `--window-*`. Moves and reordering are excluded. Each window has
 
 The features don't judge anything by themselves; thresholds are applied separately.
 
+### Annotating parts of the figures (`--annotations`)
+
+`--annotations <file>` (YAML or JSON) adds a mouse-over explanation (`<title>`) and/or a click-through link
+(`<a href>`, http/https only) to parts of the SVG. Each part has a key, listed in the `--json` output as
+`figureTargets`: chart bars `chart:bar:<category>:<bucket start>`, flow paragraphs `flow:para:<column>:<paragraph>`,
+bands `flow:band:<session>:<unit>`, move bands `flow:move:…`, captions `flow:caption:<session>`.
+
+```yaml
+annotations:
+  - target: "flow:para:2:9"
+    tooltip: { en: "Rewritten after feedback", ja: "指摘を受けて書き直した" }
+    href: "https://example.com/notes#p9"
+```
+
+The desktop app's extensions can add the same annotations (see `desktop/EXTENSIONS.md`). Without annotations the SVG
+is unchanged. Library: `resolveAnnotations`, `chartTargets` / `sessionedChartTargets` / `flowTargets`, and the
+renderers' `annotations` option.
+
 ### Highlight rules (`--rules`)
 
 A rules file (YAML or JSON) assigns *levels* to insertion windows based on their features. Levels are checked

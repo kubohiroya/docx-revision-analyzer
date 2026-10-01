@@ -13,10 +13,12 @@ import { applyClassification } from "../lib/classifiers";
 import { DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { parseDocxLayout } from "../lib/docxLayout";
 import { checkIntegrity } from "../lib/integrity";
+import { chartTargets, FigureTarget, sessionedChartTargets } from "../lib/figureTargets";
 import {
   addAnalysisOptions,
   addCommonOptions,
   analyzeWithRules,
+  loadAnnotations,
   checkAndFixHistorySettings,
   FileResult,
   runForFiles,
@@ -84,9 +86,11 @@ async function processOne(
     outFile = resolved.replace(/\.docx$/i, "") + ".svg";
   }
   const width = options.width ? parseInt(options.width, 10) : undefined;
-  const writeJson = async (svgOut: string) => {
+  const annotations = loadAnnotations(options);
+  const highlightIds = analysis.categories.highlights().map((c) => c.id);
+  const writeJson = async (svgOut: string, targets: FigureTarget[]) => {
     const jsonOut = writeAnalysisJson(options, svgOut, "docx-revision-chart", inputFile, analysis,
-      options.json ? await checkIntegrity(buf) : undefined);
+      options.json ? await checkIntegrity(buf) : undefined, targets);
     if (jsonOut) warnings.push(t("jsonWritten", jsonOut));
   };
 
@@ -108,9 +112,10 @@ async function processOne(
       gapThresholdHours: thresholdHours,
       note: rulesNote,
       categories: analysis.categories,
+      annotations,
     });
     fs.writeFileSync(outFile, svg, "utf-8");
-    await writeJson(outFile);
+    await writeJson(outFile, sessionedChartTargets(sessions, data.baselineCharCount, bucketSpec, highlightIds));
 
     return {
       input: inputFile,
@@ -129,9 +134,10 @@ async function processOne(
       title: options.title ?? buildDefaultTitle(t("chartTitlePrefix"), inputFile, fs.statSync(resolved).mtime),
       note: rulesNote,
       categories: analysis.categories,
+      annotations,
     });
     fs.writeFileSync(outFile, svg, "utf-8");
-    await writeJson(outFile);
+    await writeJson(outFile, chartTargets(buckets, highlightIds));
 
     return {
       input: inputFile,

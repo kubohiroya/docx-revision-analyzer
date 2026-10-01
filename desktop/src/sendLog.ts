@@ -14,7 +14,7 @@ import * as fs from "fs";
 import * as path from "path";
 import type { ExtensionManifest, NetResponse } from "./extension-api";
 
-export type SendStatus = "sent" | "failed" | "rejected" | "blocked" | "queued" | "discarded";
+export type SendStatus = "sent" | "failed" | "rejected" | "blocked" | "queued" | "discarded" | "opened";
 
 export interface SendLogEntry {
   /** 記録の通し番号 */
@@ -54,6 +54,10 @@ export interface MediatorOptions {
   confirmByDefault(extId: string): boolean;
   /** 宛先と本文を見せて、送信してよいかを尋ねる */
   askUser(ext: ExtensionManifest, url: string, bodyJson: string): Promise<boolean>;
+  /** 図の注釈のリンクを開いてよいかを尋ねる (URL 全体を見せる) */
+  askOpen(ext: ExtensionManifest, url: string): Promise<boolean>;
+  /** URL を既定のブラウザで開く */
+  openExternal(url: string): Promise<void>;
   /** 送信履歴が変わったとき (設定画面の表示を更新するため) */
   onChange?(extId: string): void;
 }
@@ -184,6 +188,25 @@ export class NetMediator {
       return;
     }
     for (const id of ids) if (this.queue(id).length) await this.flush(id);
+  }
+
+  /**
+   * 図の注釈のリンクを開く。URL に文書の内容を含めて外へ出すこともできるため、送信と同じく、
+   * 利用者の設定 (既定は確認する) で URL を見せて確認し、送信履歴に記録する。allowed は宣言したオリジンか
+   */
+  async openLink(ext: ExtensionManifest, url: string, allowed: boolean): Promise<boolean> {
+    if (!allowed) {
+      this.record(ext.id, { url, status: "blocked", body: "", error: "the link's origin is not declared in manifest.json" });
+      return false;
+    }
+    const mustConfirm = this.o.confirmByDefault(ext.id);
+    if (mustConfirm && !(await this.o.askOpen(ext, url))) {
+      this.record(ext.id, { url, status: "rejected", body: "", confirmed: false });
+      return false;
+    }
+    await this.o.openExternal(url);
+    this.record(ext.id, { url, status: "opened", body: "", confirmed: mustConfirm || undefined });
+    return true;
   }
 
   /** 拡張を無効にしたとき: キューを破棄し、破棄したことを記録する */
