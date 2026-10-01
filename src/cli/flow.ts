@@ -4,10 +4,20 @@ import * as fs from "fs";
 import * as path from "path";
 import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxRevisions";
 import { parseDocxLayout } from "../lib/docxLayout";
+import { extractRevisionPositions } from "../lib/revisionPositions";
+import { detectInsertionWindows } from "../lib/insertionWindows";
 import { buildFlow, DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { renderFlowSvg } from "../lib/flowSvg";
 import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
-import { addCommonOptions, checkAndFixHistorySettings, FileResult, runForFiles } from "./common";
+import {
+  addAnalysisOptions,
+  addCommonOptions,
+  checkAndFixHistorySettings,
+  FileResult,
+  runForFiles,
+  windowOptionsFrom,
+  writeAnalysisJson,
+} from "./common";
 import { initLangFromArgv, t } from "../lib/i18n";
 import { applyToolConfig, loadToolConfig, loadToolConfigOrExit } from "./config";
 
@@ -65,6 +75,7 @@ async function processOne(
   const slopeWidth = positiveNumber(options.slopeWidth, "--slope-width");
   const from = options.from ? parseDateOption(options.from, "--from", false) : undefined;
   const to = options.to ? parseDateOption(options.to, "--to", true) : undefined;
+  const windowOptions = windowOptionsFrom(options);
 
   const notes = await checkAndFixHistorySettings(resolved, options, TOOL);
 
@@ -98,6 +109,8 @@ async function processOne(
     slopeWidth,
   });
   fs.writeFileSync(outFile, svg, "utf-8");
+  const jsonOut = writeAnalysisJson(options, outFile, TOOL, inputFile, detectInsertionWindows(extractRevisionPositions(model), windowOptions));
+  if (jsonOut) notes.push(t("jsonWritten", jsonOut));
 
   const pages = Math.max(...result.sessions.flatMap((s) => [s.startPages.length, s.endPages.length]));
   return {
@@ -125,6 +138,7 @@ program
     await runForFiles(TOOL, files, options, (file, output) => processOne(file, options, output));
   });
 
+addAnalysisOptions(program);
 addCommonOptions(program);
 
 if (toolConfig) applyToolConfig(program, toolConfig);

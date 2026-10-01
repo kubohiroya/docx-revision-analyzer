@@ -2,13 +2,22 @@
 import { Command } from "commander";
 import * as fs from "fs";
 import * as path from "path";
-import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxRevisions";
+import { describeMissingRevisions, extractRevisionsFromBuffer } from "../lib/docxRevisions";
 import { buildBuckets, BucketSpec } from "../lib/timeBuckets";
 import { renderRevisionChart, renderSessionedRevisionChart } from "../lib/svgChart";
 import { splitIntoSessions } from "../lib/sessions";
 import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
 import { classifyInsertions, DEFAULT_BULK_CHARS } from "../lib/insertionKinds";
-import { addCommonOptions, checkAndFixHistorySettings, FileResult, runForFiles } from "./common";
+import {
+  addAnalysisOptions,
+  addCommonOptions,
+  analyzeInsertionWindows,
+  checkAndFixHistorySettings,
+  FileResult,
+  runForFiles,
+  windowOptionsFrom,
+  writeAnalysisJson,
+} from "./common";
 import { initLangFromArgv, t } from "../lib/i18n";
 import { applyToolConfig, loadToolConfig, loadToolConfigOrExit } from "./config";
 
@@ -31,7 +40,9 @@ async function processOne(
   }
 
   const warnings: string[] = await checkAndFixHistorySettings(resolved, options, "docx-revision-chart");
-  const data = await extractRevisionsFromFile(resolved);
+  const windowOptions = windowOptionsFrom(options);
+  const buf = await fs.promises.readFile(resolved);
+  const data = await extractRevisionsFromBuffer(buf);
   const missing = describeMissingRevisions(data);
   if (missing) {
     // 時系列解析できるイベントが無い場合は SVG を作らずにエラーとする
@@ -59,6 +70,11 @@ async function processOne(
     outFile = resolved.replace(/\.docx$/i, "") + ".svg";
   }
   const width = options.width ? parseInt(options.width, 10) : undefined;
+  const writeJson = async (svgOut: string) => {
+    const jsonOut = writeAnalysisJson(options, svgOut, "docx-revision-chart", inputFile,
+      await analyzeInsertionWindows(buf, windowOptions));
+    if (jsonOut) warnings.push(t("jsonWritten", jsonOut));
+  };
 
   if (options.gapThreshold !== undefined) {
     const thresholdHours = parseFloat(options.gapThreshold);
@@ -78,6 +94,7 @@ async function processOne(
       gapThresholdHours: thresholdHours,
     });
     fs.writeFileSync(outFile, svg, "utf-8");
+    await writeJson(outFile);
 
     return {
       input: inputFile,
@@ -96,6 +113,7 @@ async function processOne(
       title: options.title ?? buildDefaultTitle(t("chartTitlePrefix"), inputFile, fs.statSync(resolved).mtime),
     });
     fs.writeFileSync(outFile, svg, "utf-8");
+    await writeJson(outFile);
 
     return {
       input: inputFile,
@@ -124,6 +142,7 @@ program
     );
   });
 
+addAnalysisOptions(program);
 addCommonOptions(program);
 
 if (toolConfig) applyToolConfig(program, toolConfig);

@@ -124,6 +124,13 @@ const en = {
   optBulkChars:
     "Treat insertions by the same author at the same time totalling at least this many characters as a bulk " +
     "insertion (orange)",
+  optJson:
+    "Also write the analysis (insertion windows and their features) as JSON. Without a file name, " +
+    "writes <output>.json next to the SVG",
+  optWindowSeconds: "Insertion windows: group insertions made within this many seconds of each other",
+  optWindowChars: "Insertion windows: group insertions within this many characters of each other in the document",
+  optWindowParas: "Insertion windows: also require insertions to be within this many paragraphs of each other",
+  jsonWritten: (p: string) => `Wrote the analysis JSON to ${p}`,
   defaultTitle: (prefix: string, name: string, time: string) => `${prefix}: ${name} (last modified ${time})`,
   titleTime: (y: number, mo: string, d: string, h: string, mi: string) => `${y}-${mo}-${d} ${h}:${mi}`,
 
@@ -290,6 +297,11 @@ const ja: Catalog = {
     "出力は作らず、各ファイルの設定を確認して結果を標準出力に書く。" +
     "1行目が ok または needs-fix、needs-fix の場合は2行目以降に確認用の文面 (ドロップレットからの利用を想定)",
   optBulkChars: "同じ作成者・同じ時刻にまとめて挿入された文字数がこれ以上なら一括挿入 (オレンジ) とみなす",
+  optJson: "解析結果 (挿入の窓と特徴量) を JSON にも出力する。ファイル名を省略すると SVG と同じ名前の .json に出力",
+  optWindowSeconds: "挿入の窓: 時刻の差がこの秒数以内の挿入をまとめる",
+  optWindowChars: "挿入の窓: 文書上の距離がこの文字数以内の挿入をまとめる",
+  optWindowParas: "挿入の窓: 段落の差がこの数以内であることも条件にする",
+  jsonWritten: (p) => `解析結果の JSON を ${p} に出力しました`,
   defaultTitle: (prefix, name, time) => `${prefix}: ${name} (最終更新 ${time})`,
   titleTime: (y, mo, d, h, mi) => `${y}/${mo}/${d} ${h}:${mi}`,
 
