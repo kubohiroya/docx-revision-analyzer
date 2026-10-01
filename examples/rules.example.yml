@@ -1,13 +1,16 @@
 # Example rules file for --rules (docx-revision-chart / docx-revision-flow).
 # Levels are evaluated top to bottom; the first level whose condition matches is used.
+# Each level is drawn in its own color, with a pattern (hatch / cross / dots, assigned in order unless
+# `pattern:` is given; `pattern: none` for none) so that levels can be told apart without relying on color.
+# Choose colors with a contrast of at least 3:1 against white (the tool warns otherwise).
 ruleSet: example-v1
 window: { seconds: 60, chars: 2000 }
 levels:
   - id: level-2
     label: { ja: 大量の一括挿入 (直後の手直しが少ない), en: Large bulk insertion with little editing afterwards }
-    color: "#C2410C"
+    color: "#9A3412"
     when: { all: [ { insertedChars: { gte: 800 } }, { postEditRatio: { lt: 0.05 } } ] }
   - id: level-1
     label: { ja: 一括挿入文字数過多, en: Large bulk insertion }
-    color: "#F28C28"
+    color: "#EA6C00"
     when: { insertedChars: { gte: 300 } }

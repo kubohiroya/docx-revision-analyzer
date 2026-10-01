@@ -1,6 +1,7 @@
 import { Bucket, buildBuckets, BucketSpec } from "./timeBuckets";
 import { Session } from "./sessions";
 import { estimateLabelWidth, t } from "./i18n";
+import { Category, CategoryRegistry, patternOverlay, renderPatternDefs } from "./categories";
 
 export interface ChartOptions {
   width?: number;
@@ -12,6 +13,8 @@ export interface ChartOptions {
   eventRange?: { start: Date; end: Date };
   /** 図の右下に小さく添える注記 (判定ルールの識別子など) */
   note?: string;
+  /** 色のカテゴリ (省略時は既定のカテゴリ) */
+  categories?: CategoryRegistry;
 }
 
 /** 図の右下の注記 (無ければ空文字列) */
@@ -28,16 +31,13 @@ export function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** 追加の内訳・削除の色 (docx-revision-flow と同じ) */
-const BULK_COLOR = "rgb(234,108,0)";
-const FINE_COLOR = "rgb(22,128,61)";
-const MOVED_COLOR = "rgb(37,99,235)";
-const DELETED_COLOR = "rgb(198,40,40)";
 /** 総文字数の折れ線 (移動・並べ替えの青と紛れないよう濃い灰色) */
 const TOTAL_COLOR = "#424242";
 
+const fillOf = (reg: CategoryRegistry, c: Category) => `rgb(${reg.rgb(c)})`;
+
 /**
- * 1つのバケットの棒: 上向きに追加 (下から細かい編集・一括挿入・移動/並べ替えの積み上げ)、
+ * 1つのバケットの棒: 上向きに追加 (下から細かい編集・ハイライト (priority の低い順)・移動/並べ替えの積み上げ)、
  * 下向きに削除。
  */
 function renderBucketBars(
@@ -46,50 +46,52 @@ function renderBucketBars(
   barW: number,
   zeroY: number,
   yAdded: (v: number) => number,
-  yDeleted: (v: number) => number
+  yDeleted: (v: number) => number,
+  reg: CategoryRegistry
 ): string {
   const parts: string[] = [];
   const when = b.start.toISOString();
   let base = 0;
-  for (const [v, color, label] of [
-    [b.addedFine, FINE_COLOR, t("kindFine")],
-    [b.addedBulk, BULK_COLOR, t("kindBulk")],
-    [b.addedMoved, MOVED_COLOR, t("kindMoved")],
-  ] as const) {
+  const stack: [number, Category][] = [
+    [b.addedFine, reg.byRole("fine")],
+    ...reg.highlights().map((c): [number, Category] => [b.addedByCategory[c.id] ?? 0, c]),
+    [b.addedMoved, reg.byRole("moved")],
+  ];
+  for (const [v, c] of stack) {
     if (v <= 0) continue;
     const top = yAdded(base + v);
     const bottom = yAdded(base);
+    const [rx, ry, rw, rh] = [x.toFixed(2), top.toFixed(2), barW.toFixed(2), (bottom - top).toFixed(2)];
     parts.push(
-      `<rect x="${x.toFixed(2)}" y="${top.toFixed(2)}" width="${barW.toFixed(2)}" height="${(bottom - top).toFixed(
-        2
-      )}" fill="${color}" fill-opacity="0.85"><title>${esc(t("barTooltip", label, v, when))}</title></rect>`
+      `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fillOf(reg, c)}" fill-opacity="0.85"><title>${esc(
+        t("barTooltip", reg.label(c), v, when)
+      )}</title></rect>` + patternOverlay(c, rx, ry, rw, rh)
     );
     base += v;
   }
   if (b.deleted > 0) {
     const y = yDeleted(b.deleted);
+    const del = reg.byRole("deleted");
     parts.push(
       `<rect x="${x.toFixed(2)}" y="${zeroY.toFixed(2)}" width="${barW.toFixed(2)}" height="${(y - zeroY).toFixed(
         2
-      )}" fill="${DELETED_COLOR}" fill-opacity="0.85"><title>${esc(t("barTooltip", t("kindDeleted"), b.deleted, when))}</title></rect>`
+      )}" fill="${fillOf(reg, del)}" fill-opacity="0.85"><title>${esc(t("barTooltip", reg.label(del), b.deleted, when))}</title></rect>`
     );
   }
   return parts.join("");
 }
 
 /** 凡例 (移動・並べ替えは、該当する挿入がある場合だけ載せる) */
-function renderLegendItems(buckets: Bucket[]): string {
-  const items: [string, string][] = [
-    [FINE_COLOR, t("kindFine")],
-    [BULK_COLOR, t("kindBulk")],
-  ];
-  if (buckets.some((b) => b.addedMoved > 0)) items.push([MOVED_COLOR, t("kindMoved")]);
-  items.push([DELETED_COLOR, t("kindDeleted")]);
+function renderLegendItems(buckets: Bucket[], reg: CategoryRegistry): string {
+  const items: Category[] = [reg.byRole("fine"), ...reg.highlights()];
+  if (buckets.some((b) => b.addedMoved > 0)) items.push(reg.byRole("moved"));
+  items.push(reg.byRole("deleted"));
   const parts: string[] = [];
   let x = 0;
-  for (const [color, label] of items) {
+  for (const c of items) {
+    const label = reg.label(c);
     parts.push(
-      `<rect x="${x}" y="-10" width="14" height="14" fill="${color}" fill-opacity="0.85"/>`,
+      `<rect x="${x}" y="-10" width="14" height="14" fill="${fillOf(reg, c)}" fill-opacity="0.85"/>` + patternOverlay(c, x, -10, 14, 14),
       `<text x="${x + 20}" y="1" font-size="12" fill="#333">${esc(label)}</text>`
     );
     x += 20 + estimateLabelWidth(label, 12) + 16;
@@ -137,6 +139,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
     opts.fontFamily ??
     "'Noto Sans CJK JP', 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Meiryo, 'MS PGothic', 'Helvetica Neue', Arial, sans-serif";
   const title = opts.title ?? t("chartDefaultTitle");
+  const reg = opts.categories ?? new CategoryRegistry();
 
   const marginLeft = 70;
   const marginRight = 70;
@@ -179,7 +182,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   for (let i = 0; i < n; i++) {
     const b = buckets[i];
     const x = marginLeft + bandW * i + (bandW - barW) / 2;
-    bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted));
+    bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted, reg));
   }
 
   // --- 総文字数の折れ線 ---
@@ -254,7 +257,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   ${rightTicks.join("\n  ")}
   ${xLabels.join("\n  ")}
 
-  <g>${bars.join("\n  ")}</g>
+  ${renderPatternDefs(reg.patterns())}<g>${bars.join("\n  ")}</g>
 
   <polyline points="${linePoints}" fill="none" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>
   <g fill="${TOTAL_COLOR}">${buckets
@@ -266,7 +269,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   ${opts.eventRange ? renderDayLabel(opts.eventRange.start, opts.eventRange.end, marginLeft + plotW / 2, marginTop - 26) : ""}
 
   <!-- legend -->
-  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(buckets)}</g>${renderNote(opts.note, width, height)}
+  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(buckets, reg)}</g>${renderNote(opts.note, width, height)}
 </svg>`;
 }
 
@@ -327,6 +330,7 @@ export function renderSessionedRevisionChart(
     opts.fontFamily ??
     "'Noto Sans CJK JP', 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Meiryo, 'MS PGothic', 'Helvetica Neue', Arial, sans-serif";
   const title = opts.title ?? t("chartDefaultTitleSessions");
+  const reg = opts.categories ?? new CategoryRegistry();
   const pixelsPerBucket = opts.pixelsPerBucket ?? 16;
   const axisFontSize = 11;
 
@@ -476,7 +480,7 @@ export function renderSessionedRevisionChart(
     for (let i = 0; i < n; i++) {
       const b = p.buckets[i];
       const x = p.x + bandW * i + (bandW - barW) / 2;
-      bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted));
+      bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted, reg));
     }
 
     const linePoints = p.buckets
@@ -535,12 +539,12 @@ export function renderSessionedRevisionChart(
   ${rightTicks.join("\n  ")}
   ${gapMarks.join("\n  ")}
 
-  ${panelContents.join("\n  ")}
+  ${renderPatternDefs(reg.patterns())}${panelContents.join("\n  ")}
 
   <text x="${marginLeft - 50}" y="${marginTop - 10}" font-size="11" fill="#555">${esc(t("axisAddedDeleted"))}</text>
   <text x="${plotRight + 24}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}" text-anchor="end">${esc(t("totalChars"))}</text>
 
   <!-- legend -->
-  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(allBuckets)}</g>${renderNote(opts.note, width, height)}
+  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(allBuckets, reg)}</g>${renderNote(opts.note, width, height)}
 </svg>`;
 }

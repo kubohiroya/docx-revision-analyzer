@@ -10,6 +10,8 @@ export interface Bucket {
   addedBulk: number;
   addedFine: number;
   addedMoved: number;
+  /** addedBulk のカテゴリ (categories.ts) ごとの内訳。カテゴリの無い一括挿入は "bulk" */
+  addedByCategory: Record<string, number>;
   deleted: number;
   /** バケット終了時点での累計総文字数 */
   totalAtEnd: number;
@@ -64,7 +66,7 @@ export function buildBuckets(
   for (let i = 0; i < bucketCount; i++) {
     const start = new Date(minTime + i * bucketMs);
     const end = new Date(minTime + (i + 1) * bucketMs);
-    buckets.push({ start, end, added: 0, addedBulk: 0, addedFine: 0, addedMoved: 0, deleted: 0, totalAtEnd: 0 });
+    buckets.push({ start, end, added: 0, addedBulk: 0, addedFine: 0, addedMoved: 0, addedByCategory: {}, deleted: 0, totalAtEnd: 0 });
   }
 
   let running = baselineCharCount;
@@ -81,7 +83,11 @@ export function buildBuckets(
     if (ev.type === "ins") {
       const b = buckets[bucketIdx];
       b.added += ev.chars;
-      if (ev.insKind === "bulk") b.addedBulk += ev.chars;
+      if (ev.insKind === "bulk") {
+        b.addedBulk += ev.chars;
+        const cat = ev.category ?? "bulk";
+        b.addedByCategory[cat] = (b.addedByCategory[cat] ?? 0) + ev.chars;
+      }
       else if (ev.insKind === "moved") b.addedMoved += ev.chars;
       else b.addedFine += ev.chars;
       running += ev.chars;

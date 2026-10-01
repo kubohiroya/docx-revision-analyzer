@@ -27,8 +27,10 @@ import {
   insertionWindowsToJson,
   WindowOptions,
 } from "../lib/insertionWindows";
+import { CATEGORY_IDS, CategoryRegistry, contrastWithWhite, MIN_GRAPHIC_CONTRAST } from "../lib/categories";
 import {
   assignLevels,
+  categoriesFromRules,
   defaultRuleSet,
   levelsByInsertion,
   parseRuleSet,
@@ -217,6 +219,10 @@ export function resolveRules(options: Record<string, any>, bulkChars: number): R
 
 export interface RuleAnalysis {
   rules: RuleSet;
+  /** 図の色のカテゴリ (既定のカテゴリ + ルールのレベル。レベルが既定の一括挿入を置き換える) */
+  categories: CategoryRegistry;
+  /** ルールについての注意 (色のコントラストが低いなど) */
+  warnings: string[];
   windows: InsertionWindowResult;
   /** 窓ごとのレベル (windows.windows と同じ順) */
   levels: (RuleLevel | undefined)[];
@@ -228,7 +234,13 @@ export interface RuleAnalysis {
 export function analyzeWithRules(model: DocxLayoutModel, rules: RuleSet): RuleAnalysis {
   const windows = detectInsertionWindows(extractRevisionPositions(model), rules.window);
   const levels = assignLevels(rules, windows);
-  return { rules, windows, levels, levelOf: levelsByInsertion(windows, levels) };
+  const categories = new CategoryRegistry();
+  categories.unregister(CATEGORY_IDS.bulk);
+  for (const c of categoriesFromRules(rules)) categories.register(c);
+  const warnings = rules.levels
+    .filter((lv) => contrastWithWhite(lv.color) < MIN_GRAPHIC_CONTRAST)
+    .map((lv) => t("warning", t("rulesLowContrast", lv.id, contrastWithWhite(lv.color).toFixed(1))));
+  return { rules, categories, warnings, windows, levels, levelOf: levelsByInsertion(windows, levels) };
 }
 
 /**

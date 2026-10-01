@@ -18,6 +18,7 @@
 import { FlowResult, FlowSession, PageLayout, ParaHeat, SlopeUnit } from "./flow";
 import { esc, formatGapHours, renderNote } from "./svgChart";
 import { estimateLabelWidth, t } from "./i18n";
+import { Category, CategoryRegistry, patternOverlay, renderPatternDefs } from "./categories";
 
 export interface FlowSvgOptions {
   title?: string;
@@ -28,13 +29,10 @@ export interface FlowSvgOptions {
   fontFamily?: string;
   /** 図の右下に小さく添える注記 (判定ルールの識別子など) */
   note?: string;
+  /** 色のカテゴリ (省略時は既定のカテゴリ) */
+  categories?: CategoryRegistry;
 }
 
-const GREEN = "22,128,61";
-const ORANGE = "234,108,0";
-const RED = "198,40,40";
-const GRAY = "150,155,165";
-const BLUE = "37,99,235";
 /** これ未満の度合いは塗らない */
 const MIN_INTENSITY = 0.05;
 
@@ -80,6 +78,8 @@ interface PageGeom {
 interface Tint {
   main?: string;
   mainV?: number;
+  /** 主の色のカテゴリ (模様を重ねるため) */
+  mainCat?: Category;
   sub?: string;
   subV?: number;
   /** 次の区間で削除される (赤) / 移動していく (青) ことを示す右余白の印の色 */
@@ -106,7 +106,10 @@ function renderPage(
     const height = (r.bottom - r.top) * g.lineHeight;
     if (t.main && t.mainV) {
       parts.push(
-        `<rect x="${(x + g.textX - 2).toFixed(1)}" y="${top.toFixed(1)}" width="${(g.textWidth + 4).toFixed(1)}" height="${height.toFixed(1)}" fill="${fill(t.main, t.mainV)}"/>`
+        `<rect x="${(x + g.textX - 2).toFixed(1)}" y="${top.toFixed(1)}" width="${(g.textWidth + 4).toFixed(1)}" height="${height.toFixed(1)}" fill="${fill(t.main, t.mainV)}"/>` +
+          (t.mainCat
+            ? patternOverlay(t.mainCat, (x + g.textX - 2).toFixed(1), top.toFixed(1), (g.textWidth + 4).toFixed(1), height.toFixed(1))
+            : "")
       );
     }
     if (t.sub && t.subV) {
@@ -194,22 +197,22 @@ function unitRange(
   return range;
 }
 
-function unitColor(u: SlopeUnit): string {
+function unitColor(u: SlopeUnit, reg: CategoryRegistry): string {
   switch (u.change) {
     case "deleted":
-      return RED;
+      return reg.rgb(reg.byRole("deleted"));
     case "added":
-      return u.addedByBulk ? ORANGE : GREEN;
+      return reg.rgb(u.addedByBulk ? reg.highlightOrDefault(u.category) : reg.byRole("fine"));
     case "bulk":
-      return ORANGE;
+      return reg.rgb(reg.highlightOrDefault(u.category));
     case "fine":
-      return GREEN;
+      return reg.rgb(reg.byRole("fine"));
     case "movedFrom":
     case "movedTo":
     case "moved":
-      return BLUE;
+      return reg.rgb(reg.byRole("moved"));
     default:
-      return GRAY;
+      return reg.rgb(reg.byRole("unchanged"));
   }
 }
 
@@ -223,8 +226,10 @@ function renderSlopes(
   lx: number,
   rx: number,
   stackTop: number,
-  g: PageGeom
+  g: PageGeom,
+  reg: CategoryRegistry
 ): string {
+  const BLUE = reg.rgb(reg.byRole("moved"));
   const left = stackPositions(s.startPages, stackTop, g);
   const right = stackPositions(s.endPages, stackTop, g);
   const mx = (lx + rx) / 2;
@@ -250,7 +255,7 @@ function renderSlopes(
     }
     const L = unitRange(u, left);
     const R = unitRange(u, right);
-    const color = unitColor(u);
+    const color = unitColor(u, reg);
     const opacity = u.change === "unchanged" ? 0.22 : 0.3 + 0.5 * u.intensity;
     let d: string | undefined;
     if (L && R) {
@@ -288,7 +293,21 @@ function renderSlopes(
 }
 
 /** 区間 index (0始まり) のキャプション。x〜x+width は前後の列の中心の間 */
-function renderCaption(s: FlowSession, index: number, x: number, y: number, width: number, font: string): string {
+function renderCaption(
+  s: FlowSession,
+  index: number,
+  x: number,
+  y: number,
+  width: number,
+  font: string,
+  reg: CategoryRegistry
+): string {
+  const RED = reg.rgb(reg.byRole("deleted"));
+  // 一括挿入の色は、区間で最も多くを占めたハイライトのカテゴリ
+  const topCat = Object.entries(s.highlightChars).reduce<[string, number] | undefined>(
+    (a, e) => (!a || e[1] > a[1] ? e : a),
+    undefined
+  )?.[0];
   const cx = x + width / 2;
   const lines = [
     // どの帯の区間かが分かるよう、前後の列の中心を結ぶ括弧を描く
@@ -303,8 +322,8 @@ function renderCaption(s: FlowSession, index: number, x: number, y: number, widt
   ];
   // 一括挿入・移動は1行ずつ (英語では長くなり、隣の区間のキャプションと重なるため)
   const notes: [string, string][] = [];
-  if (s.bulkInsChars > 0) notes.push([ORANGE, t("flowBulkNote", fmtCount(s.bulkInsChars))]);
-  if (s.movedChars > 0) notes.push([BLUE, t("flowMovedNote", fmtCount(s.movedChars))]);
+  if (s.bulkInsChars > 0) notes.push([reg.rgb(reg.highlightOrDefault(topCat)), t("flowBulkNote", fmtCount(s.bulkInsChars))]);
+  if (s.movedChars > 0) notes.push([reg.rgb(reg.byRole("moved")), t("flowMovedNote", fmtCount(s.movedChars))]);
   notes.forEach(([rgb, text], i) => {
     lines.push(
       `<text x="${cx}" y="${y + 49 + i * 15}" text-anchor="middle" font-size="11" fill="rgb(${rgb})">${esc(text)}</text>`
@@ -314,27 +333,23 @@ function renderCaption(s: FlowSession, index: number, x: number, y: number, widt
 }
 
 /** 凡例。返り値の width は凡例全体の幅 (図の幅を決めるのに使う) */
-function renderLegend(x: number, y: number, font: string): { svg: string; width: number } {
-  const rows: [string, string][][] = [
-    [
-      [GREEN, t("flowLegendFine")],
-      [ORANGE, t("flowLegendBulk")],
-    ],
-    [
-      [RED, t("flowLegendDeleted")],
-      [BLUE, t("flowLegendMoved")],
-      [GRAY, t("flowLegendUnchanged")],
-    ],
+function renderLegend(x: number, y: number, font: string, reg: CategoryRegistry): { svg: string; width: number } {
+  const rows: Category[][] = [
+    [reg.byRole("fine"), ...reg.highlights()],
+    [reg.byRole("deleted"), reg.byRole("moved"), reg.byRole("unchanged")],
   ];
   const parts: string[] = [];
   let width = 0;
   rows.forEach((row, r) => {
     let dx = 0;
     const dy = r * 20;
-    for (const [rgb, label] of row) {
+    for (const c of row) {
+      const rgb = reg.rgb(c);
+      const label = reg.flowLegend(c);
       parts.push(
         `<rect x="${x + dx}" y="${y + dy - 10}" width="12" height="12" fill="${fill(rgb, 0.3)}"/>` +
           `<rect x="${x + dx + 12}" y="${y + dy - 10}" width="12" height="12" fill="${fill(rgb, 1)}"/>` +
+          patternOverlay(c, x + dx, y + dy - 10, 24, 12) +
           `<text x="${x + dx + 30}" y="${y + dy}" font-size="12" fill="#333">${esc(label)}</text>`
       );
       dx += 30 + estimateLabelWidth(label, 12) + 24;
@@ -379,7 +394,8 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
   const stackTop = HEADER_HEIGHT + STACK_LABEL_HEIGHT;
   const columnsHeight = maxPages * geom.height + (maxPages - 1) * PAGE_GAP;
   const captionY = stackTop + columnsHeight + 20;
-  const legend = renderLegend(MARGIN, 58, font);
+  const reg = opts.categories ?? new CategoryRegistry();
+  const legend = renderLegend(MARGIN, 58, font, reg);
   const width = Math.ceil(
     Math.max(720, MARGIN * 2 + legend.width, MARGIN * 2 + columns.length * pageWidth + sessions.length * slopeWidth)
   );
@@ -387,6 +403,8 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
 
   const parts: string[] = [];
   parts.push(`<rect width="100%" height="100%" fill="#ffffff"/>`);
+  const defs = renderPatternDefs(reg.patterns());
+  if (defs) parts.push(defs);
   parts.push(
     `<text x="${MARGIN}" y="32" font-family="${font}" font-size="18" font-weight="bold" fill="#222">${esc(
       opts.title ?? t("flowDefaultTitle")
@@ -416,22 +434,28 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
     const nextMark = new Map<number, string>();
     for (const u of next?.units ?? []) {
       if (u.change !== "deleted" && u.change !== "movedFrom") continue;
-      for (const i of u.paraIndexes) nextMark.set(i, u.change === "deleted" ? RED : BLUE);
+      for (const i of u.paraIndexes) {
+        nextMark.set(i, reg.rgb(reg.byRole(u.change === "deleted" ? "deleted" : "moved")));
+      }
     }
     const tintOf = (i: number): Tint | undefined => {
       const t: Tint = { nextMark: nextMark.get(i) };
       const h: ParaHeat | undefined = ended?.heat.get(i);
       if (h) {
-        // 最も度合いの大きい色で段落を塗り、2番目の色を左余白の細い帯で示す
+        // priority の高いカテゴリ (同じなら度合いの大きいもの) で段落を塗り、2番目を左余白の細い帯で示す。
+        // ハイライトの度合いは、一括挿入の度合いをカテゴリの文字数で按分したもの
         const ranked = [
-          { c: GREEN, v: h.green },
-          { c: ORANGE, v: h.orange },
-          { c: BLUE, v: h.moved },
+          { c: reg.byRole("fine"), v: h.green },
+          ...Object.entries(h.highlightChars).map(([id, n]) => ({
+            c: reg.highlightOrDefault(id),
+            v: h.orange * (n / h.bulkInsChars),
+          })),
+          { c: reg.byRole("moved"), v: h.moved },
         ]
           .filter((e) => e.v >= MIN_INTENSITY)
-          .sort((a, b) => b.v - a.v);
-        if (ranked[0]) Object.assign(t, { main: ranked[0].c, mainV: ranked[0].v });
-        if (ranked[1]) Object.assign(t, { sub: ranked[1].c, subV: ranked[1].v });
+          .sort((a, b) => b.c.priority - a.c.priority || b.v - a.v);
+        if (ranked[0]) Object.assign(t, { main: reg.rgb(ranked[0].c), mainV: ranked[0].v, mainCat: ranked[0].c });
+        if (ranked[1]) Object.assign(t, { sub: reg.rgb(ranked[1].c), subV: ranked[1].v });
       }
       return t.main || t.nextMark ? t : undefined;
     };
@@ -441,9 +465,9 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
   });
 
   sessions.forEach((s, i) => {
-    parts.push(renderSlopes(s, columnX(i) + pageWidth, columnX(i + 1), stackTop, geom));
+    parts.push(renderSlopes(s, columnX(i) + pageWidth, columnX(i + 1), stackTop, geom, reg));
     parts.push(
-      renderCaption(s, i, columnX(i) + pageWidth / 2, captionY, pageWidth + slopeWidth, font)
+      renderCaption(s, i, columnX(i) + pageWidth / 2, captionY, pageWidth + slopeWidth, font, reg)
     );
   });
 

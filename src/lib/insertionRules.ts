@@ -28,8 +28,9 @@
 import type { FeatureName, InsertionWindowResult, WindowFeatures, WindowOptions } from "./insertionWindows";
 import { DEFAULT_WINDOW_OPTIONS } from "./insertionWindows";
 import { getLang, Lang, t } from "./i18n";
+import { builtinCategories, Category, CATEGORY_IDS, CATEGORY_PATTERNS, CategoryPattern, LocalizedText } from "./categories";
 
-export type LocalizedText = string | Partial<Record<Lang, string>>;
+export type { LocalizedText } from "./categories";
 
 export type CompareOp = "gte" | "gt" | "lte" | "lt" | "eq";
 
@@ -44,6 +45,13 @@ export interface RuleLevel {
   label: LocalizedText;
   color: string;
   when: Condition;
+  /**
+   * 色に重ねる模様。ルールファイルで省略すると、レベルの順に hatch / cross / dots を割り当てる
+   * (色だけに頼らないため)。"none" なら模様なし
+   */
+  pattern?: CategoryPattern | "none";
+  /** 図で使うカテゴリの id。省略時は "level:<id>" (既定ルールは既定の一括挿入 "bulk") */
+  category?: string;
 }
 
 export interface RuleSet {
@@ -71,6 +79,8 @@ export function defaultRuleSet(bulkChars: number): RuleSet {
         label: { en: "Bulk insertion", ja: "一括挿入" },
         color: DEFAULT_BULK_COLOR,
         when: { features: { insertedChars: { gte: bulkChars } } },
+        pattern: "none",
+        category: CATEGORY_IDS.bulk,
       },
     ],
   };
@@ -204,7 +214,7 @@ export function parseRuleSet(value: unknown): RuleSet {
   const levels = levelsRaw.map((lv, i): RuleLevel => {
     const where = `levels[${i}]`;
     if (!isMapping(lv)) fail(where, t("rulesNotMapping"));
-    checkKeys(lv, ["id", "label", "color", "when"], where);
+    checkKeys(lv, ["id", "label", "color", "when", "pattern"], where);
     if (typeof lv.id !== "string" || lv.id.trim() === "") fail(`${where}.id`, t("rulesNotString"));
     if (seen.has(lv.id)) fail(`${where}.id`, t("rulesDuplicateLevel", lv.id));
     seen.add(lv.id);
@@ -212,11 +222,16 @@ export function parseRuleSet(value: unknown): RuleSet {
       fail(`${where}.color`, t("rulesBadColor"));
     }
     if (lv.when === undefined) fail(`${where}.when`, t("rulesMissing"));
+    const patterns = [...CATEGORY_PATTERNS, "none"];
+    if (lv.pattern !== undefined && !patterns.includes(lv.pattern as string)) {
+      fail(`${where}.pattern`, t("rulesBadPattern", patterns.join(", ")));
+    }
     return {
       id: lv.id,
       label: parseLabel(lv.label ?? lv.id, `${where}.label`),
       color: lv.color,
       when: parseCondition(lv.when, `${where}.when`),
+      pattern: (lv.pattern as RuleLevel["pattern"]) ?? CATEGORY_PATTERNS[i % CATEGORY_PATTERNS.length],
     };
   });
   return { ruleSet: value.ruleSet, window: parseWindow(value.window, "window"), levels };
@@ -266,4 +281,36 @@ export function levelLabel(level: RuleLevel, lang: Lang = getLang()): string {
   const l = level.label;
   if (typeof l === "string") return l;
   return l[lang] ?? l.en ?? l.ja ?? level.id;
+}
+
+// ---------------------------------------------------------------------------
+// 図のカテゴリ
+// ---------------------------------------------------------------------------
+
+/** レベルを描くカテゴリの id */
+export function categoryIdOfLevel(level: RuleLevel): string {
+  return level.category ?? `level:${level.id}`;
+}
+
+/** レベルの priority の基準。既定のカテゴリ (0) より高くし、上のレベルほど高くする */
+export const LEVEL_PRIORITY_BASE = 10;
+
+/**
+ * ルールのレベルを図のハイライトのカテゴリにする。
+ * 既定の一括挿入 (category: "bulk") を指すレベルは、既定のカテゴリをそのまま使う。
+ */
+export function categoriesFromRules(rules: RuleSet): Category[] {
+  const n = rules.levels.length;
+  return rules.levels.map((lv, i): Category => {
+    const id = categoryIdOfLevel(lv);
+    if (id === CATEGORY_IDS.bulk) return builtinCategories().find((c) => c.id === CATEGORY_IDS.bulk)!;
+    return {
+      id,
+      role: "highlight",
+      color: lv.color,
+      label: lv.label,
+      priority: LEVEL_PRIORITY_BASE + (n - i),
+      pattern: lv.pattern === "none" ? undefined : lv.pattern,
+    };
+  });
 }

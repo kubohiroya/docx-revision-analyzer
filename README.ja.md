@@ -414,11 +414,11 @@ window: { seconds: 60, chars: 2000 }   # 省略可。paras, byAuthor も指定�
 levels:
   - id: level-2
     label: { ja: 大量の一括挿入, en: Large bulk insertion with little editing afterwards }
-    color: "#C2410C"
+    color: "#9A3412"
     when: { all: [ { insertedChars: { gte: 800 } }, { postEditRatio: { lt: 0.05 } } ] }
   - id: level-1
     label: { ja: 一括挿入文字数過多, en: Large bulk insertion }
-    color: "#F28C28"
+    color: "#EA6C00"
     when: { insertedChars: { gte: 300 } }
 ```
 
@@ -427,7 +427,11 @@ levels:
 - `--rules` が無いときは既定ルール (窓 = 同じ作成者・同じ日時、レベル = `insertedChars >= --bulk-chars` の1つ) を使います。
   結果は従来とまったく同じです。
 - `--bulk-chars` は、`docx-revision-flow` で大きな削除を細かい編集に数えない判定にも引き続き使います。
-- レベルごとの色での描画はまだ行いません (どのレベルも一括挿入の色で描きます)。
+- レベルはそれぞれの色で描き、凡例では「一括挿入」の代わりにレベルを載せます。chart では細かい編集と移動の間に
+  積み上げます (下のレベルほど下)。`docx-revision-flow` では、段落に当てはまる最も上のレベルで段落を塗り、
+  ほかのカテゴリは段落左側の細い帯で示します。
+- 色だけで見分けずに済むよう、レベルには模様も付けます (上から順に `hatch` / `cross` / `dots`。レベルに `pattern:` を
+  書けば指定でき、`pattern: none` で模様なし)。色の白地とのコントラストが 3:1 未満なら警告を表示します。
 
 ## ライブラリとして使う
 
@@ -435,6 +439,13 @@ levels:
 `renderRevisionChart` など) を再エクスポートしているため、CLIとしてだけでなく
 他の Node.js / Bun プロジェクトから `import { ... } from "docx-revision-analyzer"`
 としてライブラリ的に使うこともできます。
+
+### 色のカテゴリ
+
+図の色は `CategoryRegistry` (`{ id, role, color, label, priority, pattern }`) から取ります。既定のカテゴリは
+細かい編集・一括挿入・移動・削除・変化なしです。`highlight` のカテゴリを登録し、レジストリを `categories` として
+`renderRevisionChart` / `renderSessionedRevisionChart` / `renderFlowSvg` に渡すと、その色で描きます。挿入とカテゴリは
+`RevisionEvent.category` (chart) や `FlowOptions.highlightOf` (flow) で対応づけます。
 
 ### 各編集の位置
 
