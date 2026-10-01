@@ -25,12 +25,14 @@ import type { PositionedRevisionEvent, RevisionRange } from "./revisionPositions
 import { matchesCorpus, normalizeForMatch } from "./insertionKinds";
 
 export interface WindowOptions {
-  /** 時間窓 Δt (秒) */
+  /** 時間窓 Δt (秒)。0 なら同じ記録時刻の挿入だけをまとめる */
   seconds: number;
-  /** 文書上の距離 L (文字) */
-  chars: number;
+  /** 文書上の距離 L (文字)。省略すると距離を問わない */
+  chars?: number;
   /** 文書上の距離 P (段落)。指定した場合は chars と両方を満たす必要がある */
   paras?: number;
+  /** true なら同じ作成者の挿入だけをまとめる */
+  byAuthor?: boolean;
 }
 
 /**
@@ -157,7 +159,8 @@ export function detectInsertionWindows(
       .find(
         (g) =>
           t - g.start <= maxDtMs &&
-          rangeGap(g.range, e.final) <= options.chars &&
+          (!options.byAuthor || g.members[0].author === e.author) &&
+          (options.chars === undefined || rangeGap(g.range, e.final) <= options.chars) &&
           (options.paras === undefined || paraGap(g.range, e.final) <= options.paras)
       );
     if (g) {

@@ -11,7 +11,7 @@
  *
  * キーは各ツールのオプションの長い名前 (先頭の -- を除いたもの)。
  * 優先順位は コマンドラインの指定 > 設定ファイル > 組み込みの既定値。
- * output の相対パスは設定ファイルのあるフォルダを基準にする
+ * output / rules の相対パスは設定ファイルのあるフォルダを基準にする
  * (ドラッグ&ドロップ起動では作業フォルダが定まらないため)。
  *
  * 探す場所 (最初に見つかったものを使う):
@@ -92,6 +92,8 @@ export function applyToolConfig(program: Command, config: ToolConfig): void {
           console.error(t("warning", t("configOutputIgnored", config.path)));
           continue;
         }
+        value = path.resolve(config.dir, String(raw));
+      } else if (key === "rules") {
         value = path.resolve(config.dir, String(raw));
       } else {
         value = String(raw);

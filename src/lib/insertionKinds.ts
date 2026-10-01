@@ -56,3 +56,26 @@ export function classifyInsertions(events: RevisionEvent[], bulkChars = DEFAULT_
     e.insKind = (groups.get(groupKey(e)) ?? 0) >= bulkChars ? "bulk" : "fine";
   }
 }
+
+/**
+ * 判定ルール (insertionRules.ts) の結果で挿入の insKind / level を設定する。
+ * 並べ替えの判定は classifyInsertions と同じ。それ以外で、レベルの付いた窓に含まれる挿入
+ * (levelOf に w:id があるもの) を一括挿入 (bulk) とし、level にレベルの id を入れる。
+ */
+export function classifyInsertionsByLevels(events: RevisionEvent[], levelOf: Map<string, { id: string }>): void {
+  const delCorpus = events
+    .filter((e) => e.type === "del")
+    .map((e) => normalizeForMatch(e.text))
+    .join("");
+  for (const e of events) {
+    if (e.type !== "ins") continue;
+    e.level = undefined;
+    if (matchesCorpus(e.text, delCorpus)) {
+      e.insKind = "moved";
+      continue;
+    }
+    const lv = levelOf.get(String(e.id));
+    e.insKind = lv ? "bulk" : "fine";
+    e.level = lv?.id;
+  }
+}

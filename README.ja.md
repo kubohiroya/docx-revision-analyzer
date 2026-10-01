@@ -72,7 +72,8 @@ node dist/cli/chart.js <input.docx> [input2.docx ...] [options]
 | `-t, --title <text>` | チャートタイトル | `編集履歴: <ファイル名> (最終更新 <ファイルの最終更新日時>)` |
 | `--bulk-chars <n>` | 同じ作成者・同じ時刻にまとめて挿入された文字数がこれ以上なら一括挿入とみなす (`docx-revision-flow` と同じ規則) | `150` |
 | `--json [file.json]` | 解析結果 (挿入の窓と特徴量) を JSON にも出力する。下の「解析結果の JSON」を参照 | 出力しない (名前を省略すると `<出力名>.json`) |
-| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | 挿入の窓: 時間窓 Δt と、文書上の距離 (文字数 / 段落数) | `60` / `2000` / 指定なし |
+| `--rules <file>` | 挿入の窓にハイライトの段階を付けるルールファイル (`--bulk-chars` の代わりに使う)。下の「ハイライトの判定ルール」を参照 | なし |
+| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | 挿入の窓: 時間窓 Δt と、文書上の距離 (文字数 / 段落数)。ルールの `window` を置き換える | ルールの値 |
 | `--preserve-history` | 文書が「保存時に個人情報 (変更履歴の作成者・日時) を削除する」設定の場合に、その設定を外し「変更履歴の記録」もオンにして上書き保存する (元のファイルはバックアップとして残す。文書が開かれている場合はエラー)。`--preserveHistory` でも可。下記「日時が記録されない場合」参照 | off |
 | `--check-history-settings` | チャートは作らず設定の確認だけを行い、1行目に `ok` / `needs-fix`、`needs-fix` なら2行目以降に確認用の文面を出力する | off |
 | `--drop` | デスクトップからのドラッグ&ドロップ起動モード。`-o` 未指定時、各ファイルの出力先を通常の `<ファイル名>.svg` ではなく `<入力と同じディレクトリ>/<そのファイル名>-<そのファイルの最終更新日時>.svg` にする。macOS用Finderドロップレット ([INSTALL.ja.md](./INSTALL.ja.md) 参照) や、Windowsエクスプローラーからの直接ドロップ(またはターミナルを介さない他の起動方法)向け。Windows上ではさらにネイティブなメッセージボックスで結果を表示する | off |
@@ -160,7 +161,8 @@ node dist/cli/flow.js 報告書.docx --from 2026-06-01 --to "2026-06-02 18:00" -
 | `--from <datetime>` / `--to <datetime>` | 対象期間 (ローカル時刻。`2026-06-01` や `"2026-06-01 09:30"` の形式。日付だけの `--to` はその日の終わりまで) | 全期間 |
 | `--bulk-chars <n>` | 同じ時刻にまとめて挿入された文字数がこれ以上なら一括挿入とみなす | `150` |
 | `--json [file.json]` | 解析結果 (挿入の窓と特徴量) を JSON にも出力する。下の「解析結果の JSON」を参照 | 出力しない (名前を省略すると `<出力名>.json`) |
-| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | 挿入の窓: 時間窓 Δt と、文書上の距離 (文字数 / 段落数) | `60` / `2000` / 指定なし |
+| `--rules <file>` | 挿入の窓にハイライトの段階を付けるルールファイル (`--bulk-chars` の代わりに使う)。下の「ハイライトの判定ルール」を参照 | なし |
+| `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | 挿入の窓: 時間窓 Δt と、文書上の距離 (文字数 / 段落数)。ルールの `window` を置き換える | ルールの値 |
 | `--page-width <px>` | ページのサムネイルの幅 | `150` |
 | `--slope-width <px>` | サムネイルの列の間 (変化を示す帯) の幅 | `72` |
 | `-t, --title <text>` | 図のタイトル | `編集フロー: <ファイル名> (最終更新 <ファイルの最終更新日時>)` |
@@ -345,7 +347,7 @@ lang: ja
   `page-width`・`slope-width`・`title`・`bucket`・`from`・`to`・`lang` など。`docx-ai-suspicion-score` では
   `min-chars`・`burst-low`・`pretty` など)。`pretty` のようなフラグは `true` / `false` で指定します。
 - コマンドラインでの指定が設定ファイルより優先され、設定ファイルは組み込みの既定値より優先されます。
-- `output` の相対パスは、設定ファイルのあるフォルダを基準にします。複数のファイルをまとめて処理するときは `output` を使いません。
+- `output` / `rules` の相対パスは、設定ファイルのあるフォルダを基準にします。複数のファイルをまとめて処理するときは `output` を使いません。
 - 不明なキーや不正な値は警告を出して無視し、YAML として読めないファイルはエラーにします。
   どの設定ファイルを読んだかは実行時に表示します。
 
@@ -381,9 +383,10 @@ Windows では書き込みオープンの可否、macOS/Linux では `lsof`) を
 ## 解析結果の JSON (`--json`)
 
 `--json` を付けると、`docx-revision-chart` / `docx-revision-flow` は解析結果を JSON にも出力します。
-中身は「挿入の窓」です。短い時間 (窓の最初の挿入から `--window-seconds` 秒以内) に、文書の近い範囲
-(`--window-chars` 文字以内。`--window-paras` を指定すれば段落数も) へ行われた挿入を1つの窓にまとめます。
-距離は最終文書で測り、移動・並べ替えは除きます。窓ごとの特徴量は次のとおりです。
+中身は「挿入の窓」です。短い時間 (窓の最初の挿入から `seconds` 秒以内) に、文書の近い範囲
+(`chars` 文字以内。`paras` を指定すれば段落数も) へ行われた挿入を1つの窓にまとめます。
+距離は最終文書で測り、移動・並べ替えは除きます。窓の設定はルール (下記。既定は同じ作成者・同じ日時) から取り、
+`--window-*` で置き換えられます。窓ごとの特徴量は次のとおりです。
 
 | 特徴量 | 意味 |
 |---|---|
@@ -397,6 +400,34 @@ Windows では書き込みオープンの可否、macOS/Linux では `lsof`) を
 | `insertCount` | 挿入の件数 |
 
 特徴量そのものは判定をしません (しきい値は別に適用します)。
+
+### ハイライトの判定ルール (`--rules`)
+
+ルールファイル (YAML / JSON) で、挿入の窓の特徴量に対する条件と段階 (レベル) を書きます。レベルは上から評価し、
+最初に当てはまったものを採用します。レベルの付いた窓の挿入は一括挿入 (オレンジ) として描き、JSON には窓ごとの
+`level` とルールの `ruleSet` を記録します。`--rules` を指定した場合は、図の右下にも `ruleSet` を表示します。
+例: [examples/rules.example.yml](examples/rules.example.yml)
+
+```yaml
+ruleSet: example-v1        # 出力に記録する識別子
+window: { seconds: 60, chars: 2000 }   # 省略可。paras, byAuthor も指定できる
+levels:
+  - id: level-2
+    label: { ja: 大量の一括挿入, en: Large bulk insertion with little editing afterwards }
+    color: "#C2410C"
+    when: { all: [ { insertedChars: { gte: 800 } }, { postEditRatio: { lt: 0.05 } } ] }
+  - id: level-1
+    label: { ja: 一括挿入文字数過多, en: Large bulk insertion }
+    color: "#F28C28"
+    when: { insertedChars: { gte: 300 } }
+```
+
+- 比較は `gte` / `gt` / `lte` / `lt` / `eq` (1つの中に複数書くとすべてを満たす必要がある)。`{ precededByDeletion: true }` は
+  `eq` の省略形。`all: [...]` / `any: [...]` / `not: ...` で組み合わせる。レベルの数は任意。
+- `--rules` が無いときは既定ルール (窓 = 同じ作成者・同じ日時、レベル = `insertedChars >= --bulk-chars` の1つ) を使います。
+  結果は従来とまったく同じです。
+- `--bulk-chars` は、`docx-revision-flow` で大きな削除を細かい編集に数えない判定にも引き続き使います。
+- レベルごとの色での描画はまだ行いません (どのレベルも一括挿入の色で描きます)。
 
 ## ライブラリとして使う
 

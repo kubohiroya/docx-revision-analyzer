@@ -10,6 +10,14 @@ export interface ChartOptions {
   fontFamily?: string;
   /** 最初と最後の変更の日時 (指定すると、グラフの上に月日を表示する) */
   eventRange?: { start: Date; end: Date };
+  /** 図の右下に小さく添える注記 (判定ルールの識別子など) */
+  note?: string;
+}
+
+/** 図の右下の注記 (無ければ空文字列) */
+export function renderNote(note: string | undefined, width: number, height: number, attrs = ""): string {
+  if (!note) return "";
+  return `\n  <text x="${width - 8}" y="${height - 6}" text-anchor="end" font-size="10" fill="#777"${attrs}>${esc(note)}</text>`;
 }
 
 export function esc(s: string): string {
@@ -258,7 +266,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   ${opts.eventRange ? renderDayLabel(opts.eventRange.start, opts.eventRange.end, marginLeft + plotW / 2, marginTop - 26) : ""}
 
   <!-- legend -->
-  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(buckets)}</g>
+  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(buckets)}</g>${renderNote(opts.note, width, height)}
 </svg>`;
 }
 
@@ -533,6 +541,6 @@ export function renderSessionedRevisionChart(
   <text x="${plotRight + 24}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}" text-anchor="end">${esc(t("totalChars"))}</text>
 
   <!-- legend -->
-  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(allBuckets)}</g>
+  <g transform="translate(${marginLeft}, ${height - 22})">${renderLegendItems(allBuckets)}</g>${renderNote(opts.note, width, height)}
 </svg>`;
 }

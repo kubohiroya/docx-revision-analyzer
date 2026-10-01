@@ -4,8 +4,6 @@ import * as fs from "fs";
 import * as path from "path";
 import { describeMissingRevisions, extractRevisionsFromFile } from "../lib/docxRevisions";
 import { parseDocxLayout } from "../lib/docxLayout";
-import { extractRevisionPositions } from "../lib/revisionPositions";
-import { detectInsertionWindows } from "../lib/insertionWindows";
 import { buildFlow, DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { renderFlowSvg } from "../lib/flowSvg";
 import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
@@ -15,7 +13,8 @@ import {
   checkAndFixHistorySettings,
   FileResult,
   runForFiles,
-  windowOptionsFrom,
+  analyzeWithRules,
+  resolveRules,
   writeAnalysisJson,
 } from "./common";
 import { initLangFromArgv, t } from "../lib/i18n";
@@ -75,12 +74,14 @@ async function processOne(
   const slopeWidth = positiveNumber(options.slopeWidth, "--slope-width");
   const from = options.from ? parseDateOption(options.from, "--from", false) : undefined;
   const to = options.to ? parseDateOption(options.to, "--to", true) : undefined;
-  const windowOptions = windowOptionsFrom(options);
+  const rules = resolveRules(options, bulkChars);
 
   const notes = await checkAndFixHistorySettings(resolved, options, TOOL);
 
   const model = await parseDocxLayout(await fs.promises.readFile(resolved));
-  const result = buildFlow(model, { gapThresholdHours, bulkChars, from, to });
+  const analysis = analyzeWithRules(model, rules);
+  const bulkInsIds = new Set(analysis.levelOf.keys());
+  const result = buildFlow(model, { gapThresholdHours, bulkChars, bulkInsIds, from, to });
 
   if (result.sessions.length === 0) {
     // 変更履歴そのものが無い (または日時が無い) のか、期間の指定で外れたのかを区別して伝える
@@ -107,9 +108,10 @@ async function processOne(
     title: options.title ?? buildDefaultTitle(t("flowTitlePrefix"), inputFile, fs.statSync(resolved).mtime),
     pageWidth,
     slopeWidth,
+    note: options.rules ? t("rulesNote", rules.ruleSet) : undefined,
   });
   fs.writeFileSync(outFile, svg, "utf-8");
-  const jsonOut = writeAnalysisJson(options, outFile, TOOL, inputFile, detectInsertionWindows(extractRevisionPositions(model), windowOptions));
+  const jsonOut = writeAnalysisJson(options, outFile, TOOL, inputFile, analysis);
   if (jsonOut) notes.push(t("jsonWritten", jsonOut));
 
   const pages = Math.max(...result.sessions.flatMap((s) => [s.startPages.length, s.endPages.length]));

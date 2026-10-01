@@ -31,8 +31,13 @@ import { DEFAULT_BULK_CHARS, matchesCorpus, normalizeForMatch as normalize } fro
 export interface FlowOptions {
   /** 無編集期間がこれ (時間) を超えたら区間を分ける */
   gapThresholdHours: number;
-  /** 同時刻の挿入の合計がこれ以上なら一括挿入とみなす (文字数) */
+  /** 同時刻の挿入の合計がこれ以上なら一括挿入とみなす (文字数)。大きな削除の判定にも使う */
   bulkChars: number;
+  /**
+   * 一括挿入とみなす挿入の w:id (判定ルールで決めたもの)。指定すると、挿入の一括挿入の判定には
+   * bulkChars の代わりにこれを使う
+   */
+  bulkInsIds?: Set<string>;
   /** 対象期間 (この範囲の変更だけを区間分け・集計に使う) */
   from?: Date;
   to?: Date;
@@ -388,7 +393,8 @@ function computeHeat(
   end: number,
   visibleChars: Map<number, number>,
   bulkChars: number,
-  reloc: Relocations
+  reloc: Relocations,
+  bulkInsIds: Set<string> | undefined
 ): SessionHeat {
   const isRelocIns = (p: Para, r: RevRef) => reloc.ins.has(pieceKey(p.index, r));
   const isRelocDel = (p: Para, r: RevRef) => reloc.del.has(pieceKey(p.index, r));
@@ -397,15 +403,22 @@ function computeHeat(
   const insGroup = new Map<string, number>();
   const delTotal = new Map<string, number>();
   const groupKey = (r: RevRef) => `${r.author ?? ""}|${r.date!.getTime()}`;
+  /** 一括挿入と同じ作成者・同じ日時 (bulkInsIds を指定した場合) */
+  const bulkGroups = new Set<string>();
   for (const p of model.paras) {
     for (const s of p.segs) {
       if (s.kind !== "text") continue;
       if (inRange(s.ins, start, end) && !isRelocIns(p, s.ins)) {
         insGroup.set(groupKey(s.ins), (insGroup.get(groupKey(s.ins)) ?? 0) + s.chars);
+        if (bulkInsIds?.has(s.ins.id)) bulkGroups.add(groupKey(s.ins));
       }
       if (inRange(s.del, start, end)) delTotal.set(s.del.id, (delTotal.get(s.del.id) ?? 0) + s.chars);
     }
   }
+  const isBulkIns = (r: RevRef) =>
+    bulkInsIds ? bulkInsIds.has(r.id) : (insGroup.get(groupKey(r)) ?? 0) >= bulkChars;
+  const isBulkGroup = (r: RevRef) =>
+    bulkInsIds ? bulkGroups.has(groupKey(r)) : (insGroup.get(groupKey(r)) ?? 0) >= bulkChars;
 
   const heat = new Map<number, ParaHeat>();
   let insChars = 0;
@@ -434,7 +447,7 @@ function computeHeat(
         pIns += s.chars;
         if (isRelocIns(p, s.ins)) {
           movedIn += s.chars;
-        } else if ((insGroup.get(groupKey(s.ins)) ?? 0) >= bulkChars) {
+        } else if (isBulkIns(s.ins)) {
           pBulk += s.chars;
         } else {
           fineChars += s.chars;
@@ -447,7 +460,7 @@ function computeHeat(
           movedOut += s.chars;
         } else {
           // 大きな削除や、一括挿入と同時刻の削除 (置き換え前の文章の削除) は細かい編集に数えない
-          const replacing = (insGroup.get(groupKey(s.del)) ?? 0) >= bulkChars;
+          const replacing = isBulkGroup(s.del);
           if (!replacing && (delTotal.get(s.del.id) ?? 0) < bulkChars) {
             fineChars += s.chars;
             fineIds.add(`del:${s.del.id}`);
@@ -639,7 +652,7 @@ export function buildFlow(model: DocxLayoutModel, opts: FlowOptions): FlowResult
     // 開始時点は区間の最初の変更の直前 (同じ時刻の変更は区間に含まれるため 1ms 前)
     const before = layoutAt(model, start - 1, charsPerLine, linesPerPage);
     const after = layoutAt(model, end, charsPerLine, linesPerPage);
-    const h = computeHeat(model, start, end, after.visibleChars, opts.bulkChars, reloc);
+    const h = computeHeat(model, start, end, after.visibleChars, opts.bulkChars, reloc, opts.bulkInsIds);
     return {
       start: new Date(start),
       end: new Date(end),

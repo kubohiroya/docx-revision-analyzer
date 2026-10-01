@@ -7,15 +7,16 @@ import { buildBuckets, BucketSpec } from "../lib/timeBuckets";
 import { renderRevisionChart, renderSessionedRevisionChart } from "../lib/svgChart";
 import { splitIntoSessions } from "../lib/sessions";
 import { buildDefaultTitle, buildDropOutputPath } from "../lib/filenames";
-import { classifyInsertions, DEFAULT_BULK_CHARS } from "../lib/insertionKinds";
+import { classifyInsertionsByLevels, DEFAULT_BULK_CHARS } from "../lib/insertionKinds";
+import { parseDocxLayout } from "../lib/docxLayout";
 import {
   addAnalysisOptions,
   addCommonOptions,
-  analyzeInsertionWindows,
+  analyzeWithRules,
   checkAndFixHistorySettings,
   FileResult,
   runForFiles,
-  windowOptionsFrom,
+  resolveRules,
   writeAnalysisJson,
 } from "./common";
 import { initLangFromArgv, t } from "../lib/i18n";
@@ -40,7 +41,6 @@ async function processOne(
   }
 
   const warnings: string[] = await checkAndFixHistorySettings(resolved, options, "docx-revision-chart");
-  const windowOptions = windowOptionsFrom(options);
   const buf = await fs.promises.readFile(resolved);
   const data = await extractRevisionsFromBuffer(buf);
   const missing = describeMissingRevisions(data);
@@ -53,7 +53,10 @@ async function processOne(
   if (!Number.isFinite(bulkChars) || bulkChars <= 0) {
     return { input: inputFile, ok: false, notes: warnings, message: t("errPositive", "--bulk-chars") };
   }
-  classifyInsertions(data.events, bulkChars);
+  const rules = resolveRules(options, bulkChars);
+  const analysis = analyzeWithRules(await parseDocxLayout(buf), rules);
+  classifyInsertionsByLevels(data.events, analysis.levelOf);
+  const rulesNote = options.rules ? t("rulesNote", rules.ruleSet) : undefined;
 
   let bucketSpec: BucketSpec = options.bucket;
   if (/^\d+$/.test(options.bucket)) {
@@ -71,8 +74,7 @@ async function processOne(
   }
   const width = options.width ? parseInt(options.width, 10) : undefined;
   const writeJson = async (svgOut: string) => {
-    const jsonOut = writeAnalysisJson(options, svgOut, "docx-revision-chart", inputFile,
-      await analyzeInsertionWindows(buf, windowOptions));
+    const jsonOut = writeAnalysisJson(options, svgOut, "docx-revision-chart", inputFile, analysis);
     if (jsonOut) warnings.push(t("jsonWritten", jsonOut));
   };
 
@@ -92,6 +94,7 @@ async function processOne(
       height: parseInt(options.height, 10),
       title: options.title ?? buildDefaultTitle(t("chartTitlePrefix"), inputFile, fs.statSync(resolved).mtime),
       gapThresholdHours: thresholdHours,
+      note: rulesNote,
     });
     fs.writeFileSync(outFile, svg, "utf-8");
     await writeJson(outFile);
@@ -111,6 +114,7 @@ async function processOne(
       width: width ?? 1100,
       height: parseInt(options.height, 10),
       title: options.title ?? buildDefaultTitle(t("chartTitlePrefix"), inputFile, fs.statSync(resolved).mtime),
+      note: rulesNote,
     });
     fs.writeFileSync(outFile, svg, "utf-8");
     await writeJson(outFile);
