@@ -496,6 +496,14 @@ The desktop app shows the same list under the Highlights tab. Library: `checkInt
 access. It can also open a .docx from a OneDrive / SharePoint link (after signing in to Microsoft); the document is
 only downloaded for analysis. Installers aren't published yet.
 
+**Folders (batch).** Drop a folder on the app (or its icon) to create a chart (`<name>.svg`) and a flow
+(`<name>-flow.svg`) next to every `.docx` in it, including subfolders. Paste a SharePoint / OneDrive *folder* link in
+"Open from URL…" — for example the folder where Microsoft Teams collects assignment submissions — and choose (or
+create) an output folder: the source folder's hierarchy is recreated there with the SVGs inside (or, if you choose,
+everything is put in one folder with the path in the file names). Both also write `summary.csv` (for Excel) and
+`index.html` (links to every figure). The CLIs (and the macOS droplets) also accept folders: `docx-revision-flow
+submissions/`.
+
 ## Using it as a library
 
 `src/index.ts` re-exports the main functions and types (`extractRevisionsFromFile`,

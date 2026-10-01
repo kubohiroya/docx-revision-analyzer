@@ -20,12 +20,13 @@ import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules,
 import { MicrosoftClient, MicrosoftConfig, MicrosoftError } from "./microsoft";
 import { EXT_SCHEME, ExtensionManager } from "./extensions";
 import { NetMediator } from "./sendLog";
+import { registerBatchIpc } from "./batchMain";
 import type { AnalysisResult, ClassifierContext } from "./extension-api";
 
 // 拡張のページ (dra-ext://<id>/) を、ES モジュールを読み込める安全なオリジンとして扱う
 protocol.registerSchemesAsPrivileged([{ scheme: EXT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
-const smokeFile = process.env.DRA_SMOKE_FILE ?? process.env.DRA_SMOKE_URL;
+const smokeFile = process.env.DRA_SMOKE_FILE ?? process.env.DRA_SMOKE_URL ?? process.env.DRA_SMOKE_START ?? process.env.DRA_SMOKE_BATCH;
 // テスト用: 設定・拡張のデータの置き場所を変える (利用者のデータに触れないため)
 if (process.env.DRA_USER_DATA) app.setPath("userData", path.resolve(process.env.DRA_USER_DATA));
 const smokeOut = process.env.DRA_SMOKE_OUT;
@@ -145,6 +146,8 @@ function registerIpc(): void {
     if (!microsoft) return { error: { code: "notConfigured", message: "" } };
     const recent = "recent" in target ? (loadSettings().recentUrls ?? []).find((r) => r.url === target.recent) : undefined;
     const url = "url" in target ? target.url.trim() : target.recent;
+    // 最近開いたフォルダは、一括処理として開き直す
+    if (recent?.kind === "folder") return { error: { code: "folder", message: recent.name } };
     try {
       // 最近開いた文書は、前回の driveId / itemId で開く (共有リンクの解決を省く)。失敗したら URL から開き直す
       let f;
@@ -227,12 +230,35 @@ function registerIpc(): void {
   ipcMain.handle("system-lang", () => systemLang());
   ipcMain.handle("version", () => app.getVersion());
   ipcMain.on("renderer-ready", () => {
+    // スモークテスト: フォルダの一括処理 (DRA_SMOKE_BATCH にローカルのフォルダ、または SharePoint の URL)
+    if (process.env.DRA_SMOKE_BATCH) {
+      const b = process.env.DRA_SMOKE_BATCH;
+      const target = /^https:/.test(b) ? { kind: "cloud", url: b } : { kind: "local", path: path.resolve(b) };
+      void extensionsReady.then(() => mainWindow?.webContents.send("smoke-batch", target));
+      return;
+    }
+    // スモークテスト: 起動画面 (ファイルを開く前) だけを撮る
+    if (process.env.DRA_SMOKE_START) {
+      setTimeout(() => void captureStart(), 800);
+      return;
+    }
     const p = process.env.DRA_SMOKE_FILE ?? pendingOpenPath;
     pendingOpenPath = undefined;
     if (p) void extensionsReady.then(() => mainWindow?.webContents.send("open-path", path.resolve(p)));
     else if (process.env.DRA_SMOKE_URL) void extensionsReady.then(() => mainWindow?.webContents.send("open-url", process.env.DRA_SMOKE_URL));
   });
+  ipcMain.on("smoke-batch-done", () => void captureStart("smoke-batch.png"));
   ipcMain.on("smoke-analyzed", (_e, summary: { ok: boolean; message: string }) => void runSmokeCapture(summary));
+}
+
+async function captureStart(name = "smoke-start.png"): Promise<void> {
+  if (!mainWindow) return;
+  const out = smokeOut ?? process.cwd();
+  fs.mkdirSync(out, { recursive: true });
+  const file = path.join(out, name);
+  fs.writeFileSync(file, (await mainWindow.webContents.capturePage()).toPNG());
+  console.log(`smoke: wrote ${file}`);
+  app.exit(0);
 }
 
 /** スモークテスト: 各タブを表示して PNG に保存し、終了する */
@@ -335,9 +361,45 @@ app.on("open-file", (e, p) => {
   else pendingOpenPath = p;
 });
 
+/**
+ * 起動時の引数で渡されたファイル・フォルダ (Windows でアイコンへドロップしたとき・「送る」など)。
+ * 開発中の起動 (electron .) の引数は対象にしない
+ */
+function pathFromArgv(argv: string[]): string | undefined {
+  if (!app.isPackaged) return undefined;
+  return argv
+    .slice(1)
+    .filter((a) => !a.startsWith("-"))
+    .find((a) => {
+      try {
+        const st = fs.statSync(a);
+        return st.isDirectory() || /\.docx$/i.test(a);
+      } catch {
+        return false;
+      }
+    });
+}
+
+// 2つ目の起動 (すでに開いているアプリのアイコンへドロップしたなど) は、開いているウィンドウで受け取る
+if (!process.env.DRA_SMOKE_FILE && !process.env.DRA_SMOKE_URL && !process.env.DRA_SMOKE_START && !process.env.DRA_SMOKE_BATCH) {
+  if (!app.requestSingleInstanceLock()) app.exit(0);
+  app.on("second-instance", (_e, argv) => {
+    const p = pathFromArgv(argv);
+    if (p && mainWindow) mainWindow.webContents.send("open-path", path.resolve(p));
+    if (mainWindow?.isMinimized()) mainWindow.restore();
+    mainWindow?.focus();
+  });
+}
+
 app.whenReady().then(() => {
   lockDown();
   registerIpc();
+  registerBatchIpc(
+    () => mainWindow,
+    () => microsoft,
+    (e) => rememberUrl({ ...e, openedAt: new Date().toISOString() })
+  );
+  pendingOpenPath ??= pathFromArgv(process.argv);
   mediator = new NetMediator({
     dir: path.join(app.getPath("userData"), "extensions"),
     confirmByDefault: (id) => loadSettings().extensionConfirmSends?.[id] !== false,

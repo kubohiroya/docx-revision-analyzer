@@ -9,7 +9,11 @@
  *  - 通信はメインプロセスからだけ行う (アプリの画面は引き続き外部と通信できない)。
  *    通信先は login.microsoftonline.com / graph.microsoft.com と、Graph が返すダウンロード用の URL だけ。
  *
+ * フォルダの URL (Teams の課題の提出物が集まる SharePoint のフォルダなど) からは、その下の .docx を一覧して
+ * 1つずつ読み込める (listFolder / open({ driveId, itemId }))。
+ *
  * テスト用: DRA_GRAPH_MOCK に docx のパスを指定すると、サインインも通信もせずにそのファイルを返す。
+ * DRA_GRAPH_MOCK_DIR にフォルダを指定すると、フォルダの URL をそのフォルダとして扱う。
  */
 
 import { safeStorage, shell } from "electron";
@@ -44,7 +48,17 @@ export class MicrosoftError extends Error {
   constructor(
     message: string,
     /** 画面で案内を出し分けるための種類 */
-    readonly code: "notConfigured" | "badUrl" | "notDocx" | "notFound" | "forbidden" | "tooLarge" | "signInCancelled" | "network"
+    readonly code:
+      | "notConfigured"
+      | "badUrl"
+      | "notDocx"
+      | "notFolder"
+      | "folder"
+      | "notFound"
+      | "forbidden"
+      | "tooLarge"
+      | "signInCancelled"
+      | "network"
   ) {
     super(message);
   }
@@ -100,6 +114,33 @@ const SIGNED_IN_PAGE = (title: string, body: string) =>
   `<!doctype html><meta charset="utf-8"><title>${title}</title>` +
   `<body style="font-family:-apple-system,'Segoe UI',sans-serif;padding:48px;text-align:center">` +
   `<h2>${title}</h2><p>${body}</p></body>`;
+
+/** フォルダの中の .docx */
+export interface CloudFolderFile {
+  driveId: string;
+  itemId: string;
+  name: string;
+  /** フォルダからの相対パス ("/" 区切り。ファイル名を含む) */
+  path: string;
+  size: number;
+  mtime: string;
+}
+
+export interface CloudFolder {
+  name: string;
+  webUrl?: string;
+  files: CloudFolderFile[];
+  /** 上限に達して一覧を打ち切ったか */
+  truncated: boolean;
+}
+
+/** 一覧にする .docx の上限 */
+export const MAX_FOLDER_FILES = 2000;
+
+/** 一括処理の対象にする .docx か (Word の一時ファイル ~$xxx.docx や隠しファイルは除く) */
+export function isTargetDocx(name: string): boolean {
+  return /\.docx$/i.test(name) && !name.startsWith("~$") && !name.startsWith(".");
+}
 
 export class MicrosoftClient {
   private pca?: PCA;
@@ -184,6 +225,11 @@ export class MicrosoftClient {
 
   /** URL (または前回開いたときの driveId / itemId) の docx を読み込む */
   async open(target: { url: string } | { driveId: string; itemId: string }): Promise<CloudFile> {
+    if (process.env.DRA_GRAPH_MOCK_DIR && "driveId" in target && target.driveId === "mock-dir") {
+      const p = path.join(process.env.DRA_GRAPH_MOCK_DIR, target.itemId);
+      const stat = await fs.promises.stat(p);
+      return { name: path.basename(p), mtime: stat.mtime.toISOString(), bytes: new Uint8Array(await fs.promises.readFile(p)), driveId: "mock-dir", itemId: target.itemId };
+    }
     if (this.mockFile) {
       const bytes = await fs.promises.readFile(this.mockFile);
       const stat = await fs.promises.stat(this.mockFile);
@@ -205,7 +251,8 @@ export class MicrosoftClient {
       parentReference?: { driveId?: string };
       folder?: unknown;
     };
-    if (meta.folder || !/\.docx$/i.test(meta.name)) throw new MicrosoftError(meta.name, "notDocx");
+    if (meta.folder) throw new MicrosoftError(meta.name, "folder");
+    if (!/\.docx$/i.test(meta.name)) throw new MicrosoftError(meta.name, "notDocx");
     if ((meta.size ?? 0) > MAX_BYTES) throw new MicrosoftError(meta.name, "tooLarge");
     const driveId = meta.parentReference?.driveId ?? ("driveId" in target ? target.driveId : "");
     // 中身は Graph が返す、期限付きのダウンロード用の URL へ転送される (fetch が転送をたどる)
@@ -221,6 +268,75 @@ export class MicrosoftClient {
       webUrl: meta.webUrl,
     };
   }
+
+  /**
+   * フォルダの URL の下にある .docx を、サブフォルダまでたどって一覧する (MAX_FOLDER_FILES 件まで)。
+   * Teams の課題の提出物 (SharePoint の「Student Work」などのフォルダ) を想定している
+   */
+  async listFolder(url: string): Promise<CloudFolder> {
+    const mockDir = process.env.DRA_GRAPH_MOCK_DIR;
+    if (mockDir) return listLocalAsCloud(mockDir);
+    if (!isMicrosoftFileUrl(url)) throw new MicrosoftError(url, "badUrl");
+    const token = await this.token();
+    const root = (await (
+      await this.graph(`/shares/${shareIdOf(url)}/driveItem?$select=id,name,webUrl,folder,parentReference`, token, {
+        headers: { prefer: "redeemSharingLinkIfNecessary" },
+      })
+    ).json()) as { id: string; name: string; webUrl?: string; folder?: unknown; parentReference?: { driveId?: string } };
+    if (!root.folder) throw new MicrosoftError(root.name, "notFolder");
+    const driveId = root.parentReference?.driveId ?? "";
+    const files: CloudFolderFile[] = [];
+    let truncated = false;
+    // 幅優先でたどる (フォルダ ID と、そこまでの相対パス)
+    const queue: { id: string; prefix: string }[] = [{ id: root.id, prefix: "" }];
+    while (queue.length && !truncated) {
+      const { id, prefix } = queue.shift()!;
+      let next: string | undefined = `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(id)}/children?$select=id,name,size,lastModifiedDateTime,folder,file&$top=200`;
+      while (next) {
+        const page = (await (await this.graph(next, token)).json()) as {
+          value: { id: string; name: string; size?: number; lastModifiedDateTime?: string; folder?: unknown }[];
+          "@odata.nextLink"?: string;
+        };
+        for (const it of page.value) {
+          if (it.folder) queue.push({ id: it.id, prefix: `${prefix}${it.name}/` });
+          else if (isTargetDocx(it.name)) {
+            if (files.length >= MAX_FOLDER_FILES) {
+              truncated = true;
+              break;
+            }
+            files.push({
+              driveId,
+              itemId: it.id,
+              name: it.name,
+              path: `${prefix}${it.name}`,
+              size: it.size ?? 0,
+              mtime: it.lastModifiedDateTime ?? "",
+            });
+          }
+        }
+        // 次のページは完全な URL で返る
+        next = truncated ? undefined : page["@odata.nextLink"]?.replace(GRAPH, "");
+      }
+    }
+    return { name: root.name, webUrl: root.webUrl, files, truncated };
+  }
+}
+
+/** テスト用: ローカルのフォルダを、クラウドのフォルダの一覧として返す */
+async function listLocalAsCloud(dir: string): Promise<CloudFolder> {
+  const files: CloudFolderFile[] = [];
+  const walk = async (rel: string) => {
+    for (const e of await fs.promises.readdir(path.join(dir, rel), { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) await walk(r);
+      else if (isTargetDocx(e.name)) {
+        const st = await fs.promises.stat(path.join(dir, r));
+        files.push({ driveId: "mock-dir", itemId: r, name: e.name, path: r, size: st.size, mtime: st.mtime.toISOString() });
+      }
+    }
+  };
+  await walk("");
+  return { name: path.basename(dir), files, truncated: false };
 }
 
 async function errorText(res: Response): Promise<string> {

@@ -39,6 +39,17 @@ import {
 } from "../../../src/core";
 import type { AppLang, AppSettings, ExtensionListItem, MicrosoftStatus, OpenedFile, RecentUrl } from "../shared";
 import { STRINGS, Strings } from "./strings";
+import { batchCloudFolder, batchLocalFolder, BatchContext } from "./batch";
+
+declare global {
+  interface Window {
+    /** スモークテスト用 (preload が公開する) */
+    appSmoke?: {
+      onBatch(cb: (target: { kind: "local"; path: string } | { kind: "cloud"; url: string }) => void): void;
+      batchDone(): void;
+    };
+  }
+}
 import {
   buildAnalysisResult,
   clearPanels,
@@ -122,6 +133,7 @@ function applyLang(): void {
   setText("drop-here", S.dropHere);
   setText("open2", S.open);
   setText("drop-hint", S.dropHint);
+  setText("batch-hint", S.batchDropHint);
   setText("purpose", S.purpose);
   setText("s-lang", S.settingsLang);
   setText("o-lang-system", S.langSystem);
@@ -480,6 +492,20 @@ async function runSafely(fn: () => Promise<void>): Promise<void> {
   }
 }
 
+/** ファイルなら開き、フォルダならその下の .docx の SVG を一括で作る */
+async function openPath(p: string): Promise<void> {
+  if ((await window.app.inspectPath(p)) === "directory") await batchLocalFolder(p, batchCtx);
+  else await openFile(await window.app.readDocx(p));
+}
+
+const batchCtx: BatchContext = {
+  lang: () => lang,
+  strings: () => S,
+  analysis: () => settings.analysis,
+  rules: () => rules,
+  status: (msg) => status(msg),
+};
+
 // ---------------------------------------------------------------------------
 // OneDrive / SharePoint の URL から開く
 // ---------------------------------------------------------------------------
@@ -510,7 +536,7 @@ function recentList(onOpen: (r: RecentUrl) => void, limit = recentUrls.length): 
     const row = el("div", undefined, "recent-item");
     const open = el("button", undefined, "open");
     open.title = r.url;
-    open.append(el("span", r.name), el("small", `${hostOf(r.url)} — ${fmtDate(r.openedAt)}`));
+    open.append(el("span", r.kind === "folder" ? `📁 ${r.name}` : r.name), el("small", `${hostOf(r.url)} — ${fmtDate(r.openedAt)}`));
     open.onclick = () => onOpen(r);
     const remove = el("button", "×", "remove");
     remove.title = S.urlRemove;
@@ -532,7 +558,17 @@ function renderRecentWelcome(): void {
   const box = $("recent-welcome");
   box.replaceChildren();
   if (!msStatus.configured || recentUrls.length === 0) return;
-  box.append(el("h3", S.urlRecent), recentList((r) => void openFromUrl({ recent: r.url }), 5));
+  box.append(
+    el("h3", S.urlRecent),
+    recentList(
+      (r) =>
+        void runSafely(async () => {
+          const res = await openFromUrl({ recent: r.url });
+          if (res && typeof res !== "string") await batchCloudFolder(res.folder, batchCtx);
+        }),
+      5
+    )
+  );
 }
 
 async function refreshCloud(): Promise<void> {
@@ -542,10 +578,15 @@ async function refreshCloud(): Promise<void> {
 }
 
 /** URL を開く。失敗したら理由を返す (ダイアログに表示するため) */
-async function openFromUrl(target: { url: string } | { recent: string }): Promise<string | undefined> {
+/**
+ * URL を開く。失敗したら理由を返す (ダイアログに表示するため)。
+ * フォルダの URL なら { folder } を返し、呼び出し側が (ダイアログを閉じてから) 一括処理を始める
+ */
+async function openFromUrl(target: { url: string } | { recent: string }): Promise<string | { folder: string } | undefined> {
   status(S.urlOpening);
   const r = await window.app.openUrl(target);
   await refreshCloud();
+  if (r.error?.code === "folder") return { folder: "url" in target ? target.url : target.recent };
   if (r.error) {
     const msg = S.urlErrors[r.error.code] ?? r.error.message;
     status(S.error(msg));
@@ -577,10 +618,14 @@ async function showUrlDialog(): Promise<void> {
         error.hidden = true;
         const msg = await openFromUrl(target);
         go.disabled = false;
-        if (msg) {
+        if (typeof msg === "string") {
           error.textContent = msg;
           error.hidden = false;
-        } else close();
+        } else {
+          close();
+          // フォルダの URL: ダイアログを閉じてから一括処理を始める (モーダルは1つずつ表示するため)
+          if (msg?.folder) setTimeout(() => void runSafely(async () => void (await batchCloudFolder(msg.folder, batchCtx))), 0);
+        }
       };
       go.onclick = () => void (input.value.trim() && run({ url: input.value.trim() }));
       input.onkeydown = (e) => {
@@ -872,9 +917,17 @@ async function main(): Promise<void> {
     e.preventDefault();
     document.body.classList.remove("dragover");
     const f = e.dataTransfer?.files[0];
-    if (f) void runSafely(async () => openFile(await window.app.readDocx(window.app.pathForFile(f))));
+    if (f) void runSafely(async () => openPath(window.app.pathForFile(f)));
   });
-  window.app.onOpenPath((p) => void runSafely(async () => openFile(await window.app.readDocx(p))));
+  window.app.onOpenPath((p) => void runSafely(async () => openPath(p)));
+  window.appSmoke?.onBatch((target) =>
+    void runSafely(async () => {
+      if (target.kind === "local") await batchLocalFolder(target.path, batchCtx, true);
+      else await batchCloudFolder(target.url, batchCtx, true);
+      // 結果のダイアログが表示されてから撮る
+      setTimeout(() => window.appSmoke?.batchDone(), 600);
+    })
+  );
 
   showTab("chart");
   appInternal.ready();
