@@ -412,6 +412,7 @@ export function buildAnalysisResult(args: {
   classification: ClassificationResult;
   flow?: FlowResult;
   finalText: string;
+  integrity: AnalysisResult["integrity"];
 }): AnalysisResult {
   const { data, ctx, rules, classification, flow } = args;
   const windows = ctx.windowsFor(rules.window);
@@ -450,5 +451,6 @@ export function buildAnalysisResult(args: {
       reason: h.reason,
     })),
     finalText: args.finalText,
+    integrity: args.integrity,
   };
 }

@@ -24,6 +24,12 @@ They're published as an npm package and also distributed as single, dependency-f
 > (`w:del`) markup, so there's nothing to analyze (the tools exit with an
 > error explaining why).
 
+> **What this is for**: a tool for writers to look back on how their own document was written — not a way to police
+> others. Tracked changes in a `.docx` saved on a computer are easy to remove or rewrite: turning Track Changes off,
+> accepting all changes, or editing the XML to change `w:date` / `w:author`. Other apps and converters also write
+> files differently from Word. So the history these tools show can be incomplete or altered, and nothing they output
+> is proof of how a document was written. See "[Integrity notes](#integrity-notes)".
+
 ---
 
 ## Installation
@@ -461,6 +467,27 @@ levels:
 - So that levels aren't told apart by color alone, each level also gets a pattern (`hatch`, `cross`, `dots` in order;
   set `pattern:` on a level to choose, or `pattern: none`). A warning is shown when a level's color has less than 3:1
   contrast against white.
+
+## Integrity notes
+
+With `--json`, the output also includes `integrity`: a few informational observations about the file, each with
+`observed` (`true` if it differs from what Word normally writes, `false` if not, `null` if the file doesn't record
+the needed information) and a message. They are **not used for any judgment or warning** and say nothing about
+whether the file was altered — Word versions, other apps and converters produce the same differences.
+
+| Item | What is observed |
+|---|---|
+| `settings` | Whether Track Changes was on when saved, and whether Word removes authors/dates on save |
+| `undated` | Changes without a date or author; number of authors |
+| `duplicateIds` | Change ids (`w:id`) used more than once (Word gives each change its own id) |
+| `idOrder` | Places where change ids decrease in document order (Word renumbers them in document order on save) |
+| `futureDates` | Change dates in the future, or later than the file's last-modified time (`docProps/core.xml`) |
+| `beforeCreated` | Change dates more than a day before the file's creation time (copying tracked text from another file also does this) |
+| `deletedBeforeInserted` | Text whose deletion is dated before its insertion |
+| `rsids` | Editing-session ids (rsid) used in the text but missing from the list in `settings.xml` |
+| `application` | The app that last saved the file and the recorded total editing time (`docProps/app.xml`) |
+
+The desktop app shows the same list under the Highlights tab. Library: `checkIntegrity(bytes)`.
 
 ## Desktop app (preview)
 

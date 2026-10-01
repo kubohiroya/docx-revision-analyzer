@@ -6,6 +6,8 @@ import {
   applyClassification,
   buildBuckets,
   buildDefaultTitle,
+  checkIntegrity,
+  IntegrityReport,
   buildFlow,
   BucketSpec,
   ClassificationResult,
@@ -53,6 +55,7 @@ type Tab = "chart" | "flow" | "highlights" | "settings";
 
 interface Analysis {
   data: DocxRevisionData;
+  integrity: IntegrityReport;
   positioned: PositionedRevisionEvent[];
   classification: ClassificationResult;
   flow?: FlowResult;
@@ -218,7 +221,7 @@ async function analyze(): Promise<void> {
   const classification = await runPipeline(ruleSet, ctx);
   applyClassification(data.events, classification);
 
-  const result: Analysis = { data, positioned, classification };
+  const result: Analysis = { data, positioned, classification, integrity: await checkIntegrity(bytes) };
   const mtime = new Date(file.mtime);
   const note = rules ? libT("rulesNote", rules.ruleSet) : undefined;
   if (data.events.length > 0) {
@@ -269,6 +272,7 @@ async function analyze(): Promise<void> {
       classification,
       flow: result.flow,
       finalText: finalDocumentText(model),
+      integrity: result.integrity,
     })
   );
 
@@ -343,6 +347,7 @@ function renderHighlights(): void {
   if (items.length === 0) {
     pane.innerHTML = `<p class="hint">${escapeHtml(S.highlightsEmpty)}</p>`;
     renderPanels(pane);
+    renderIntegrity(pane, a.integrity);
     return;
   }
   const reg = a.classification.categories;
@@ -372,6 +377,29 @@ function renderHighlights(): void {
     });
   }
   renderPanels(pane);
+  renderIntegrity(pane, a.integrity);
+}
+
+/** 整合性の簡易チェック (判定ではなく情報として表示する) */
+function renderIntegrity(pane: HTMLElement, report: IntegrityReport): void {
+  const box = document.createElement("section");
+  box.className = "ext-panel integrity";
+  const h = document.createElement("h3");
+  h.textContent = S.integrityTitle;
+  const note = document.createElement("p");
+  note.className = "hint";
+  note.textContent = localized(report.note);
+  const ul = document.createElement("ul");
+  for (const item of report.items) {
+    const li = document.createElement("li");
+    const tag = document.createElement("span");
+    tag.className = "hint";
+    tag.textContent = ` (${item.observed === null ? S.integrityNotAvailable : item.observed ? S.integrityObserved : S.integrityOk})`;
+    li.append(document.createTextNode(localized(item.message)), tag);
+    ul.append(li);
+  }
+  box.append(h, note, ul);
+  pane.append(box);
 }
 
 function clearFocus(): void {
