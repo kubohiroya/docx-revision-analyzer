@@ -9,6 +9,7 @@
  */
 
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import { autoUpdater } from "electron-updater";
 import * as fs from "fs";
 import * as path from "path";
 import { parse as parseYaml } from "yaml";
@@ -108,7 +109,12 @@ function registerIpc(): void {
     return r.filePath;
   });
   ipcMain.handle("get-settings", () => loadSettings());
-  ipcMain.handle("set-settings", (_e, s: AppSettings) => saveSettings(s));
+  ipcMain.handle("set-settings", (_e, s: AppSettings) => {
+    const turnedOn = s.checkForUpdates && !loadSettings().checkForUpdates;
+    saveSettings(s);
+    if (turnedOn) checkForUpdates();
+  });
+  ipcMain.handle("updates-available", () => app.isPackaged);
   ipcMain.handle("system-lang", () => systemLang());
   ipcMain.handle("version", () => app.getVersion());
   ipcMain.on("renderer-ready", () => {
@@ -139,6 +145,18 @@ async function runSmokeCapture(summary: { ok: boolean; message: string }): Promi
     console.log(`smoke: wrote ${file}`);
   }
   app.exit(summary.ok ? 0 : 1);
+}
+
+/**
+ * GitHub Releases で新しいバージョンを確認し、あればダウンロードして終了時に入れ替える (利用者が設定で
+ * 有効にした場合だけ)。electron-updater はメインプロセスの専用セッションで通信し、更新情報 (latest.yml) の
+ * SHA-512 と、macOS ではアプリの署名 (Squirrel.Mac)、Windows では発行者名 (publisherName) を検証する。
+ * 文書や解析結果は送らない。開発中 (パッケージしていない起動) は何もしない。
+ */
+function checkForUpdates(): void {
+  if (!app.isPackaged || smokeFile) return;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => console.error(`update check failed: ${err}`));
 }
 
 function createWindow(): void {
@@ -172,6 +190,7 @@ app.whenReady().then(() => {
   lockDown();
   registerIpc();
   createWindow();
+  if (loadSettings().checkForUpdates) checkForUpdates();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

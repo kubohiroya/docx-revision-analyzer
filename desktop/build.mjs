@@ -18,7 +18,8 @@ await esbuild.build({
   platform: "node",
   format: "cjs",
   target: "node22",
-  external: ["electron"],
+  // electron-updater は実行時に node_modules から読む (electron-builder が配布物に含める)
+  external: ["electron", "electron-updater"],
 });
 await esbuild.build({
   ...common,
