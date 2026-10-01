@@ -151,6 +151,11 @@ export interface AnalysisResult {
   highlights: (HighlightSpec & { classifierId: string })[];
   /** documentText の権限が無ければ空文字列 */
   finalText: string;
+  /** 整合性の簡易チェック (integrity.ts。判定ではなく情報) */
+  integrity: {
+    items: { id: string; observed: boolean | null; details: Record<string, string | number | boolean | null>; message: LocalizedText }[];
+    note: LocalizedText;
+  };
 }
 
 // ---------------------------------------------------------------------------

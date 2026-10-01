@@ -4,6 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { describeMissingRevisions } from "../lib/docxRevisions";
 import { parseDocxLayout } from "../lib/docxLayout";
+import { checkIntegrity } from "../lib/integrity";
 import { buildFlow, DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { highlightCategoryMap } from "../lib/classifiers";
 import { renderFlowSvg } from "../lib/flowSvg";
@@ -81,7 +82,8 @@ async function processOne(
 
   const notes = await checkAndFixHistorySettings(resolved, options, TOOL);
 
-  const model = await parseDocxLayout(await fs.promises.readFile(resolved));
+  const buf = await fs.promises.readFile(resolved);
+  const model = await parseDocxLayout(buf);
   const analysis = await analyzeWithRules(model, rules, gapThresholdHours);
   notes.push(...analysis.warnings);
   const highlightOf = highlightCategoryMap(analysis.classification);
@@ -116,7 +118,8 @@ async function processOne(
     categories: analysis.categories,
   });
   fs.writeFileSync(outFile, svg, "utf-8");
-  const jsonOut = writeAnalysisJson(options, outFile, TOOL, inputFile, analysis);
+  const jsonOut = writeAnalysisJson(options, outFile, TOOL, inputFile, analysis,
+    options.json ? await checkIntegrity(buf) : undefined);
   if (jsonOut) notes.push(t("jsonWritten", jsonOut));
 
   const pages = Math.max(...result.sessions.flatMap((s) => [s.startPages.length, s.endPages.length]));

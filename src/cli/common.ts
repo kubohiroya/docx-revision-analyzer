@@ -26,6 +26,7 @@ import {
   insertionWindowsToJson,
   WindowOptions,
 } from "../lib/insertionWindows";
+import type { IntegrityReport } from "../lib/integrity";
 import { CategoryRegistry, contrastWithWhite, MIN_GRAPHIC_CONTRAST } from "../lib/categories";
 import {
   ClassificationResult,
@@ -266,7 +267,8 @@ export function writeAnalysisJson(
   svgOut: string,
   tool: string,
   inputFile: string,
-  analysis: RuleAnalysis
+  analysis: RuleAnalysis,
+  integrity?: IntegrityReport
 ): string | undefined {
   const json = options.json;
   if (json === undefined || json === false || json === "false") return undefined;
@@ -282,6 +284,8 @@ export function writeAnalysisJson(
     timeResolutionSec: w.timeResolutionSec,
     windows: w.windows.map((x, i) => ({ ...x, level: analysis.levels[i]?.id ?? null })),
     highlights: analysis.classification.highlights.map(highlightToJson),
+    // 整合性の簡易チェック (判定ではなく情報として)
+    integrity: integrity ?? null,
   };
   fs.writeFileSync(outFile, JSON.stringify(body, null, 2) + "\n", "utf-8");
   return outFile;

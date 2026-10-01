@@ -12,6 +12,7 @@ import { DEFAULT_BULK_CHARS } from "../lib/insertionKinds";
 import { applyClassification } from "../lib/classifiers";
 import { DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { parseDocxLayout } from "../lib/docxLayout";
+import { checkIntegrity } from "../lib/integrity";
 import {
   addAnalysisOptions,
   addCommonOptions,
@@ -84,7 +85,8 @@ async function processOne(
   }
   const width = options.width ? parseInt(options.width, 10) : undefined;
   const writeJson = async (svgOut: string) => {
-    const jsonOut = writeAnalysisJson(options, svgOut, "docx-revision-chart", inputFile, analysis);
+    const jsonOut = writeAnalysisJson(options, svgOut, "docx-revision-chart", inputFile, analysis,
+      options.json ? await checkIntegrity(buf) : undefined);
     if (jsonOut) warnings.push(t("jsonWritten", jsonOut));
   };
 
