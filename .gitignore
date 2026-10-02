@@ -6,3 +6,5 @@ dist-bin/
 npm-debug.log*
 # Bun がコンパイル中に作る一時ファイル
 *.bun-build
+# パッケージ管理は npm に統一している (package-lock.json)。pnpm で実行したときのロックファイルはコミットしない
+pnpm-lock.yaml

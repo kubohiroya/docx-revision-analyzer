@@ -1,2 +1,5 @@
+# パッケージ管理は npm に統一している (package-lock.json / packageManager)。
+# このファイルは、手元で pnpm を使ったときに esbuild のインストールスクリプトを許可するためだけのもの
+# (pnpm 10 以降は依存のインストールスクリプトを既定で実行しない)
 allowBuilds:
   esbuild: true

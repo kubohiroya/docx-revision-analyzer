@@ -7,6 +7,7 @@
   "license": "MIT",
   "author": "Hiroya Kubo <kubo.hiroya@gmail.com>",
   "main": "dist/main.js",
+  "packageManager": "npm@11.19.0",
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",

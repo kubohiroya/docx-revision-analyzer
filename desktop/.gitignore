@@ -2,3 +2,4 @@ node_modules/
 dist/
 smoke-out/
 release/
+pnpm-lock.yaml

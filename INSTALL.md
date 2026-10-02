@@ -12,9 +12,13 @@ For usage, see [README.md](./README.md). If you only want to use the published p
 ```bash
 git clone https://github.com/kubohiroya/docx-revision-analyzer.git
 cd docx-revision-analyzer
-npm install        # or: pnpm install
-npm run build      # or: pnpm run build
+npm install
+npm run build
 ```
+
+The project uses **npm** (`package-lock.json`, `"packageManager": "npm@…"`; CI runs `npm ci`). pnpm also works for
+local builds (`pnpm install`, `pnpm run build`), but don't commit `pnpm-lock.yaml` (it's gitignored);
+`pnpm-workspace.yaml` only allows esbuild's install script for pnpm.
 
 `npm run build` (`pnpm run build`) builds **everything this machine can build** in one go and prints a summary:
 
@@ -25,19 +29,17 @@ npm run build      # or: pnpm run build
 | `droplets` | macOS droplets `docx-revision-chart.app` / `docx-revision-flow.app` → `dist-bin/` | on macOS with Bun |
 | `desktop` | Desktop app for this OS/CPU (unsigned) → `desktop/release/` (installs `desktop/` dependencies the first time) | always |
 
-Steps whose tools are missing are skipped with the reason. Options (after `--` with npm, directly with pnpm):
+Steps whose tools are missing are skipped with the reason. Options (after `--`):
 
 ```bash
-pnpm run build --skip=desktop          # everything except the desktop app
-pnpm run build --only=lib,binaries     # only these steps
-pnpm run build --all-platforms         # cross-build the executables for Linux/macOS/Windows × x64/arm64
-pnpm run build --installers            # also build the desktop installers (dmg/zip/NSIS; slow)
-npm run build -- --skip=desktop        # the same with npm
+npm run build -- --skip=desktop          # everything except the desktop app
+npm run build -- --only=lib,binaries     # only these steps
+npm run build -- --all-platforms         # cross-build the executables for Linux/macOS/Windows × x64/arm64
+npm run build -- --installers            # also build the desktop installers (dmg/zip/NSIS; slow)
 ```
 
 `npm run build:lib` only compiles the library (what `prepublishOnly` and CI use). The individual commands below
-(`build:binary:flow`, `build:mac-app:flow`, …) still work. With pnpm 10+, `pnpm-workspace.yaml` allows esbuild's
-install script (`allowBuilds`).
+(`build:binary:flow`, `build:mac-app:flow`, …) still work.
 
 Requires Node.js 18+ (developed and tested on Node.js 22). After building,
 run `dist/cli/chart.js` / `dist/cli/flow.js` / `dist/cli/score.js` directly with `node` (see

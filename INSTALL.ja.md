@@ -12,9 +12,13 @@
 ```bash
 git clone https://github.com/kubohiroya/docx-revision-analyzer.git
 cd docx-revision-analyzer
-npm install        # または pnpm install
-npm run build      # または pnpm run build
+npm install
+npm run build
 ```
+
+パッケージ管理は **npm** に統一しています (`package-lock.json`、`"packageManager": "npm@…"`。CI は `npm ci`)。手元のビルドには
+pnpm も使えます (`pnpm install`、`pnpm run build`) が、`pnpm-lock.yaml` はコミットしないでください (gitignore 済み)。
+`pnpm-workspace.yaml` は、pnpm で esbuild のインストールスクリプトを許可するためだけのものです。
 
 `npm run build` (`pnpm run build`) は、**この環境で作れるものを一括で**作り、最後に一覧を表示します。
 
@@ -25,19 +29,17 @@ npm run build      # または pnpm run build
 | `droplets` | macOS のドロップレット `docx-revision-chart.app` / `docx-revision-flow.app` → `dist-bin/` | macOS で Bun があれば |
 | `desktop` | この OS / CPU 向けのデスクトップアプリ (署名なし) → `desktop/release/` (初回は `desktop/` の依存も入れる) | 常に |
 
-必要なツールが無い工程は、理由を表示して飛ばします。オプション (npm では `--` の後に、pnpm ではそのまま):
+必要なツールが無い工程は、理由を表示して飛ばします。オプション (`--` の後に指定):
 
 ```bash
-pnpm run build --skip=desktop          # デスクトップアプリ以外
-pnpm run build --only=lib,binaries     # 指定した工程だけ
-pnpm run build --all-platforms         # 単体実行ファイルを Linux/macOS/Windows × x64/arm64 向けにクロスビルド
-pnpm run build --installers            # デスクトップアプリのインストーラ (dmg/zip/NSIS) も作る (時間がかかる)
-npm run build -- --skip=desktop        # npm では -- の後に
+npm run build -- --skip=desktop          # デスクトップアプリ以外
+npm run build -- --only=lib,binaries     # 指定した工程だけ
+npm run build -- --all-platforms         # 単体実行ファイルを Linux/macOS/Windows × x64/arm64 向けにクロスビルド
+npm run build -- --installers            # デスクトップアプリのインストーラ (dmg/zip/NSIS) も作る (時間がかかる)
 ```
 
 ライブラリのコンパイルだけなら `npm run build:lib` です (`prepublishOnly` と CI はこちらを使います)。以下の個別のコマンド
-(`build:binary:flow`、`build:mac-app:flow` など) も引き続き使えます。pnpm 10 以降では、`pnpm-workspace.yaml` で esbuild の
-インストールスクリプトを許可しています (`allowBuilds`)。
+(`build:binary:flow`、`build:mac-app:flow` など) も引き続き使えます。
 
 Node.js 18 以降を想定しています (開発・動作確認は Node.js 22 で実施)。
 ビルド後は `dist/cli/chart.js` / `dist/cli/flow.js` / `dist/cli/score.js` を `node` で直接実行できます

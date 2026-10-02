@@ -1,4 +1,4 @@
-// `npm run build` / `pnpm run build`: 実行している環境で作れるものを一括で作る。
+// `npm run build`: 実行している環境で作れるものを一括で作る (pnpm run build でも同じ)。
 //
 //   1. lib       ライブラリと CLI (TypeScript → dist/)
 //   2. binaries  単体実行ファイル docx-revision-chart / -flow / docx-ai-suspicion-score (Bun → dist-bin/)
@@ -7,7 +7,7 @@
 //
 // 必要なツールが無い工程 (Bun が無い、macOS 以外でのドロップレットなど) は、理由を表示して飛ばす。
 //
-// オプション (pnpm run build --skip=desktop のように指定する):
+// オプション (npm run build -- --skip=desktop のように指定する):
 //   --only=lib,binaries      指定した工程だけを行う
 //   --skip=desktop,droplets  指定した工程を飛ばす
 //   --all-platforms          単体実行ファイルを主要な OS / CPU 向けにまとめてクロスビルドする
