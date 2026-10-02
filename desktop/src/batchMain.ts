@@ -22,13 +22,21 @@ import type { BatchFolder } from "./shared";
  */
 const sourceUrls = new Set<string>();
 
-export function rememberSource(webUrl: string): void {
-  sourceUrls.add(webUrl.replace(/#.*$/, ""));
+/** 文書の URL から、該当箇所の指定 (#ブックマーク、Word for the web の見出しリンクの nav=) を除いたもの */
+function baseOf(url: string): string {
+  return url
+    .replace(/#.*$/, "")
+    .replace(/([?&])nav=[^&]*&?/, "$1")
+    .replace(/[?&]$/, "");
 }
 
-/** 開いた文書の URL (と、その #ブックマーク) か */
+export function rememberSource(webUrl: string): void {
+  sourceUrls.add(baseOf(webUrl));
+}
+
+/** 開いた文書の URL (と、その #ブックマーク・見出しリンク) か */
 export function isSourceLink(url: string): boolean {
-  return /^https:\/\//i.test(url) && sourceUrls.has(url.replace(/#.*$/, ""));
+  return /^https:\/\//i.test(url) && sourceUrls.has(baseOf(url));
 }
 
 /** 書き込みを許した出力先のフォルダ */

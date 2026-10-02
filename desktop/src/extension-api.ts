@@ -218,11 +218,12 @@ export type FormResult = Record<string, string | number | boolean>;
 export type FigureTarget = {
   /** 段落の冒頭 (約 40 文字。documentText の権限がある拡張だけに渡す)。段落・帯だけ */
   excerpt?: string;
-  /** 段落を含むセクション (それ以前で最後に始まったブックマークの名前)。段落・帯だけ */
+  /** 段落を含むセクションの名前 (それ以前で最後の見出しの文字、またはブックマークの名前)。段落・帯だけ */
   section?: string;
   /**
-   * 元の文書の該当箇所へのリンク (OneDrive / SharePoint の文書のときだけ)。セクションがあれば URL#ブックマーク名、
-   * 無ければ文書の URL (冒頭)。href にそのまま使えば links の権限は要らない
+   * 元の文書の該当箇所へのリンク (OneDrive / SharePoint の文書のときだけ)。見出しのセクションなら Word for the web の
+   * 見出しリンク (nav=)、ブックマークなら URL#ブックマーク名、どちらも無ければ文書の URL (冒頭)。
+   * href にそのまま使えば links の権限は要らない
    */
   docLink?: string;
 } & (

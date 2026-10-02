@@ -81,6 +81,8 @@ export interface Para {
    * Word が自動で付ける _GoBack は除く
    */
   bookmarks?: string[];
+  /** Word が段落に付ける識別子 (w14:paraId、8桁の16進数)。Word for the web の見出しリンクに使う */
+  paraId?: string;
 }
 
 export interface PageGeometry {
@@ -358,6 +360,8 @@ function parseParagraph(
     pageBreakBefore: false,
     sectionBreakAfter: false,
   };
+  const paraId = attr(node, "paraId");
+  if (paraId && /^[0-9A-Fa-f]{8}$/.test(paraId)) para.paraId = paraId.toUpperCase();
   const pPr = findChild(kids, "pPr");
   if (pPr) {
     const pKids = childrenOf(pPr, "pPr");

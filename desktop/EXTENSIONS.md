@@ -153,14 +153,20 @@ Paragraph and band targets also carry:
 - `excerpt`: the paragraph's first ~40 characters as of that column's point in time. Only extensions with the
   `documentText` permission receive it — but the app itself always shows it at the top of the pop-up, so extensions
   don't need the text permission just to show which paragraph a pop-up is about.
-- `section`: the bookmark that starts at or before the paragraph (the section containing it; Word's hidden `_GoBack`
-  is ignored).
+- `section`: the section containing the paragraph — the text of the last heading at or before it (or, if a bookmark
+  comes later than any heading, that bookmark's name; Word's hidden `_GoBack` is ignored).
 
-When the document was opened from OneDrive / SharePoint, every target has `docLink`: the document's web URL, plus
-`#<bookmark>` when the paragraph is in a section. Use it as `href` (no `links` permission needed) to send the reader to
-the source document; the app opens it without the link confirmation, since the app produced the URL. Note: Word for
-the web currently opens the document at the top and ignores the bookmark; Word desktop and future versions can use it.
-The figure titles also link the file name to the source document.
+When the document was opened from OneDrive / SharePoint, every target has `docLink`, a link into the source document:
+
+- in a heading's section: a Word for the web **heading link** — the document URL plus
+  `nav=<base64 of {"h":"<the heading paragraph's w14:paraId as a decimal number>"}>`, the same form Word for the web's
+  "Copy link to heading" produces, so the document opens at that heading;
+- in a bookmark's section: the document URL plus `#<bookmark>` (honored by Word desktop; Word for the web opens the
+  top);
+- otherwise: the document URL (the top).
+
+Use it as `href` (no `links` permission needed); the app opens it without the link confirmation, since the app
+produced the URL. The figure titles also link the file name to the source document.
 
 Return `{ target, tooltip?, popup?: { title?, blocks }, href? }` per part (blocks are the same as panels).
 In the app, hovering a part shows a pop-up (marked with the extension's name); clicking opens the link in the default

@@ -32,11 +32,11 @@ export const flowCaptionKey = (session: number) => `flow:caption:${session}`;
 export interface TargetExtras {
   /** 段落の冒頭 (その時点の文書の本文、約 40 文字)。段落・帯だけ */
   excerpt?: string;
-  /** 段落を含むセクション (その段落以前で最後に始まったブックマークの名前)。段落・帯だけ */
+  /** 段落を含むセクションの名前 (その段落以前で最後の見出しの文字、またはブックマークの名前)。段落・帯だけ */
   section?: string;
   /**
-   * 元の文書の該当箇所へのリンク (OneDrive / SharePoint の文書のとき)。ブックマークがあれば URL#ブックマーク名、
-   * 無ければ文書の URL (冒頭)
+   * 元の文書の該当箇所へのリンク (OneDrive / SharePoint の文書のとき)。見出しのセクションなら Word for the web の
+   * 見出しリンク (nav=)、ブックマークなら URL#ブックマーク名、どちらも無ければ文書の URL (冒頭)
    */
   docLink?: string;
 }
@@ -264,20 +264,55 @@ export function paragraphExcerpt(p: Para, t: number, max = EXCERPT_CHARS): strin
   return chars.length > max ? `${chars.slice(0, max).join("")}…` : chars.join("");
 }
 
-/** 段落ごとの、その段落を含むセクション (それ以前で最後に始まったブックマーク) */
-export function sectionsOf(model: DocxLayoutModel): Map<number, string> {
-  const out = new Map<number, string>();
-  let current: string | undefined;
+/**
+ * 段落を含むセクション。その段落以前で最後に現れた見出し (見出しの段落そのものを含む) または
+ * ブックマークのうち、後に現れた方
+ */
+export type Section =
+  | { kind: "heading"; text: string; paraId?: string; bookmark?: string }
+  | { kind: "bookmark"; name: string };
+
+/** セクションの表示名 (見出しの文字またはブックマークの名前) */
+export function sectionLabel(s: Section): string {
+  return s.kind === "heading" ? s.text : s.name;
+}
+
+/** 段落ごとの、その段落を含むセクション */
+export function sectionsOf(model: DocxLayoutModel): Map<number, Section> {
+  const out = new Map<number, Section>();
+  let current: Section | undefined;
   for (const p of model.paras) {
-    if (p.bookmarks?.length) current = p.bookmarks[p.bookmarks.length - 1];
+    const bookmark = p.bookmarks?.length ? p.bookmarks[p.bookmarks.length - 1] : undefined;
+    if (p.kind === "heading") {
+      current = { kind: "heading", text: paragraphExcerpt(p, Infinity), paraId: p.paraId, bookmark };
+    } else if (bookmark) {
+      current = { kind: "bookmark", name: bookmark };
+    }
     if (current) out.set(p.index, current);
   }
   return out;
 }
 
-/** 元の文書へのリンク: ブックマークがあれば URL#ブックマーク名、無ければ URL (冒頭) */
-export function documentLink(webUrl: string, section?: string): string {
-  return section ? `${webUrl.replace(/#.*$/, "")}#${encodeURIComponent(section)}` : webUrl;
+/**
+ * Word for the web の見出しリンク: 文書の URL に nav={"h":"<見出しの段落の w14:paraId を10進にしたもの>"} (base64) を付ける。
+ * Word for the web の「見出しリンクをコピー」が作る URL と同じ形
+ */
+export function headingNavUrl(webUrl: string, paraId: string): string {
+  const base = webUrl.replace(/#.*$/, "").replace(/([?&])nav=[^&]*&?/, "$1").replace(/[?&]$/, "");
+  const nav = btoa(JSON.stringify({ h: String(parseInt(paraId, 16)) }));
+  return `${base}${base.includes("?") ? "&" : "?"}nav=${encodeURIComponent(nav)}`;
+}
+
+/**
+ * 元の文書へのリンク:
+ *  - 見出しのセクション (見出しに w14:paraId がある): Word for the web の見出しリンク (nav=)
+ *  - ブックマークのセクション: URL#ブックマーク名 (Word デスクトップ向け。Word for the web は冒頭を開く)
+ *  - それ以外: 文書の URL (冒頭)
+ */
+export function documentLink(webUrl: string, section?: Section): string {
+  if (section?.kind === "heading" && section.paraId) return headingNavUrl(webUrl, section.paraId);
+  const bookmark = section?.kind === "bookmark" ? section.name : section?.bookmark;
+  return bookmark ? `${webUrl.replace(/#.*$/, "")}#${encodeURIComponent(bookmark)}` : webUrl.replace(/#.*$/, "");
 }
 
 /**
@@ -291,7 +326,7 @@ export function enrichTargets(
   flow: FlowResult | undefined,
   opts: { webUrl?: string; excerptChars?: number } = {}
 ): FigureTarget[] {
-  const sections = model ? sectionsOf(model) : new Map<number, string>();
+  const sections = model ? sectionsOf(model) : new Map<number, Section>();
   const byIndex = new Map((model?.paras ?? []).map((p) => [p.index, p]));
   const sessions = flow?.sessions ?? [];
   /** 列 k の時点 (列 0 は区間1の開始の直前、列 k は区間 k の終了時点) */
@@ -316,7 +351,7 @@ export function enrichTargets(
     if (p) {
       const ex = paragraphExcerpt(p, time, max);
       if (ex) extras.excerpt = ex;
-      if (section) extras.section = section;
+      if (section && sectionLabel(section)) extras.section = sectionLabel(section);
     }
     if (opts.webUrl) extras.docLink = documentLink(opts.webUrl, section);
     return { ...t, ...extras };
