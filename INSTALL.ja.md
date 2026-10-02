@@ -16,6 +16,31 @@ npm install
 npm run build
 ```
 
+パッケージ管理は **npm** に統一しています (`package-lock.json`、`"packageManager": "npm@…"`。CI は `npm ci`)。手元のビルドには
+pnpm も使えます (`pnpm install`、`pnpm run build`) が、`pnpm-lock.yaml` はコミットしないでください (gitignore 済み)。
+`pnpm-workspace.yaml` は、pnpm で esbuild のインストールスクリプトを許可するためだけのものです。
+
+`npm run build` (`pnpm run build`) は、**この環境で作れるものを一括で**作り、最後に一覧を表示します。
+
+| 工程 | 作るもの | 条件 |
+|---|---|---|
+| `lib` | ライブラリと CLI → `dist/` | 常に |
+| `binaries` | 単体実行ファイル `docx-revision-chart` / `docx-revision-flow` / `docx-ai-suspicion-score` → `dist-bin/` | [Bun](https://bun.sh) があれば |
+| `droplets` | macOS のドロップレット `docx-revision-chart.app` / `docx-revision-flow.app` → `dist-bin/` | macOS で Bun があれば |
+| `desktop` | この OS / CPU 向けのデスクトップアプリ (署名なし) → `desktop/release/` (初回は `desktop/` の依存も入れる) | 常に |
+
+必要なツールが無い工程は、理由を表示して飛ばします。オプション (`--` の後に指定):
+
+```bash
+npm run build -- --skip=desktop          # デスクトップアプリ以外
+npm run build -- --only=lib,binaries     # 指定した工程だけ
+npm run build -- --all-platforms         # 単体実行ファイルを Linux/macOS/Windows × x64/arm64 向けにクロスビルド
+npm run build -- --installers            # デスクトップアプリのインストーラ (dmg/zip/NSIS) も作る (時間がかかる)
+```
+
+ライブラリのコンパイルだけなら `npm run build:lib` です (`prepublishOnly` と CI はこちらを使います)。以下の個別のコマンド
+(`build:binary:flow`、`build:mac-app:flow` など) も引き続き使えます。
+
 Node.js 18 以降を想定しています (開発・動作確認は Node.js 22 で実施)。
 ビルド後は `dist/cli/chart.js` / `dist/cli/flow.js` / `dist/cli/score.js` を `node` で直接実行できます
 (使い方は [README.ja.md](./README.ja.md) を参照)。`npm link` するとコマンド名 `docx-revision-chart` /
@@ -28,7 +53,7 @@ Node.js 18 以降を想定しています (開発・動作確認は Node.js 22 �
 [Bun](https://bun.sh) がインストールされていれば、`docx-revision-chart` を
 Node.js 本体すら不要な単一の実行ファイルにまとめられます (JSZip / fast-xml-parser /
 commander などの依存パッケージもすべてバイナリに埋め込まれます)。TypeScript の
-ソース (`src/cli/chart.ts`) を直接コンパイルするため、事前に `npm run build` する
+ソース (`src/cli/chart.ts`) を直接コンパイルするため、事前に `npm run build:lib` する
 必要はありません。
 
 ```bash
@@ -237,6 +262,6 @@ docx-revision-analyzer/
 │   ├── make-mac-droplet.sh   macOS用Finderドロップレット(.app)を作るビルドスクリプト
 │   └── makeFixtures.ts       テスト用docx生成スクリプト
 ├── fixtures/              生成済みのテスト用docx・出力例
-├── dist/                  `npm run build` の出力 (gitignore対象)
+├── dist/                  `npm run build:lib` の出力 (gitignore対象)
 └── dist-bin/              `npm run build:binary` の出力 (gitignore対象)
 ```

@@ -18,7 +18,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - run: npm run build:lib
       # コアをブラウザ向けにバンドルし、Node.js の機能の無い環境で fixtures を処理する
       - run: npm test
 
