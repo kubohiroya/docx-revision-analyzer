@@ -492,6 +492,9 @@ details.advanced summary {
   margin-top: 8px;
   padding-top: 8px;
 }
+.figure-popup .excerpt p:first-child {
+  font-weight: 600;
+}
 .figure-popup .from {
   margin: 0 0 4px;
   font-size: 11px;

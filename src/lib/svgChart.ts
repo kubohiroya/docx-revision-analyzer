@@ -23,6 +23,27 @@ export interface ChartOptions {
   annotate?: boolean;
   /** 部分ごとの注釈 (マウスオーバーの説明・クリックで開くリンク)。figureTargets.ts の resolveAnnotations で作る */
   annotations?: Map<string, ResolvedAnnotation>;
+  /** 見出しの一部 (ファイル名など) をリンクにする (OneDrive / SharePoint の元の文書の URL) */
+  titleLink?: TitleLink;
+}
+
+export interface TitleLink {
+  /** 見出しの中でリンクにする文字列 (最初に現れた箇所) */
+  text: string;
+  /** http / https のみ */
+  href: string;
+}
+
+/** 見出しの文字列 (エスケープ済み)。titleLink があれば、その文字列を <a href> にする */
+export function titleMarkup(title: string, link?: TitleLink): string {
+  if (!link || !link.text || !/^https?:\/\//i.test(link.href)) return esc(title);
+  const i = title.indexOf(link.text);
+  if (i < 0) return esc(title);
+  return (
+    esc(title.slice(0, i)) +
+    `<a href="${esc(link.href)}" target="_blank" rel="noopener noreferrer"><tspan fill="#1f5fbf" text-decoration="underline">${esc(link.text)}</tspan></a>` +
+    esc(title.slice(i + link.text.length))
+  );
 }
 
 /** 図の右下の注記 (無ければ空文字列) */
@@ -262,8 +283,9 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${fontFamily}">
   <rect width="100%" height="100%" fill="#ffffff"/>
-  <text x="${width / 2}" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">${esc(
-    title
+  <text x="${width / 2}" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">${titleMarkup(
+    title,
+    opts.titleLink
   )}</text>
 
   <!-- zero axis -->
@@ -549,8 +571,9 @@ export function renderSessionedRevisionChart(
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${fontFamily}">
   <rect width="100%" height="100%" fill="#ffffff"/>
-  <text x="${width / 2}" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">${esc(
-    title
+  <text x="${width / 2}" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#1a1a1a">${titleMarkup(
+    title,
+    opts.titleLink
   )}</text>
   ${thresholdNote}
 

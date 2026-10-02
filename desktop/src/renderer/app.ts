@@ -8,6 +8,7 @@ import {
   buildDefaultTitle,
   checkIntegrity,
   chartTargets,
+  enrichTargets,
   FigureTarget,
   flowTargets,
   ResolvedAnnotation,
@@ -267,6 +268,9 @@ async function analyze(): Promise<void> {
   };
   const mtime = new Date(file.mtime);
   const fileName = file.name;
+  // OneDrive / SharePoint の文書なら、見出しのファイル名を元の文書へのリンクにする
+  const webUrl = file.source?.webUrl;
+  const titleLink = webUrl ? { text: fileName, href: webUrl } : undefined;
   const note = rules ? libT("rulesNote", rules.ruleSet) : undefined;
   if (data.events.length > 0) {
     const bucket: BucketSpec = /^\d+$/.test(a.bucket) ? parseInt(a.bucket, 10) : (a.bucket as BucketSpec);
@@ -282,6 +286,7 @@ async function analyze(): Promise<void> {
           note,
           categories: classification.categories,
           annotate: !annotations,
+          titleLink,
           annotations,
         });
       result.chartTargets = sessionedChartTargets(sessions, data.baselineCharCount, bucket, highlightIds);
@@ -296,6 +301,7 @@ async function analyze(): Promise<void> {
           note,
           categories: classification.categories,
           annotate: !annotations,
+          titleLink,
           annotations,
         });
       result.chartTargets = chartTargets(buckets, highlightIds);
@@ -316,10 +322,11 @@ async function analyze(): Promise<void> {
           note,
           categories: classification.categories,
           annotate: !annotations,
+          titleLink,
           annotations,
         });
       result.flowSvg = result.renderFlow();
-      result.flowTargets = flowTargets(flow);
+      result.flowTargets = enrichTargets(flowTargets(flow), model, flow, { webUrl });
     }
   }
   analysis = result;
@@ -334,6 +341,8 @@ async function analyze(): Promise<void> {
       integrity: result.integrity,
     });
   window.app.extensions.analysisComplete(analysisResult);
+  // chart の部分には、元の文書へのリンク (冒頭) だけを付ける
+  result.chartTargets = enrichTargets(result.chartTargets, undefined, undefined, { webUrl });
   result.figureAnnotations = await collectFigureAnnotations(
     { chart: result.chartTargets, flow: result.flowTargets },
     analysisResult,
@@ -358,8 +367,8 @@ async function analyze(): Promise<void> {
 
   $("pane-chart").innerHTML = result.chartSvg ?? "";
   $("pane-flow").innerHTML = result.flowSvg ?? (data.events.length > 0 ? `<p class="hint">${escapeHtml(libT("noRevisionsInRange"))}</p>` : "");
-  bindFigureAnnotations($("pane-chart"), result.figureAnnotations.chart);
-  bindFigureAnnotations($("pane-flow"), result.figureAnnotations.flow);
+  bindFigureAnnotations($("pane-chart"), result.figureAnnotations.chart, result.chartTargets);
+  bindFigureAnnotations($("pane-flow"), result.figureAnnotations.flow, result.flowTargets);
   renderHighlights();
   showTab(tab === "settings" ? "chart" : tab);
   status(
@@ -921,6 +930,16 @@ async function main(): Promise<void> {
       void persist();
       window.clearTimeout(timer);
       timer = window.setTimeout(() => void runSafely(analyze), 150);
+    });
+  }
+  // 図の中のリンク (見出しのファイル名 = 元の文書) は、アプリの中では開かず既定のブラウザで開く
+  for (const id of ["pane-chart", "pane-flow"]) {
+    $(id).addEventListener("click", (e) => {
+      const a = (e.target as Element).closest("a");
+      if (!a) return;
+      e.preventDefault();
+      const href = a.getAttribute("href");
+      if (href) void window.app.openSourceLink(href);
     });
   }
   $("save-svg").onclick = () => void save("svg");

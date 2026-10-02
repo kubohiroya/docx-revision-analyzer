@@ -76,6 +76,13 @@ export interface Para {
   pageBreakBefore: boolean;
   /** この段落の後でセクションが改ページされる */
   sectionBreakAfter: boolean;
+  /**
+   * この段落で始まるブックマーク (w:bookmarkStart の w:name)。段落と段落の間にあるものは次の段落に付ける。
+   * Word が自動で付ける _GoBack は除く
+   */
+  bookmarks?: string[];
+  /** Word が段落に付ける識別子 (w14:paraId、8桁の16進数)。Word for the web の見出しリンクに使う */
+  paraId?: string;
 }
 
 export interface PageGeometry {
@@ -161,6 +168,15 @@ export function displayWidth(text: string): number {
 interface ParseState {
   moveFromName?: string;
   moveToName?: string;
+  /** いま読んでいる段落で始まったブックマーク / 段落の外で始まり、次の段落に付けるブックマーク */
+  paraBookmarks?: string[];
+  pendingBookmarks?: string[];
+}
+
+/** 段落に付けるブックマークの名前 (Word が自動で付ける _GoBack は除く) */
+function bookmarkName(node: XmlNode): string | undefined {
+  const name = attr(node, "name");
+  return name && name !== "_GoBack" ? name : undefined;
 }
 
 function revRef(node: XmlNode, move: boolean, moveName?: string): RevRef {
@@ -257,7 +273,12 @@ function walkInline(nodes: XmlNode[], ctx: RevContext, segs: Seg[], state: Parse
       case "delInstrText":
       case "fldChar":
       case "lastRenderedPageBreak":
-      case "bookmarkStart":
+        break;
+      case "bookmarkStart": {
+        const name = bookmarkName(node);
+        if (name) (state.paraBookmarks ??= []).push(name);
+        break;
+      }
       case "bookmarkEnd":
       case "proofErr":
       case "commentRangeStart":
@@ -339,6 +360,8 @@ function parseParagraph(
     pageBreakBefore: false,
     sectionBreakAfter: false,
   };
+  const paraId = attr(node, "paraId");
+  if (paraId && /^[0-9A-Fa-f]{8}$/.test(paraId)) para.paraId = paraId.toUpperCase();
   const pPr = findChild(kids, "pPr");
   if (pPr) {
     const pKids = childrenOf(pPr, "pPr");
@@ -369,7 +392,11 @@ function parseParagraph(
       if (del) para.markDel = revRef(del, tagOf(del) === "moveFrom", state.moveFromName);
     }
   }
+  state.paraBookmarks = state.pendingBookmarks ?? [];
+  state.pendingBookmarks = undefined;
   walkInline(kids, {}, para.segs, state);
+  if (state.paraBookmarks.length) para.bookmarks = state.paraBookmarks;
+  state.paraBookmarks = undefined;
   return para;
 }
 
@@ -387,6 +414,12 @@ function walkBlocks(nodes: XmlNode[], tableId: number | undefined, ctx: BlockCon
     const tag = tagOf(node);
     if (tag === undefined) continue;
     if (trackMoveRange(tag, node, ctx.state)) continue;
+    if (tag === "bookmarkStart") {
+      // 段落と段落の間で始まるブックマークは、次の段落に付ける
+      const name = bookmarkName(node);
+      if (name) (ctx.state.pendingBookmarks ??= []).push(name);
+      continue;
+    }
     if (tag === "p") {
       ctx.out.push(parseParagraph(node, ctx.out.length, tableId, ctx.styles, ctx.state));
     } else if (tag === "tbl") {

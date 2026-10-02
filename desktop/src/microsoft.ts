@@ -124,6 +124,8 @@ export interface CloudFolderFile {
   path: string;
   size: number;
   mtime: string;
+  /** Web で開く URL (図の見出しのリンクに使う) */
+  webUrl?: string;
 }
 
 export interface CloudFolder {
@@ -291,10 +293,10 @@ export class MicrosoftClient {
     const queue: { id: string; prefix: string }[] = [{ id: root.id, prefix: "" }];
     while (queue.length && !truncated) {
       const { id, prefix } = queue.shift()!;
-      let next: string | undefined = `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(id)}/children?$select=id,name,size,lastModifiedDateTime,folder,file&$top=200`;
+      let next: string | undefined = `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(id)}/children?$select=id,name,size,lastModifiedDateTime,webUrl,folder,file&$top=200`;
       while (next) {
         const page = (await (await this.graph(next, token)).json()) as {
-          value: { id: string; name: string; size?: number; lastModifiedDateTime?: string; folder?: unknown }[];
+          value: { id: string; name: string; size?: number; lastModifiedDateTime?: string; webUrl?: string; folder?: unknown }[];
           "@odata.nextLink"?: string;
         };
         for (const it of page.value) {
@@ -311,6 +313,7 @@ export class MicrosoftClient {
               path: `${prefix}${it.name}`,
               size: it.size ?? 0,
               mtime: it.lastModifiedDateTime ?? "",
+              webUrl: it.webUrl,
             });
           }
         }
@@ -331,7 +334,15 @@ async function listLocalAsCloud(dir: string): Promise<CloudFolder> {
       if (e.isDirectory()) await walk(r);
       else if (isTargetDocx(e.name)) {
         const st = await fs.promises.stat(path.join(dir, r));
-        files.push({ driveId: "mock-dir", itemId: r, name: e.name, path: r, size: st.size, mtime: st.mtime.toISOString() });
+        files.push({
+          driveId: "mock-dir",
+          itemId: r,
+          name: e.name,
+          path: r,
+          size: st.size,
+          mtime: st.mtime.toISOString(),
+          webUrl: `https://contoso.sharepoint.com/mock/${encodeURI(r)}`,
+        });
       }
     }
   };

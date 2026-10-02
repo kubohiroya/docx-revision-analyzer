@@ -20,7 +20,7 @@ import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules,
 import { MicrosoftClient, MicrosoftConfig, MicrosoftError } from "./microsoft";
 import { EXT_SCHEME, ExtensionManager } from "./extensions";
 import { NetMediator } from "./sendLog";
-import { registerBatchIpc } from "./batchMain";
+import { isSourceLink, registerBatchIpc, rememberSource } from "./batchMain";
 import type { AnalysisResult, ClassifierContext, FigureContext } from "./extension-api";
 
 // 拡張のページ (dra-ext://<id>/) を、ES モジュールを読み込める安全なオリジンとして扱う
@@ -34,6 +34,19 @@ const smokeOut = process.env.DRA_SMOKE_OUT;
 let mainWindow: BrowserWindow | undefined;
 let extensions: ExtensionManager | undefined;
 let mediator: NetMediator | undefined;
+
+/** 既定のブラウザで開く。スモークテストでは実際には開かず、記録だけにする */
+export function openExternal(url: string): Promise<void> {
+  if (isSmokeRun()) {
+    console.log(`smoke: would open ${url}`);
+    return Promise.resolve();
+  }
+  return shell.openExternal(url);
+}
+
+function isSmokeRun(): boolean {
+  return !!(process.env.DRA_SMOKE_FILE || process.env.DRA_SMOKE_URL || process.env.DRA_SMOKE_START || process.env.DRA_SMOKE_BATCH);
+}
 let microsoft: MicrosoftClient | undefined;
 const MAX_RECENT_URLS = 20;
 
@@ -158,7 +171,9 @@ function registerIpc(): void {
       }
       f ??= await microsoft.open({ url });
       rememberUrl({ url, name: f.name, driveId: f.driveId, itemId: f.itemId, openedAt: new Date().toISOString() });
-      const file: OpenedFile = { path: url, name: f.name, mtime: f.mtime, bytes: f.bytes, source: { kind: "url", url } };
+      const webUrl = f.webUrl ?? url;
+      rememberSource(webUrl);
+      const file: OpenedFile = { path: url, name: f.name, mtime: f.mtime, bytes: f.bytes, source: { kind: "url", url, webUrl } };
       return { file };
     } catch (err) {
       const code = err instanceof MicrosoftError ? err.code : "network";
@@ -224,7 +239,8 @@ function registerIpc(): void {
   ipcMain.handle("ext:open-link", async (_e, extId: string, url: string) => {
     const m = extensions?.manifest(extId);
     if (!m || !mediator) return false;
-    return mediator.openLink(m, url, extensions!.linkAllowed(extId, url));
+    // 元の文書 (OneDrive / SharePoint) へのリンクは、アプリが得た URL なので確認せずに開く (送信履歴には記録する)
+    return mediator.openLink(m, url, extensions!.linkAllowed(extId, url) || isSourceLink(url), isSourceLink(url));
   });
   ipcMain.handle("ext:registrations", () => extensions?.registrations() ?? []);
   ipcMain.handle("ext:classify", (_e, extId: string, classifierId: string, ctx: Omit<ClassifierContext, "windowsFor">) =>
@@ -427,7 +443,7 @@ app.whenReady().then(() => {
     confirmByDefault: (id) => loadSettings().extensionConfirmSends?.[id] !== false,
     askUser: async (ext, url, body) => (await requestUi("confirmSend", { id: ext.id, name: ext.name }, { url, body })) === true,
     askOpen: async (ext, url) => (await requestUi("confirmOpen", { id: ext.id, name: ext.name }, { url, body: "" })) === true,
-    openExternal: (url) => shell.openExternal(url),
+    openExternal: (url) => openExternal(url),
     onChange: (id) => mainWindow?.webContents.send("ext-send-log-changed", id),
   });
   microsoft = new MicrosoftClient(microsoftConfig, path.join(app.getPath("userData"), "msal-cache.bin"));

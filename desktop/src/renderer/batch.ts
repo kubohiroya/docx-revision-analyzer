@@ -58,7 +58,15 @@ interface Row {
 }
 
 /** 1つの docx からチャートとフローの SVG を作る */
-async function renderFigures(bytes: Uint8Array, name: string, mtime: string, ctx: BatchContext): Promise<Omit<Row, "path">> {
+async function renderFigures(
+  bytes: Uint8Array,
+  name: string,
+  mtime: string,
+  ctx: BatchContext,
+  webUrl?: string
+): Promise<Omit<Row, "path">> {
+  // OneDrive / SharePoint の文書なら、見出しのファイル名を元の文書へのリンクにする
+  const titleLink = webUrl ? { text: name, href: webUrl } : undefined;
   const a = ctx.analysis();
   const data = await extractRevisions(bytes);
   const missing = describeMissingRevisions(data);
@@ -80,6 +88,7 @@ async function renderFigures(bytes: Uint8Array, name: string, mtime: string, ctx
         gapThresholdHours: a.gapThresholdHours,
         note,
         categories: cls.categories,
+        titleLink,
       })
     : renderRevisionChart(buildBuckets(data.events, data.baselineCharCount, bucket), {
         eventRange: { start: data.events[0].date, end: data.events[data.events.length - 1].date },
@@ -88,10 +97,11 @@ async function renderFigures(bytes: Uint8Array, name: string, mtime: string, ctx
         title: chartTitle,
         note,
         categories: cls.categories,
+        titleLink,
       });
   const flow = buildFlow(model, { gapThresholdHours: a.gapThresholdHours, bulkChars: a.bulkChars, highlightOf: highlightCategoryMap(cls) });
   const flowSvg = flow.sessions.length
-    ? renderFlowSvg(flow, { title: buildDefaultTitle(libT("flowTitlePrefix"), name, when), note, categories: cls.categories })
+    ? renderFlowSvg(flow, { title: buildDefaultTitle(libT("flowTitlePrefix"), name, when), note, categories: cls.categories, titleLink })
     : undefined;
   return {
     ok: true,
@@ -253,7 +263,7 @@ async function runBatch(folder: BatchFolder, outputRoot: string, ctx: BatchConte
     ctx.status(`${S.batchProgress(i + 1, folder.files.length)} ${f.path}`);
     try {
       const bytes = await window.app.readBatchFile(f.ref);
-      const r = await renderFigures(bytes, f.name, f.mtime, ctx);
+      const r = await renderFigures(bytes, f.name, f.mtime, ctx, f.webUrl);
       if (r.chart) await window.app.writeOutput(outputRoot, `${stem(f.path)}.svg`, r.chart);
       if (r.flow) await window.app.writeOutput(outputRoot, `${stem(f.path)}-flow.svg`, r.flow);
       rows.push({ path: f.path, ...r });

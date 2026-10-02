@@ -215,12 +215,24 @@ export type FormResult = Record<string, string | number | boolean>;
  *  - chart の棒: chart:bar:<カテゴリ id>:<バケットの開始時刻>
  *  - flow の段落: flow:para:<列>:<段落>、帯: flow:band:<区間>:<単位>、移動の帯: flow:move:...、キャプション: flow:caption:<区間>
  */
-export type FigureTarget =
+export type FigureTarget = {
+  /** 段落の冒頭 (約 40 文字。documentText の権限がある拡張だけに渡す)。段落・帯だけ */
+  excerpt?: string;
+  /** 段落を含むセクションの名前 (それ以前で最後の見出しの文字、またはブックマークの名前)。段落・帯だけ */
+  section?: string;
+  /**
+   * 元の文書の該当箇所へのリンク (OneDrive / SharePoint の文書のときだけ)。見出しのセクションなら Word for the web の
+   * 見出しリンク (nav=)、ブックマークなら URL#ブックマーク名、どちらも無ければ文書の URL (冒頭)。
+   * href にそのまま使えば links の権限は要らない
+   */
+  docLink?: string;
+} & (
   | { key: string; figure: "chart"; kind: "bar"; categoryId: string; start: string; end: string; chars: number }
   | { key: string; figure: "flow"; kind: "paragraph"; column: number; paraIndex: number; session: number | null }
   | { key: string; figure: "flow"; kind: "band"; session: number; unitKey: string; paraIndexes: number[]; change: string }
   | { key: string; figure: "flow"; kind: "move"; session: number; fromKey: string; toKey: string; chars: number }
-  | { key: string; figure: "flow"; kind: "caption"; session: number; start: string; end: string };
+  | { key: string; figure: "flow"; kind: "caption"; session: number; start: string; end: string }
+);
 
 export interface FigureContext {
   figure: "chart" | "flow";

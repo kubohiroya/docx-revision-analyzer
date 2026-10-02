@@ -194,12 +194,13 @@ export class NetMediator {
    * 図の注釈のリンクを開く。URL に文書の内容を含めて外へ出すこともできるため、送信と同じく、
    * 利用者の設定 (既定は確認する) で URL を見せて確認し、送信履歴に記録する。allowed は宣言したオリジンか
    */
-  async openLink(ext: ExtensionManifest, url: string, allowed: boolean): Promise<boolean> {
+  async openLink(ext: ExtensionManifest, url: string, allowed: boolean, trusted = false): Promise<boolean> {
     if (!allowed) {
       this.record(ext.id, { url, status: "blocked", body: "", error: "the link's origin is not declared in manifest.json" });
       return false;
     }
-    const mustConfirm = this.o.confirmByDefault(ext.id);
+    // trusted: アプリが得た元の文書の URL (拡張がデータを含めて作ったものではない) は確認しない
+    const mustConfirm = !trusted && this.o.confirmByDefault(ext.id);
     if (mustConfirm && !(await this.o.askOpen(ext, url))) {
       this.record(ext.id, { url, status: "rejected", body: "", confirmed: false });
       return false;

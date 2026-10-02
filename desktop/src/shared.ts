@@ -76,7 +76,7 @@ export interface BatchFolder {
   name: string;
   /** ローカルのパス、または Web の URL */
   location: string;
-  files: { path: string; name: string; size: number; mtime: string; ref: BatchFileRef }[];
+  files: { path: string; name: string; size: number; mtime: string; ref: BatchFileRef; webUrl?: string }[];
   /** 上限に達して一覧を打ち切ったか */
   truncated: boolean;
 }
@@ -108,7 +108,7 @@ export interface OpenedFile {
   /** ローカルのファイルのパス、または URL から開いた場合はその URL */
   path: string;
   /** URL (OneDrive / SharePoint) から開いた場合 */
-  source?: { kind: "url"; url: string };
+  source?: { kind: "url"; url: string; webUrl?: string };
   name: string;
   /** 最終更新日時 (ISO 8601) */
   mtime: string;
@@ -200,6 +200,8 @@ export interface AppApi {
   /** 出力先のフォルダの中に書き込む (.svg / .csv / .html のみ)。書き込んだパスを返す */
   writeOutput(root: string, rel: string, content: string): Promise<string>;
   showFolder(dir: string): Promise<void>;
+  /** 開いている (または一括処理した) OneDrive / SharePoint の文書の URL を既定のブラウザで開く */
+  openSourceLink(url: string): Promise<boolean>;
   /** ドロップされた File のパス */
   pathForFile(file: File): string;
   /** 変更履歴の作成者・日時が保存されるよう文書の設定を書き換える (元のファイルはバックアップ)。バックアップのパスを返す */
