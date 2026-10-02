@@ -4,3 +4,5 @@ dist-bin/
 *.tsbuildinfo
 .DS_Store
 npm-debug.log*
+# Bun がコンパイル中に作る一時ファイル
+*.bun-build

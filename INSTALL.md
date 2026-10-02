@@ -12,9 +12,32 @@ For usage, see [README.md](./README.md). If you only want to use the published p
 ```bash
 git clone https://github.com/kubohiroya/docx-revision-analyzer.git
 cd docx-revision-analyzer
-npm install
-npm run build
+npm install        # or: pnpm install
+npm run build      # or: pnpm run build
 ```
+
+`npm run build` (`pnpm run build`) builds **everything this machine can build** in one go and prints a summary:
+
+| Step | Output | When |
+|---|---|---|
+| `lib` | Library and CLIs → `dist/` | always |
+| `binaries` | Single executables `docx-revision-chart` / `docx-revision-flow` / `docx-ai-suspicion-score` → `dist-bin/` | if [Bun](https://bun.sh) is installed |
+| `droplets` | macOS droplets `docx-revision-chart.app` / `docx-revision-flow.app` → `dist-bin/` | on macOS with Bun |
+| `desktop` | Desktop app for this OS/CPU (unsigned) → `desktop/release/` (installs `desktop/` dependencies the first time) | always |
+
+Steps whose tools are missing are skipped with the reason. Options (after `--` with npm, directly with pnpm):
+
+```bash
+pnpm run build --skip=desktop          # everything except the desktop app
+pnpm run build --only=lib,binaries     # only these steps
+pnpm run build --all-platforms         # cross-build the executables for Linux/macOS/Windows × x64/arm64
+pnpm run build --installers            # also build the desktop installers (dmg/zip/NSIS; slow)
+npm run build -- --skip=desktop        # the same with npm
+```
+
+`npm run build:lib` only compiles the library (what `prepublishOnly` and CI use). The individual commands below
+(`build:binary:flow`, `build:mac-app:flow`, …) still work. With pnpm 10+, `pnpm-workspace.yaml` allows esbuild's
+install script (`allowBuilds`).
 
 Requires Node.js 18+ (developed and tested on Node.js 22). After building,
 run `dist/cli/chart.js` / `dist/cli/flow.js` / `dist/cli/score.js` directly with `node` (see
@@ -29,7 +52,7 @@ If [Bun](https://bun.sh) is installed, `docx-revision-chart` can be compiled
 into a single executable that needs neither Node.js nor `node_modules` to run
 (JSZip, fast-xml-parser, commander, etc. are all bundled into the binary).
 Bun compiles the TypeScript source (`src/cli/chart.ts`) directly, so there's
-no need to run `npm run build` first.
+no need to run `npm run build:lib` first.
 
 ```bash
 # Install Bun if you don't have it
@@ -242,6 +265,6 @@ docx-revision-analyzer/
 │   ├── make-mac-droplet.sh   Builds the macOS Finder droplet (.app)
 │   └── makeFixtures.ts       Generates the synthetic test .docx files
 ├── fixtures/              Pre-generated test .docx files and sample outputs
-├── dist/                  Output of `npm run build` (gitignored)
+├── dist/                  Output of `npm run build:lib` (gitignored)
 └── dist-bin/              Output of `npm run build:binary` (gitignored)
 ```

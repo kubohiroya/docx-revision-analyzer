@@ -79,8 +79,13 @@ APP_PATH="$OUT_DIR/$APP_NAME"
 
 mkdir -p "$OUT_DIR"
 
-echo "==> [1/4] Bunバイナリをビルド中 (scripts/build-binary.sh $TARGET_CLI)..."
-bash "$ROOT_DIR/scripts/build-binary.sh" "$TARGET_CLI"
+# SKIP_BINARY_BUILD=1 なら、dist-bin/ にある実行ファイルをそのまま使う (scripts/build-all.mjs が先に作った場合)
+if [[ "${SKIP_BINARY_BUILD:-}" == "1" && -x "$OUT_DIR/$BIN_NAME" ]]; then
+  echo "==> [1/4] 既存の Bun バイナリを使います ($OUT_DIR/$BIN_NAME)"
+else
+  echo "==> [1/4] Bunバイナリをビルド中 (scripts/build-binary.sh $TARGET_CLI)..."
+  bash "$ROOT_DIR/scripts/build-binary.sh" "$TARGET_CLI"
+fi
 
 echo "==> [2/4] AppleScriptドロップレットを作成中 (osacompile)..."
 SCRIPT_SRC="$(mktemp -t "$BIN_NAME-droplet").applescript"

@@ -48,8 +48,11 @@
   },
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "prepublishOnly": "npm run clean && npm run build",
+    "build": "node scripts/build-all.mjs",
+    "build:lib": "tsc -p tsconfig.json",
+    "build:desktop": "node scripts/build-all.mjs --only=desktop",
+    "build:installers": "node scripts/build-all.mjs --only=desktop --installers",
+    "prepublishOnly": "npm run clean && npm run build:lib",
     "fixtures": "ts-node scripts/makeFixtures.ts",
     "build:binary": "bash scripts/build-binary.sh chart",
     "build:binary:all": "bash scripts/build-binary.sh chart --all",
