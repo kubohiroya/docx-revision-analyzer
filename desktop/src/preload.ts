@@ -32,6 +32,13 @@ const api: AppApi = {
   openDocxDialog: () => ipcRenderer.invoke("open-docx-dialog"),
   readDocx: (p) => ipcRenderer.invoke("read-docx", p),
   pathForFile: (file) => webUtils.getPathForFile(file),
+  inspectPath: (p) => ipcRenderer.invoke("inspect-path", p),
+  listLocalFolder: (dir) => ipcRenderer.invoke("list-local-folder", dir),
+  listCloudFolder: (url) => ipcRenderer.invoke("list-cloud-folder", url),
+  readBatchFile: (ref) => ipcRenderer.invoke("read-batch-file", ref),
+  chooseOutputDir: (name) => ipcRenderer.invoke("choose-output-dir", name),
+  writeOutput: (root, rel, content) => ipcRenderer.invoke("write-output", root, rel, content),
+  showFolder: (dir) => ipcRenderer.invoke("show-folder", dir),
   openUrl: (target) => ipcRenderer.invoke("open-url", target),
   recentUrls: () => ipcRenderer.invoke("recent-urls"),
   removeRecentUrl: (url) => ipcRenderer.invoke("remove-recent-url", url),
@@ -55,6 +62,12 @@ const api: AppApi = {
 };
 
 contextBridge.exposeInMainWorld("app", api);
+contextBridge.exposeInMainWorld("appSmoke", {
+  onBatch: (cb: (target: unknown) => void) => {
+    ipcRenderer.on("smoke-batch", (_e, target) => cb(target));
+  },
+  batchDone: () => ipcRenderer.send("smoke-batch-done"),
+});
 contextBridge.exposeInMainWorld("appInternal", {
   ready: () => ipcRenderer.send("renderer-ready"),
   smokeAnalyzed: (summary: { ok: boolean; message: string }) => ipcRenderer.send("smoke-analyzed", summary),

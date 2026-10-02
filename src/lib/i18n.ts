@@ -114,6 +114,7 @@ const en = {
   fileNotFound: (p: string) => `File not found: ${p}`,
   errMultiOutput: "Error: -o/--output can't be used with multiple input files.",
   errPositive: (name: string) => `${name} must be a positive number.`,
+  errNoDocxFound: "No .docx files were found.",
   errNonNegative: (name: string) => `${name} must be a number of 0 or more.`,
   optLang: "Display language (en / ja). Defaults to the OS locale",
   configLoaded: (p: string) => `Using settings from ${p}`,
@@ -224,7 +225,9 @@ const en = {
   chartDescription:
     "Generate an SVG chart of characters added/deleted over time and the total character count from a Word file " +
     "(.docx) edited with Track Changes. Multiple files are processed one by one; a failure doesn't stop the rest.",
-  chartArgFiles: ".docx files to analyze (several allowed, e.g. files dropped onto the .exe in Windows Explorer)",
+  chartArgFiles:
+    ".docx files or folders to analyze (several allowed, e.g. files dropped onto the .exe in Windows Explorer). " +
+    "A folder means every .docx in it, including subfolders",
   chartOptOutput: "Output SVG path (default: same name as the input with .svg). Not allowed with multiple files",
   chartOptBucket: "Time bucket size: auto|second|minute|hour|day, or a number of seconds",
   chartOptGap:
@@ -258,7 +261,7 @@ const en = {
     "document at the start of the first session and at the end of each session as schematic page thumbnails. " +
     "Paragraphs edited in fine steps are green, bulk-inserted or replaced ones orange, and bands between the " +
     "columns show how each paragraph/figure was deleted, replaced, grown, or moved during the session (one SVG).",
-  flowArgFiles: ".docx files to analyze (several allowed)",
+  flowArgFiles: ".docx files or folders to analyze (several allowed; a folder means every .docx in it, including subfolders)",
   flowOptOutput: "Output SVG path (default: <input name>-flow.svg). Not allowed with multiple files",
   flowOptGap: "Start a new session after an idle period longer than this many hours",
   flowOptFrom: 'Start of the period to analyze (e.g. 2026-05-10 or "2026-05-10 09:30", local time)',
@@ -317,6 +320,7 @@ const ja: Catalog = {
   fileNotFound: (p) => `ファイルが見つかりません: ${p}`,
   errMultiOutput: "エラー: 複数ファイルを指定した場合、-o/--output は使用できません。",
   errPositive: (name) => `${name} には正の数値を指定してください。`,
+  errNoDocxFound: ".docx ファイルが見つかりませんでした。",
   errNonNegative: (name) => `${name} には 0 以上の数値を指定してください。`,
   optLang: "表示言語 (en / ja)。既定は OS のロケールから判定",
   configLoaded: (p) => `設定ファイルを読み込みました: ${p}`,
@@ -423,7 +427,9 @@ const ja: Catalog = {
   chartDescription:
     "変更履歴(Track Changes)が有効なWordファイル(.docx)から、時系列の追加/削除文字数と総文字数のSVGチャートを生成します。" +
     "複数ファイルを指定するとまとめて処理します(1件ずつ独立に処理し、失敗しても残りは続行します)。",
-  chartArgFiles: "解析対象の .docx ファイル (複数指定可。Windowsでエクスプローラーから複数ファイルをドロップした場合に対応)",
+  chartArgFiles:
+    "解析対象の .docx ファイルまたはフォルダ (複数指定可。Windowsでエクスプローラーから複数ファイルをドロップした場合に対応)。" +
+    "フォルダはサブフォルダを含むすべての .docx",
   chartOptOutput: "出力するSVGファイルのパス (既定: 入力と同名の .svg)。複数ファイル指定時は使用不可",
   chartOptBucket: "時間バケットの粒度: auto|second|minute|hour|day、または秒数の数値",
   chartOptGap:
@@ -457,7 +463,7 @@ const ja: Catalog = {
     "最初の区間の開始時点と各区間の終了時点の文書を、模式的なページのサムネイルの列として時系列順に左から右へ並べ、" +
     "各区間の終了時点では区間内に細かく編集された段落を緑、まとめて挿入・置き換えられた段落をオレンジで塗り、" +
     "列の間にその区間での段落・図表ごとの削除・置き換え・増加・移動を帯で示した編集フロー(SVG)を1枚にまとめます。",
-  flowArgFiles: "解析対象の .docx ファイル (複数指定可)",
+  flowArgFiles: "解析対象の .docx ファイルまたはフォルダ (複数指定可。フォルダはサブフォルダを含むすべての .docx)",
   flowOptOutput: "出力するSVGファイルのパス (既定: <入力ファイル名>-flow.svg)。複数ファイル指定時は使用不可",
   flowOptGap: "無編集期間がこの時間を超えたら、別の時間区間に分ける",
   flowOptFrom: '対象期間の開始 (例: 2026-05-10 または "2026-05-10 09:30"。ローカル時刻)',

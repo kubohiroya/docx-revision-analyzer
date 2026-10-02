@@ -484,6 +484,13 @@ levels:
 通信を遮断します。OneDrive / SharePoint のリンクから開くこともできます (Microsoft へのサインインが必要。文書は解析のために
 読み込むだけです)。インストーラはまだ配布していません。
 
+**フォルダの一括処理**: フォルダをアプリ (またはアイコン) にドロップすると、サブフォルダを含むすべての `.docx` の隣に、
+チャート (`<名前>.svg`) とフロー (`<名前>-flow.svg`) を作成します。「URL から開く…」に SharePoint / OneDrive の *フォルダ* の
+リンク (Microsoft Teams の課題の提出物が集まるフォルダなど) を貼り、出力先のフォルダを選ぶ (作る) と、参照先のフォルダの
+階層構造を出力先に再現して、その中に SVG を作成します (選べば、1つのフォルダにまとめてファイル名にパスを含めることもできます)。
+どちらも一覧の `summary.csv` (Excel 用) と `index.html` (すべての図へのリンク) を作成します。CLI (と macOS のドロップレット) も
+フォルダを受け付けます: `docx-revision-flow 提出物/`。
+
 ## ライブラリとして使う
 
 `src/index.ts` から主要な関数・型 (`extractRevisionsFromFile`, `computeSuspicionScore`,

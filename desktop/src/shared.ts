@@ -47,6 +47,8 @@ export interface AppSettings {
 export interface RecentUrl {
   url: string;
   name: string;
+  /** フォルダ (一括処理) なら "folder" */
+  kind?: "file" | "folder";
   /** 次に開くときは、URL を解決し直さずにこれを使う */
   driveId?: string;
   itemId?: string;
@@ -58,11 +60,26 @@ export type CloudErrorCode =
   | "notConfigured"
   | "badUrl"
   | "notDocx"
+  | "notFolder"
+  | "folder"
   | "notFound"
   | "forbidden"
   | "tooLarge"
   | "signInCancelled"
   | "network";
+
+/** 一括処理の対象のファイル */
+export type BatchFileRef = { kind: "local"; path: string } | { kind: "cloud"; driveId: string; itemId: string };
+
+/** 一括処理するフォルダ (ローカル、または SharePoint / OneDrive) */
+export interface BatchFolder {
+  name: string;
+  /** ローカルのパス、または Web の URL */
+  location: string;
+  files: { path: string; name: string; size: number; mtime: string; ref: BatchFileRef }[];
+  /** 上限に達して一覧を打ち切ったか */
+  truncated: boolean;
+}
 
 export interface MicrosoftStatus {
   /** クライアント ID が設定されていて、URL から開ける */
@@ -171,6 +188,18 @@ export interface AppApi {
   microsoftSignOut(): Promise<MicrosoftStatus>;
   /** メインプロセスから「この URL を開いて」と指示されたとき (スモークテスト) */
   onOpenUrl(cb: (url: string) => void): void;
+  /** パスがフォルダかファイルか */
+  inspectPath(p: string): Promise<"directory" | "file" | "missing" | "other">;
+  /** ローカルのフォルダの下の .docx を一覧する (そのフォルダを書き込み先として許可する) */
+  listLocalFolder(dir: string): Promise<BatchFolder>;
+  /** SharePoint / OneDrive のフォルダの URL の下の .docx を一覧する */
+  listCloudFolder(url: string): Promise<{ folder?: BatchFolder; error?: { code: CloudErrorCode; message: string } }>;
+  readBatchFile(ref: BatchFileRef): Promise<Uint8Array>;
+  /** 出力先のフォルダを選ぶ (新しいフォルダも作れる)。キャンセルなら null */
+  chooseOutputDir(suggestedName: string): Promise<string | null>;
+  /** 出力先のフォルダの中に書き込む (.svg / .csv / .html のみ)。書き込んだパスを返す */
+  writeOutput(root: string, rel: string, content: string): Promise<string>;
+  showFolder(dir: string): Promise<void>;
   /** ドロップされた File のパス */
   pathForFile(file: File): string;
   /** 変更履歴の作成者・日時が保存されるよう文書の設定を書き換える (元のファイルはバックアップ)。バックアップのパスを返す */

@@ -317,7 +317,35 @@ export function langOption(): Option {
 }
 
 /**
+ * 引数のフォルダを、その下の .docx (サブフォルダを含む。Word の一時ファイル ~$xxx.docx と隠しファイルは除く) に展開する。
+ * ファイルはそのまま残す
+ */
+export function expandInputs(inputs: string[]): string[] {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (e.name.startsWith(".")) continue;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.isFile() && /\.docx$/i.test(e.name) && !e.name.startsWith("~$")) out.push(p);
+    }
+  };
+  for (const f of inputs) {
+    let isDir = false;
+    try {
+      isDir = fs.statSync(f).isDirectory();
+    } catch {
+      isDir = false;
+    }
+    if (isDir) walk(f);
+    else out.push(f);
+  }
+  return out;
+}
+
+/**
  * 各ファイルを processOne で処理し、結果を表示して終了コードを決める。
+ * フォルダを渡した場合は、その下の .docx をすべて処理する (それぞれの隣に結果を書き出す)。
  * --check-history-settings 指定時は設定の確認だけを行う。
  */
 export async function runForFiles(
@@ -326,6 +354,11 @@ export async function runForFiles(
   options: Record<string, any>,
   processOne: (file: string, explicitOutput: string | undefined) => Promise<FileResult>
 ): Promise<void> {
+  files = expandInputs(files);
+  if (files.length === 0) {
+    console.error(t("errNoDocxFound"));
+    process.exit(1);
+  }
   if (options.checkHistorySettings) {
     let failed = false;
     for (const file of files) {

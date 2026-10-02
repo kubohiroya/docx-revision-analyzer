@@ -99,7 +99,8 @@ const en = {
   urlDialogTitle: "Open from OneDrive / SharePoint",
   urlDialogHelp:
     "Paste the link to a .docx on OneDrive or SharePoint. In Word or OneDrive, use Share → Copy link (the address of " +
-    "the file also works). The document is downloaded into memory for analysis only.",
+    "the file also works). The document is downloaded into memory for analysis only. A folder link (for example the " +
+    "Teams assignment submissions in SharePoint) creates figures for every .docx in it.",
   urlPlaceholder: "https://…sharepoint.com/… or https://1drv.ms/…",
   urlOpen: "Open",
   urlRecent: "Recently opened",
@@ -116,6 +117,7 @@ const en = {
     notConfigured: "Opening from OneDrive / SharePoint isn't set up (no Microsoft application ID).",
     badUrl: "This isn't a OneDrive or SharePoint address. Copy the link with Share → Copy link in Word or OneDrive.",
     notDocx: "The link points to something other than a .docx file.",
+    notFolder: "The link isn't a folder.",
     notFound:
       "The file couldn't be found. If you copied the address of Word for the web, use Share → Copy link instead.",
     forbidden:
@@ -125,6 +127,35 @@ const en = {
     signInCancelled: "Sign-in wasn't completed.",
     network: "Couldn't reach OneDrive / SharePoint.",
   } as Record<string, string>,
+  batchDropHint: "Drop a folder to create SVGs for every .docx in it.",
+  batchColumns: ["File", "Status", "Revisions", "Inserted chars", "Deleted chars", "Sessions", "Bulk-inserted chars", "Highlights", "Chart", "Flow", "Note"],
+  batchChart: "Chart",
+  batchFlow: "Flow",
+  batchSummaryTitle: "Revision analysis summary",
+  batchSummaryNote:
+    "Created by Docx Revision Analyzer. These figures help writers look back on how a document was written; they are " +
+    "not proof of anything, and tracked changes in a .docx can be turned off or altered.",
+  batchConfirmTitle: (name: string) => `Create figures for "${name}"?`,
+  batchFound: (n: number) => (n === 0 ? "No .docx files were found." : `Found ${n} .docx file(s), including subfolders.`),
+  batchTruncated: "There are too many files; only the first 2,000 will be processed.",
+  batchOverwrite: "Files with the same names are overwritten. A summary (summary.csv, index.html) is also created.",
+  batchStart: "Create",
+  batchRunning: (name: string) => `Creating figures for "${name}"`,
+  batchCancel: "Stop",
+  batchProgress: (i: number, n: number) => `${i} / ${n}`,
+  batchListing: "Looking for .docx files…",
+  batchWhereLocal: (dir: string) =>
+    `A chart (<name>.svg) and a flow (<name>-flow.svg) will be created next to each .docx in ${dir}.`,
+  batchWhereCloud: (dir: string) => `The figures will be saved in ${dir}.`,
+  batchLayout: "How to arrange the files",
+  batchLayoutMirror: "Recreate the folder structure (recommended)",
+  batchLayoutFlat: "Put everything in one folder (names include the folder path)",
+  batchDone: (ok: number, failed: number, dir: string) =>
+    `Created figures for ${ok} file(s)${failed ? `; ${failed} couldn't be processed` : ""}. Saved in ${dir}.`,
+  batchDoneTitle: "Done",
+  batchCancelled: "Stopped",
+  batchSummaryFiles: "summary.csv (for Excel) and index.html (links to every figure) are in the same folder.",
+  batchOpenFolder: "Open the folder",
   settingsMicrosoft: "Microsoft account (OneDrive / SharePoint)",
   msNotConfigured: "Not set up: enter the application (client) ID below.",
   msAdvanced: "Application (client) ID",
@@ -257,7 +288,8 @@ const ja: Strings = {
   urlDialogTitle: "OneDrive / SharePoint から開く",
   urlDialogHelp:
     "OneDrive や SharePoint 上の .docx のリンクを貼り付けてください。Word や OneDrive の「共有」→「リンクのコピー」で" +
-    "コピーしたもの (ファイルのアドレスでも可) が使えます。文書は解析のためにメモリに読み込むだけです。",
+    "コピーしたもの (ファイルのアドレスでも可) が使えます。文書は解析のためにメモリに読み込むだけです。" +
+    "フォルダのリンク (SharePoint の Teams の課題の提出物など) を貼ると、その中のすべての .docx の図を作成します。",
   urlPlaceholder: "https://…sharepoint.com/… または https://1drv.ms/…",
   urlOpen: "開く",
   urlRecent: "最近開いた文書",
@@ -274,6 +306,7 @@ const ja: Strings = {
     notConfigured: "OneDrive / SharePoint から開く設定がされていません (Microsoft のアプリケーション ID がありません)。",
     badUrl: "OneDrive / SharePoint のアドレスではありません。Word や OneDrive の「共有」→「リンクのコピー」でコピーしてください。",
     notDocx: "リンク先が .docx ファイルではありません。",
+    notFolder: "リンク先がフォルダではありません。",
     notFound: "ファイルが見つかりません。Word for the web のアドレスをコピーした場合は、「共有」→「リンクのコピー」を使ってください。",
     forbidden:
       "サインインしているアカウントではこのファイルにアクセスできないか、組織がこのアプリを許可していません。" +
@@ -282,6 +315,33 @@ const ja: Strings = {
     signInCancelled: "サインインが完了しませんでした。",
     network: "OneDrive / SharePoint に接続できませんでした。",
   },
+  batchDropHint: "フォルダをドロップすると、その中のすべての .docx の SVG を作成します。",
+  batchColumns: ["ファイル", "状態", "変更の数", "挿入した文字数", "削除した文字数", "区間の数", "一括挿入した文字数", "ハイライト", "チャート", "フロー", "備考"],
+  batchChart: "チャート",
+  batchFlow: "フロー",
+  batchSummaryTitle: "変更履歴の解析の一覧",
+  batchSummaryNote:
+    "Docx Revision Analyzer で作成しました。図は書き手が執筆過程を振り返るための手がかりであり、何かの証拠ではありません。" +
+    ".docx の変更履歴は記録をオフにしたり改変したりできます。",
+  batchConfirmTitle: (name) => `「${name}」の図を作成しますか?`,
+  batchFound: (n) => (n === 0 ? ".docx ファイルが見つかりませんでした。" : `サブフォルダを含めて ${n} 個の .docx ファイルが見つかりました。`),
+  batchTruncated: "ファイルが多すぎるため、最初の 2,000 個だけを処理します。",
+  batchOverwrite: "同じ名前のファイルは上書きします。一覧 (summary.csv、index.html) も作成します。",
+  batchStart: "作成する",
+  batchRunning: (name) => `「${name}」の図を作成中`,
+  batchCancel: "中止",
+  batchProgress: (i, n) => `${i} / ${n}`,
+  batchListing: ".docx ファイルを探しています…",
+  batchWhereLocal: (dir) => `${dir} の中の各 .docx の隣に、チャート (<名前>.svg) とフロー (<名前>-flow.svg) を作成します。`,
+  batchWhereCloud: (dir) => `図は ${dir} に保存します。`,
+  batchLayout: "ファイルの並べ方",
+  batchLayoutMirror: "参照先のフォルダの階層構造を再現する (推奨)",
+  batchLayoutFlat: "1つのフォルダにまとめる (ファイル名にフォルダのパスを含める)",
+  batchDone: (ok, failed, dir) => `${ok} 個のファイルの図を作成しました${failed ? `。${failed} 個は処理できませんでした` : ""}。保存先: ${dir}`,
+  batchDoneTitle: "完了",
+  batchCancelled: "中止しました",
+  batchSummaryFiles: "同じフォルダに summary.csv (Excel 用) と index.html (すべての図へのリンク) があります。",
+  batchOpenFolder: "フォルダを開く",
   settingsMicrosoft: "Microsoft アカウント (OneDrive / SharePoint)",
   msNotConfigured: "未設定: 下にアプリケーション (クライアント) ID を入力してください。",
   msAdvanced: "アプリケーション (クライアント) ID",
