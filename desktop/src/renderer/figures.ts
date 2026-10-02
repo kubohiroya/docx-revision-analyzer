@@ -96,11 +96,26 @@ function openLink(e: AnnotationEntry): void {
   if (e.spec.href) void window.app.extensions.openLink(e.extId, e.spec.href);
 }
 
-function fillPopup(entries: AnnotationEntry[]): void {
+function fillPopup(entries: AnnotationEntry[], target?: FigureTarget): void {
   const { strings, lang } = uiContext();
   const S = strings();
   const p = popupEl();
   p.replaceChildren();
+  // 段落・帯なら、その段落の冒頭 (約 40 文字) とセクションを先頭に示す (本文はアプリの中だけで表示する)
+  if (target?.excerpt) {
+    const head = document.createElement("section");
+    head.className = "excerpt";
+    const q = document.createElement("p");
+    q.textContent = `「${target.excerpt}」`;
+    head.append(q);
+    if (target.section) {
+      const sec = document.createElement("p");
+      sec.className = "from";
+      sec.textContent = S.figureSection(target.section);
+      head.append(sec);
+    }
+    p.append(head);
+  }
   for (const e of entries) {
     const sec = document.createElement("section");
     const from = document.createElement("p");
@@ -121,7 +136,11 @@ function fillPopup(entries: AnnotationEntry[]): void {
     if (e.spec.href && isSafeHref(e.spec.href)) {
       const b = document.createElement("button");
       b.className = "link";
-      b.textContent = S.figureOpenLink(originOf(e.spec.href));
+      // 元の文書 (OneDrive / SharePoint) の該当箇所へのリンクなら、そう分かる名前にする
+      b.textContent =
+        target?.docLink && e.spec.href === target.docLink
+          ? S.figureOpenSource(target.section)
+          : S.figureOpenLink(originOf(e.spec.href));
       b.onclick = (ev) => {
         ev.stopPropagation();
         openLink(e);
@@ -143,8 +162,9 @@ function place(x: number, y: number): void {
 }
 
 /** 図の要素に、注釈のポップアップとリンクを結びつける */
-export function bindFigureAnnotations(pane: HTMLElement, map: Map<string, AnnotationEntry[]>): void {
+export function bindFigureAnnotations(pane: HTMLElement, map: Map<string, AnnotationEntry[]>, targets: FigureTarget[] = []): void {
   if (map.size === 0) return;
+  const targetOf = new Map(targets.map((t) => [t.key, t]));
   const S = uiContext().strings();
   for (const el of pane.querySelectorAll<SVGElement>("[data-target]")) {
     const entries = map.get(el.dataset.target!);
@@ -155,7 +175,7 @@ export function bindFigureAnnotations(pane: HTMLElement, map: Map<string, Annota
     el.addEventListener("mouseenter", (ev) => {
       if (pinned) return;
       el.classList.add("dra-hover");
-      fillPopup(entries);
+      fillPopup(entries, targetOf.get(el.dataset.target!));
       place(ev.clientX, ev.clientY);
     });
     el.addEventListener("mousemove", (ev) => {
@@ -172,7 +192,7 @@ export function bindFigureAnnotations(pane: HTMLElement, map: Map<string, Annota
       } else {
         // リンクが無い・複数あるときは、ポップアップを固定してボタンから選べるようにする
         hidePopup();
-        fillPopup(entries);
+        fillPopup(entries, targetOf.get(el.dataset.target!));
         place(ev.clientX, ev.clientY);
         pinned = true;
       }

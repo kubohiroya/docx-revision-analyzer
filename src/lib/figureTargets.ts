@@ -17,6 +17,7 @@
 import { Bucket, buildBuckets, BucketSpec } from "./timeBuckets";
 import type { Session } from "./sessions";
 import type { FlowResult } from "./flow";
+import type { DocxLayoutModel, Para, RevRef } from "./docxLayout";
 import { esc } from "./svgChart";
 import type { LocalizedText } from "./categories";
 import { getLang, Lang } from "./i18n";
@@ -27,8 +28,21 @@ export const flowBandKey = (session: number, unitKey: string) => `flow:band:${se
 export const flowMoveKey = (session: number, fromKey: string, toKey: string) => `flow:move:${session}:${fromKey}:${toKey}`;
 export const flowCaptionKey = (session: number) => `flow:caption:${session}`;
 
+/** 部分に付け加える情報 (enrichTargets で設定する) */
+export interface TargetExtras {
+  /** 段落の冒頭 (その時点の文書の本文、約 40 文字)。段落・帯だけ */
+  excerpt?: string;
+  /** 段落を含むセクション (その段落以前で最後に始まったブックマークの名前)。段落・帯だけ */
+  section?: string;
+  /**
+   * 元の文書の該当箇所へのリンク (OneDrive / SharePoint の文書のとき)。ブックマークがあれば URL#ブックマーク名、
+   * 無ければ文書の URL (冒頭)
+   */
+  docLink?: string;
+}
+
 /** 図の部分の情報 (注釈を付ける側が、どの部分に何を付けるかを決めるため) */
-export type FigureTarget =
+export type FigureTarget = TargetExtras & (
   | { key: string; figure: "chart"; kind: "bar"; categoryId: string; start: string; end: string; chars: number }
   | { key: string; figure: "flow"; kind: "paragraph"; column: number; paraIndex: number; session: number | null }
   | {
@@ -41,7 +55,8 @@ export type FigureTarget =
       change: string;
     }
   | { key: string; figure: "flow"; kind: "move"; session: number; fromKey: string; toKey: string; chars: number }
-  | { key: string; figure: "flow"; kind: "caption"; session: number; start: string; end: string };
+  | { key: string; figure: "flow"; kind: "caption"; session: number; start: string; end: string }
+);
 
 /** 注釈 (言語ごとの文を持つ形)。外部の注釈ファイルや拡張モジュールが作る */
 export interface FigureAnnotation {
@@ -221,4 +236,89 @@ export function flowTargets(result: FlowResult): FigureTarget[] {
     });
   });
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// 段落の冒頭・セクション・元の文書へのリンク
+// ---------------------------------------------------------------------------
+
+/** 冒頭として示す文字数 */
+export const EXCERPT_CHARS = 40;
+
+/** 時刻 t の文書で見えている断片か (flow.ts の表示状態と同じ規則) */
+function visibleAt(ins: RevRef | undefined, del: RevRef | undefined, t: number): boolean {
+  const inserted = !ins || !ins.date || ins.date.getTime() <= t;
+  const deleted = !!del && (!del.date || del.date.getTime() <= t);
+  return inserted && !deleted;
+}
+
+/** 時刻 t の段落の冒頭 (max 文字を超えたら … で切る) */
+export function paragraphExcerpt(p: Para, t: number, max = EXCERPT_CHARS): string {
+  let text = "";
+  for (const s of p.segs) {
+    if (s.kind !== "text" || !visibleAt(s.ins, s.del, t)) continue;
+    text += s.text;
+    if (text.length > max * 2) break;
+  }
+  const chars = [...text.replace(/\s+/g, " ").trim()];
+  return chars.length > max ? `${chars.slice(0, max).join("")}…` : chars.join("");
+}
+
+/** 段落ごとの、その段落を含むセクション (それ以前で最後に始まったブックマーク) */
+export function sectionsOf(model: DocxLayoutModel): Map<number, string> {
+  const out = new Map<number, string>();
+  let current: string | undefined;
+  for (const p of model.paras) {
+    if (p.bookmarks?.length) current = p.bookmarks[p.bookmarks.length - 1];
+    if (current) out.set(p.index, current);
+  }
+  return out;
+}
+
+/** 元の文書へのリンク: ブックマークがあれば URL#ブックマーク名、無ければ URL (冒頭) */
+export function documentLink(webUrl: string, section?: string): string {
+  return section ? `${webUrl.replace(/#.*$/, "")}#${encodeURIComponent(section)}` : webUrl;
+}
+
+/**
+ * flow の部分に、段落の冒頭・セクション・元の文書へのリンク (webUrl があるとき) を付け加える。
+ * chart の部分とキャプションには、元の文書へのリンク (冒頭) だけを付ける。
+ * 段落の冒頭は、その列 (区間の開始時点 / 終了時点) の文書の本文
+ */
+export function enrichTargets(
+  targets: FigureTarget[],
+  model: DocxLayoutModel | undefined,
+  flow: FlowResult | undefined,
+  opts: { webUrl?: string; excerptChars?: number } = {}
+): FigureTarget[] {
+  const sections = model ? sectionsOf(model) : new Map<number, string>();
+  const byIndex = new Map((model?.paras ?? []).map((p) => [p.index, p]));
+  const sessions = flow?.sessions ?? [];
+  /** 列 k の時点 (列 0 は区間1の開始の直前、列 k は区間 k の終了時点) */
+  const columnTime = (k: number) => (k === 0 ? (sessions[0]?.start.getTime() ?? 0) - 1 : (sessions[k - 1]?.end.getTime() ?? Infinity));
+  const max = opts.excerptChars ?? EXCERPT_CHARS;
+  return targets.map((t) => {
+    let paraIndex: number | undefined;
+    let time = Infinity;
+    if (t.kind === "paragraph") {
+      paraIndex = t.paraIndex;
+      time = columnTime(t.column);
+    } else if (t.kind === "band") {
+      paraIndex = t.paraIndexes[0];
+      // 区間の終了時点で消えている段落 (削除) は、開始時点の本文を示す
+      const end = columnTime(t.session + 1);
+      const p = paraIndex !== undefined ? byIndex.get(paraIndex) : undefined;
+      time = p && paragraphExcerpt(p, end, 1) === "" ? columnTime(t.session) : end;
+    }
+    const p = paraIndex !== undefined ? byIndex.get(paraIndex) : undefined;
+    const section = paraIndex !== undefined ? sections.get(paraIndex) : undefined;
+    const extras: TargetExtras = {};
+    if (p) {
+      const ex = paragraphExcerpt(p, time, max);
+      if (ex) extras.excerpt = ex;
+      if (section) extras.section = section;
+    }
+    if (opts.webUrl) extras.docLink = documentLink(opts.webUrl, section);
+    return { ...t, ...extras };
+  });
 }

@@ -2,8 +2,10 @@
 /**
  * 拡張機能のサンプル (API v1)。
  *  - カテゴリ「長い単独の挿入」を登録し、1回の挿入 (w:ins) で 200 文字以上入った箇所をハイライトする分類器を登録する
- *  - 図の注釈: 長い単独の挿入があった段落 (flow) と棒 (chart) に、マウスオーバーの説明とポップアップ、
- *    README へのリンクを付ける。flow の区間のキャプションには、区間のまとめのポップアップを付ける
+ *  - 図の注釈: 長い単独の挿入があった段落 (flow) と棒 (chart) に、マウスオーバーの説明とポップアップ、リンクを付ける。
+ *    リンク先は、OneDrive / SharePoint の文書なら元の文書の該当箇所 (target.docLink。段落を含むセクション
+ *    (ブックマーク) があればそこ、無ければ冒頭)、それ以外は README。flow の区間のキャプションには、区間のまとめのポップアップを付ける。
+ *    段落の冒頭 (約 40 文字) は、アプリがポップアップの先頭に添える
  *  - 解析が終わるたびに、区間・文字数・ハイライトの件数と、この拡張で解析した回数 (storage) をパネルに表示する
  * 本文は使わない (documentText の権限を求めない) ため、解析結果の本文は空文字列で届く。
  *
@@ -79,14 +81,14 @@ export function activate(host) {
                     { type: "text", text: { en: "Was this pasted, or typed in one go?", ja: "貼り付けたもの、それとも一気に入力したもの?" } },
                   ],
                 },
-                href: README,
+                href: tg.docLink ?? README,
               });
             }
           }
         } else {
           for (const tg of targets) {
             if (tg.kind === "bar" && Date.parse(tg.start) <= t && t < Date.parse(tg.end)) {
-              out.push({ target: tg.key, tooltip, href: README });
+              out.push({ target: tg.key, tooltip, href: tg.docLink ?? README });
             }
           }
         }

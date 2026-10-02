@@ -148,6 +148,20 @@ link's https origin in `permissions.links`.
 | flow move band | `flow:move:<session>:<from>:<to>` | `session`, `fromKey`, `toKey`, `chars` |
 | flow caption | `flow:caption:<session>` | `session`, `start`, `end` |
 
+Paragraph and band targets also carry:
+
+- `excerpt`: the paragraph's first ~40 characters as of that column's point in time. Only extensions with the
+  `documentText` permission receive it — but the app itself always shows it at the top of the pop-up, so extensions
+  don't need the text permission just to show which paragraph a pop-up is about.
+- `section`: the bookmark that starts at or before the paragraph (the section containing it; Word's hidden `_GoBack`
+  is ignored).
+
+When the document was opened from OneDrive / SharePoint, every target has `docLink`: the document's web URL, plus
+`#<bookmark>` when the paragraph is in a section. Use it as `href` (no `links` permission needed) to send the reader to
+the source document; the app opens it without the link confirmation, since the app produced the URL. Note: Word for
+the web currently opens the document at the top and ignores the bookmark; Word desktop and future versions can use it.
+The figure titles also link the file name to the source document.
+
 Return `{ target, tooltip?, popup?: { title?, blocks }, href? }` per part (blocks are the same as panels).
 In the app, hovering a part shows a pop-up (marked with the extension's name); clicking opens the link in the default
 browser. Because a URL can carry data, opening a link is handled like a send: it's confirmed (same per-extension

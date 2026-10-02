@@ -16,7 +16,7 @@
  */
 
 import { FlowResult, FlowSession, PageLayout, ParaHeat, SlopeUnit } from "./flow";
-import { esc, formatGapHours, renderNote } from "./svgChart";
+import { esc, formatGapHours, renderNote, TitleLink, titleMarkup } from "./svgChart";
 import { estimateLabelWidth, t } from "./i18n";
 import { Category, CategoryRegistry, patternOverlay, renderPatternDefs } from "./categories";
 import {
@@ -50,6 +50,8 @@ export interface FlowSvgOptions {
    * 部分のキーは段落 flow:para:<列>:<段落>、帯 flow:band:<区間>:<単位>、移動の帯、キャプション
    */
   annotations?: Map<string, ResolvedAnnotation>;
+  /** 見出しの一部 (ファイル名など) をリンクにする (OneDrive / SharePoint の元の文書の URL) */
+  titleLink?: TitleLink;
 }
 
 /** これ未満の度合いは塗らない */
@@ -454,9 +456,7 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
   const defs = renderPatternDefs(reg.patterns());
   if (defs) parts.push(defs);
   parts.push(
-    `<text x="${MARGIN}" y="32" font-family="${font}" font-size="18" font-weight="bold" fill="#222">${esc(
-      opts.title ?? t("flowDefaultTitle")
-    )}</text>`
+    `<text x="${MARGIN}" y="32" font-family="${font}" font-size="18" font-weight="bold" fill="#222">${titleMarkup(opts.title ?? t("flowDefaultTitle"), opts.titleLink)}</text>`
   );
   parts.push(legend.svg);
 

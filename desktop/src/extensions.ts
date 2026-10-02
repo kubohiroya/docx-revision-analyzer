@@ -408,7 +408,9 @@ export class ExtensionManager {
     const host = this.hosts.get(extId);
     if (!host || host.info.state !== "active") return { annotations: [], error: "the extension is not running" };
     try {
-      const redacted = { ...ctx, analysis: this.redact(host, ctx.analysis) };
+      // 段落の冒頭 (excerpt) も本文なので、documentText の権限が無い拡張には渡さない
+      const targets = host.info.manifest?.permissions?.documentText ? ctx.targets : ctx.targets.map(({ excerpt: _e, ...t }) => t);
+      const redacted = { ...ctx, targets, analysis: this.redact(host, ctx.analysis) };
       const r = await this.invoke(host, "annotateFigure", { annotatorId, ctx: redacted }, ANNOTATE_TIMEOUT_MS);
       const list = (Array.isArray(r) ? r : []).slice(0, MAX_ANNOTATIONS) as FigureAnnotationSpec[];
       const keys = new Set(ctx.targets.map((t) => t.key));
@@ -419,7 +421,12 @@ export class ExtensionManager {
             target: a.target,
             tooltip: a.tooltip,
             popup: a.popup && Array.isArray(a.popup.blocks) ? a.popup : undefined,
-            href: typeof a.href === "string" && this.linkAllowed(extId, a.href) ? a.href : undefined,
+            // 宣言したオリジンのリンク、または部分の「元の文書へのリンク」(アプリが作ったもの) をそのまま使う場合だけ
+            href:
+              typeof a.href === "string" &&
+              (this.linkAllowed(extId, a.href) || ctx.targets.some((t) => t.key === a.target && t.docLink === a.href))
+                ? a.href
+                : undefined,
           })),
       };
     } catch (err) {

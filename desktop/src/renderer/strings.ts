@@ -173,6 +173,9 @@ const en = {
   openDecline: "Don't open",
   figureOpenLink: (origin: string) => `Open ${origin} ↗`,
   figureAnnotated: "Annotated by an extension",
+  figureSection: (name: string) => `Section (bookmark): ${name}`,
+  figureOpenSource: (section?: string) =>
+    section ? `Open "${section}" in the original document ↗` : "Open the original document ↗",
   figureAnnotatorFailed: (id: string, msg: string) => `The extension annotator ${id} failed: ${msg}`,
   integrityTitle: "About this document's history (informational)",
   integrityNotAvailable: "not recorded",
@@ -359,6 +362,8 @@ const ja: Strings = {
   openDecline: "開かない",
   figureOpenLink: (origin) => `${origin} を開く ↗`,
   figureAnnotated: "拡張機能による注釈あり",
+  figureSection: (name) => `セクション (ブックマーク): ${name}`,
+  figureOpenSource: (section) => (section ? `元の文書の「${section}」を開く ↗` : "元の文書を開く ↗"),
   figureAnnotatorFailed: (id, msg) => `拡張機能の注釈 ${id} が失敗しました: ${msg}`,
   integrityTitle: "この文書の履歴について (情報)",
   integrityNotAvailable: "記録なし",

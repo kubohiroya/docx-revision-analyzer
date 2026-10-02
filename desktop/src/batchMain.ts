@@ -16,6 +16,21 @@ import * as path from "path";
 import { isTargetDocx, MAX_FOLDER_FILES, MicrosoftClient, MicrosoftError } from "./microsoft";
 import type { BatchFolder } from "./shared";
 
+/**
+ * 開いた (一括処理した) OneDrive / SharePoint の文書の URL。図の見出しや、拡張の注釈の「元の文書へのリンク」として、
+ * 確認なしで開いてよいもの (アプリが Graph から得た URL で、拡張が作ったものではない)
+ */
+const sourceUrls = new Set<string>();
+
+export function rememberSource(webUrl: string): void {
+  sourceUrls.add(webUrl.replace(/#.*$/, ""));
+}
+
+/** 開いた文書の URL (と、その #ブックマーク) か */
+export function isSourceLink(url: string): boolean {
+  return /^https:\/\//i.test(url) && sourceUrls.has(url.replace(/#.*$/, ""));
+}
+
 /** 書き込みを許した出力先のフォルダ */
 const outputRoots = new Set<string>();
 const ALLOWED_EXT = new Set([".svg", ".csv", ".html"]);
@@ -78,6 +93,7 @@ export function registerBatchIpc(
     try {
       const f = await ms.listFolder(url);
       remember({ url, name: f.name, kind: "folder" });
+      for (const x of f.files) if (x.webUrl) rememberSource(x.webUrl);
       const folder: BatchFolder = {
         name: f.name,
         location: f.webUrl ?? url,
@@ -88,6 +104,7 @@ export function registerBatchIpc(
           size: x.size,
           mtime: x.mtime,
           ref: { kind: "cloud", driveId: x.driveId, itemId: x.itemId },
+          webUrl: x.webUrl,
         })),
       };
       return { folder };
@@ -142,6 +159,13 @@ export function registerBatchIpc(
     await fs.promises.mkdir(path.dirname(p), { recursive: true });
     await fs.promises.writeFile(p, content, "utf-8");
     return p;
+  });
+
+  ipcMain.handle("open-source-link", async (_e, url: string) => {
+    if (!isSourceLink(url)) return false;
+    if (process.env.DRA_SMOKE_FILE || process.env.DRA_SMOKE_URL || process.env.DRA_SMOKE_BATCH) console.log(`smoke: would open ${url}`);
+    else await shell.openExternal(url);
+    return true;
   });
 
   ipcMain.handle("show-folder", (_e, dir: string) => {
