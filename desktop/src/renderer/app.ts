@@ -7,6 +7,11 @@ import {
   buildBuckets,
   buildDefaultTitle,
   checkIntegrity,
+  chartTargets,
+  FigureTarget,
+  flowTargets,
+  ResolvedAnnotation,
+  sessionedChartTargets,
   IntegrityReport,
   buildFlow,
   BucketSpec,
@@ -51,6 +56,12 @@ declare global {
   }
 }
 import {
+  annotationsForExport,
+  bindFigureAnnotations,
+  collectFigureAnnotations,
+  FigureAnnotations,
+} from "./figures";
+import {
   buildAnalysisResult,
   clearPanels,
   confirmPermissions,
@@ -75,6 +86,13 @@ interface Analysis {
   flow?: FlowResult;
   chartSvg?: string;
   flowSvg?: string;
+  /** 注釈を埋め込んで描き直す (書き出し用) */
+  renderChart?: (annotations?: Map<string, ResolvedAnnotation>) => string;
+  renderFlow?: (annotations?: Map<string, ResolvedAnnotation>) => string;
+  chartTargets: FigureTarget[];
+  flowTargets: FigureTarget[];
+  /** 拡張の図の注釈 (図 → 部分のキー → 注釈) */
+  figureAnnotations: FigureAnnotations;
 }
 
 interface Internal {
@@ -238,30 +256,51 @@ async function analyze(): Promise<void> {
   const classification = await runPipeline(ruleSet, ctx);
   applyClassification(data.events, classification);
 
-  const result: Analysis = { data, positioned, classification, integrity: await checkIntegrity(bytes) };
+  const result: Analysis = {
+    data,
+    positioned,
+    classification,
+    integrity: await checkIntegrity(bytes),
+    chartTargets: [],
+    flowTargets: [],
+    figureAnnotations: { chart: new Map(), flow: new Map() },
+  };
   const mtime = new Date(file.mtime);
+  const fileName = file.name;
   const note = rules ? libT("rulesNote", rules.ruleSet) : undefined;
   if (data.events.length > 0) {
     const bucket: BucketSpec = /^\d+$/.test(a.bucket) ? parseInt(a.bucket, 10) : (a.bucket as BucketSpec);
     const title = buildDefaultTitle(libT("chartTitlePrefix"), file.name, mtime);
-    result.chartSvg = a.chartSplit
-      ? renderSessionedRevisionChart(splitIntoSessions(data.events, a.gapThresholdHours), data.baselineCharCount, bucket, {
+    const highlightIds = classification.categories.highlights().map((c) => c.id);
+    if (a.chartSplit) {
+      const sessions = splitIntoSessions(data.events, a.gapThresholdHours);
+      result.renderChart = (annotations) =>
+        renderSessionedRevisionChart(sessions, data.baselineCharCount, bucket, {
           title,
           height: 550,
           gapThresholdHours: a.gapThresholdHours,
           note,
           categories: classification.categories,
-          annotate: true,
-        })
-      : renderRevisionChart(buildBuckets(data.events, data.baselineCharCount, bucket), {
+          annotate: !annotations,
+          annotations,
+        });
+      result.chartTargets = sessionedChartTargets(sessions, data.baselineCharCount, bucket, highlightIds);
+    } else {
+      const buckets = buildBuckets(data.events, data.baselineCharCount, bucket);
+      result.renderChart = (annotations) =>
+        renderRevisionChart(buckets, {
           eventRange: { start: data.events[0].date, end: data.events[data.events.length - 1].date },
           width: 1100,
           height: 550,
           title,
           note,
           categories: classification.categories,
-          annotate: true,
+          annotate: !annotations,
+          annotations,
         });
+      result.chartTargets = chartTargets(buckets, highlightIds);
+    }
+    result.chartSvg = result.renderChart();
     const flow = buildFlow(model, {
       gapThresholdHours: a.gapThresholdHours,
       bulkChars: a.bulkChars,
@@ -271,17 +310,20 @@ async function analyze(): Promise<void> {
     });
     result.flow = flow;
     if (flow.sessions.length > 0) {
-      result.flowSvg = renderFlowSvg(flow, {
-        title: buildDefaultTitle(libT("flowTitlePrefix"), file.name, mtime),
-        note,
-        categories: classification.categories,
-        annotate: true,
-      });
+      result.renderFlow = (annotations) =>
+        renderFlowSvg(flow, {
+          title: buildDefaultTitle(libT("flowTitlePrefix"), fileName, mtime),
+          note,
+          categories: classification.categories,
+          annotate: !annotations,
+          annotations,
+        });
+      result.flowSvg = result.renderFlow();
+      result.flowTargets = flowTargets(flow);
     }
   }
   analysis = result;
-  window.app.extensions.analysisComplete(
-    buildAnalysisResult({
+  const analysisResult = buildAnalysisResult({
       file: { name: file.name, mtime: file.mtime },
       data,
       ctx,
@@ -290,7 +332,12 @@ async function analyze(): Promise<void> {
       flow: result.flow,
       finalText: finalDocumentText(model),
       integrity: result.integrity,
-    })
+    });
+  window.app.extensions.analysisComplete(analysisResult);
+  result.figureAnnotations = await collectFigureAnnotations(
+    { chart: result.chartTargets, flow: result.flowTargets },
+    analysisResult,
+    (msg) => extErrors.push(msg)
   );
 
   // 文書の設定・変更履歴の有無の案内
@@ -311,6 +358,8 @@ async function analyze(): Promise<void> {
 
   $("pane-chart").innerHTML = result.chartSvg ?? "";
   $("pane-flow").innerHTML = result.flowSvg ?? (data.events.length > 0 ? `<p class="hint">${escapeHtml(libT("noRevisionsInRange"))}</p>` : "");
+  bindFigureAnnotations($("pane-chart"), result.figureAnnotations.chart);
+  bindFigureAnnotations($("pane-flow"), result.figureAnnotations.flow);
   renderHighlights();
   showTab(tab === "settings" ? "chart" : tab);
   status(
@@ -677,8 +726,13 @@ function renderMicrosoftSettings(): void {
 // 書き出し
 // ---------------------------------------------------------------------------
 
+/** 書き出す SVG: 拡張の注釈を <title> (説明) と <a href> (リンク) として埋め込む */
 function currentSvg(): string | undefined {
-  return tab === "chart" ? analysis?.chartSvg : tab === "flow" ? analysis?.flowSvg : undefined;
+  const a = analysis;
+  if (!a) return undefined;
+  if (tab === "chart" && a.renderChart) return a.renderChart(annotationsForExport(a.figureAnnotations.chart, lang));
+  if (tab === "flow" && a.renderFlow) return a.renderFlow(annotationsForExport(a.figureAnnotations.flow, lang));
+  return undefined;
 }
 
 function svgToPng(svg: string, scale = 2): Promise<Uint8Array> {

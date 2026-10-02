@@ -92,6 +92,7 @@ const en = {
     blocked: "Blocked (destination not declared)",
     queued: "Queued (offline)",
     discarded: "Discarded (extension disabled)",
+    opened: "Link opened",
   } as Record<string, string>,
   close: "Close",
   openUrl: "Open from URL…",
@@ -165,6 +166,14 @@ const en = {
   cloudFixHint:
     "This document is on OneDrive / SharePoint, so the app can't change its settings. Open it in Word to change them, " +
     "or download it and open the downloaded file here.",
+  openConfirmTitle: "Open this link?",
+  openConfirmBody: (origin: string) =>
+    `The extension wants to open the following address in your browser (${origin}). A link can carry data in its address, so check it first.`,
+  openAllow: "Open",
+  openDecline: "Don't open",
+  figureOpenLink: (origin: string) => `Open ${origin} ↗`,
+  figureAnnotated: "Annotated by an extension",
+  figureAnnotatorFailed: (id: string, msg: string) => `The extension annotator ${id} failed: ${msg}`,
   integrityTitle: "About this document's history (informational)",
   integrityNotAvailable: "not recorded",
   integrityObserved: "differs from Word's usual output",
@@ -272,6 +281,7 @@ const ja: Strings = {
     blocked: "ブロック (宣言されていない宛先)",
     queued: "キュー (オフライン)",
     discarded: "破棄 (拡張機能を無効にした)",
+    opened: "リンクを開いた",
   },
   close: "閉じる",
   openUrl: "URL から開く…",
@@ -342,6 +352,14 @@ const ja: Strings = {
   cloudFixHint:
     "この文書は OneDrive / SharePoint 上にあるため、アプリからは設定を変更できません。Word で開いて変更するか、" +
     "ダウンロードしたファイルをこのアプリで開いてください。",
+  openConfirmTitle: "このリンクを開きますか?",
+  openConfirmBody: (origin) =>
+    `拡張機能が次のアドレスをブラウザで開こうとしています (${origin})。リンクのアドレスにはデータを含められるため、開く前に確認してください。`,
+  openAllow: "開く",
+  openDecline: "開かない",
+  figureOpenLink: (origin) => `${origin} を開く ↗`,
+  figureAnnotated: "拡張機能による注釈あり",
+  figureAnnotatorFailed: (id, msg) => `拡張機能の注釈 ${id} が失敗しました: ${msg}`,
   integrityTitle: "この文書の履歴について (情報)",
   integrityNotAvailable: "記録なし",
   integrityObserved: "Word の通常の形と違う点あり",

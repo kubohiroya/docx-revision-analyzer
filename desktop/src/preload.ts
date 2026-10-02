@@ -13,6 +13,8 @@ const api: AppApi = {
     classify: (extId, classifierId, ctx) => ipcRenderer.invoke("ext:classify", extId, classifierId, ctx),
     analysisComplete: (result) => ipcRenderer.send("ext:analysis-complete", result),
     sendLog: (id) => ipcRenderer.invoke("ext:send-log", id),
+    annotateFigure: (extId, annotatorId, ctx) => ipcRenderer.invoke("ext:annotate-figure", extId, annotatorId, ctx),
+    openLink: (extId, url) => ipcRenderer.invoke("ext:open-link", extId, url),
     onSendLogChanged: (cb) => {
       ipcRenderer.on("ext-send-log-changed", (_e, id: string) => cb(id));
     },

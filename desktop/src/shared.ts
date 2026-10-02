@@ -12,6 +12,8 @@ import type {
   ClassifierContext,
   DialogSpec,
   ExtensionManifest,
+  FigureAnnotationSpec,
+  FigureContext,
   FormSpec,
   HighlightSpec,
   LocalizedText,
@@ -129,14 +131,16 @@ export interface ExtensionListItem {
 
 export interface ExtensionRegistration {
   extId: string;
+  name: LocalizedText;
   categories: CategorySpec[];
   classifiers: { id: string; version: string }[];
+  annotators: { id: string; version: string }[];
 }
 
 /** 拡張が求めた UI の表示 */
 export interface ExtensionUiRequest {
   reqId: number;
-  kind: "dialog" | "panel" | "form" | "confirmSend";
+  kind: "dialog" | "panel" | "form" | "confirmSend" | "confirmOpen";
   ext: { id: string; name: LocalizedText };
   /** confirmSend では送信の宛先と本文 (JSON) */
   spec: DialogSpec | PanelSpec | FormSpec | { url: string; body: string };
@@ -154,6 +158,14 @@ export interface ExtensionsApi {
     ctx: Omit<ClassifierContext, "windowsFor">
   ): Promise<{ highlights: HighlightSpec[]; error?: string }>;
   analysisComplete(result: AnalysisResult): void;
+  /** 拡張の図の注釈を求める */
+  annotateFigure(
+    extId: string,
+    annotatorId: string,
+    ctx: FigureContext
+  ): Promise<{ annotations: FigureAnnotationSpec[]; error?: string }>;
+  /** 図の注釈のリンクを開く (確認と送信履歴への記録はメインプロセスが行う)。開いたら true */
+  openLink(extId: string, url: string): Promise<boolean>;
   /** 拡張の送信履歴 (古い順) */
   sendLog(id: string): Promise<import("./sendLog").SendLogEntry[]>;
   /** 送信履歴が変わったとき */

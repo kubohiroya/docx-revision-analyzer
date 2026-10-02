@@ -407,6 +407,23 @@ Windows では書き込みオープンの可否、macOS/Linux では `lsof`) を
 
 特徴量そのものは判定をしません (しきい値は別に適用します)。
 
+### 図の部分への注釈 (`--annotations`)
+
+`--annotations <file>` (YAML / JSON) で、SVG の部分ごとに、マウスオーバーで出る説明 (`<title>`) やクリックで開くリンク
+(`<a href>`。http / https のみ) を付けられます。部分のキーは `--json` の出力の `figureTargets` にあります: chart の棒
+`chart:bar:<カテゴリ>:<バケットの開始時刻>`、flow の段落 `flow:para:<列>:<段落>`、帯 `flow:band:<区間>:<単位>`、移動の帯
+`flow:move:…`、キャプション `flow:caption:<区間>`。
+
+```yaml
+annotations:
+  - target: "flow:para:2:9"
+    tooltip: { en: "Rewritten after feedback", ja: "指摘を受けて書き直した" }
+    href: "https://example.com/notes#p9"
+```
+
+デスクトップアプリの拡張機能も同じ注釈を付けられます (`desktop/EXTENSIONS.md`)。注釈が無ければ SVG は変わりません。
+ライブラリでは `resolveAnnotations`、`chartTargets` / `sessionedChartTargets` / `flowTargets` と、描画の `annotations` オプション。
+
 ### ハイライトの判定ルール (`--rules`)
 
 ルールファイル (YAML / JSON) で、挿入の窓の特徴量に対する条件と段階 (レベル) を書きます。レベルは上から評価し、

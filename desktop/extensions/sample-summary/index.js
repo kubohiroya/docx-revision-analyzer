@@ -2,6 +2,8 @@
 /**
  * 拡張機能のサンプル (API v1)。
  *  - カテゴリ「長い単独の挿入」を登録し、1回の挿入 (w:ins) で 200 文字以上入った箇所をハイライトする分類器を登録する
+ *  - 図の注釈: 長い単独の挿入があった段落 (flow) と棒 (chart) に、マウスオーバーの説明とポップアップ、
+ *    README へのリンクを付ける。flow の区間のキャプションには、区間のまとめのポップアップを付ける
  *  - 解析が終わるたびに、区間・文字数・ハイライトの件数と、この拡張で解析した回数 (storage) をパネルに表示する
  * 本文は使わない (documentText の権限を求めない) ため、解析結果の本文は空文字列で届く。
  *
@@ -41,6 +43,77 @@ export function activate(host) {
             ja: `1回の挿入で ${e.chars} 文字が入った`,
           },
         }));
+    },
+  });
+
+  const README = "https://github.com/kubohiroya/docx-revision-analyzer#readme";
+
+  host.registerFigureAnnotator({
+    id: `${ID}.figure`,
+    version: "1.0.0",
+    annotate({ figure, targets, analysis }) {
+      const mine = analysis.highlights.filter((h) => h.categoryId === CATEGORY);
+      const byId = new Map(analysis.positioned.map((e) => [e.id, e]));
+      /** @type {import("../../src/extension-api").FigureAnnotationSpec[]} */
+      const out = [];
+      for (const h of mine) {
+        const t = Date.parse(h.start);
+        const chars = Number(h.features?.chars ?? 0);
+        const tooltip = {
+          en: `Long single insertion: ${chars} chars at ${new Date(t).toLocaleString("en-US")}`,
+          ja: `長い単独の挿入: ${new Date(t).toLocaleString("ja-JP")} に ${chars} 文字`,
+        };
+        if (figure === "flow") {
+          // ハイライトの時刻を含む区間の、終了時点の列 (列 = 区間 + 1) の段落
+          const session = analysis.sessions.findIndex((s) => Date.parse(s.start) <= t && t <= Date.parse(s.end));
+          const paras = new Set(h.eventIds.flatMap((id) => byId.get(id)?.paraModelIndices ?? []));
+          for (const tg of targets) {
+            if (tg.kind === "paragraph" && tg.column === session + 1 && paras.has(tg.paraIndex)) {
+              out.push({
+                target: tg.key,
+                tooltip,
+                popup: {
+                  title: { en: "Long single insertion", ja: "長い単独の挿入" },
+                  blocks: [
+                    { type: "keyValue", rows: [{ key: { en: "Characters", ja: "文字数" }, value: chars }, { key: { en: "Session", ja: "区間" }, value: session + 1 }] },
+                    { type: "text", text: { en: "Was this pasted, or typed in one go?", ja: "貼り付けたもの、それとも一気に入力したもの?" } },
+                  ],
+                },
+                href: README,
+              });
+            }
+          }
+        } else {
+          for (const tg of targets) {
+            if (tg.kind === "bar" && Date.parse(tg.start) <= t && t < Date.parse(tg.end)) {
+              out.push({ target: tg.key, tooltip, href: README });
+            }
+          }
+        }
+      }
+      if (figure === "flow") {
+        for (const tg of targets) {
+          if (tg.kind !== "caption") continue;
+          const s = analysis.sessions[tg.session];
+          out.push({
+            target: tg.key,
+            popup: {
+              title: { en: `Session ${tg.session + 1}`, ja: `区間 ${tg.session + 1}` },
+              blocks: [
+                {
+                  type: "keyValue",
+                  rows: [
+                    { key: { en: "Inserted", ja: "挿入" }, value: s.insChars },
+                    { key: { en: "Deleted", ja: "削除" }, value: s.delChars },
+                    { key: { en: "Bulk-inserted", ja: "一括挿入" }, value: s.bulkInsChars },
+                  ],
+                },
+              ],
+            },
+          });
+        }
+      }
+      return out;
     },
   });
 

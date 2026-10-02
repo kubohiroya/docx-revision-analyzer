@@ -14,6 +14,8 @@ import * as fs from "fs";
 import * as path from "path";
 import type {
   AnalysisResult,
+  FigureAnnotationSpec,
+  FigureContext,
   CategorySpec,
   ClassifierContext,
   DialogSpec,
@@ -31,6 +33,8 @@ export const EXT_SCHEME = "dra-ext";
 const ACTIVATE_TIMEOUT_MS = 10_000;
 const CLASSIFY_TIMEOUT_MS = 10_000;
 const ANALYSIS_TIMEOUT_MS = 30_000;
+const ANNOTATE_TIMEOUT_MS = 10_000;
+const MAX_ANNOTATIONS = 5_000;
 const MAX_STORAGE_BYTES = 1_000_000;
 
 export type ExtensionState = "disabled" | "starting" | "active" | "error";
@@ -43,11 +47,12 @@ export interface ExtensionInfo {
   error?: string;
   categories: CategorySpec[];
   classifiers: { id: string; version: string }[];
+  annotators: { id: string; version: string }[];
 }
 
 /** アプリのウィンドウへ、拡張の UI の表示を頼む関数 */
 export type UiRequester = (
-  kind: "dialog" | "panel" | "form" | "confirmSend",
+  kind: "dialog" | "panel" | "form" | "confirmSend" | "confirmOpen",
   ext: { id: string; name: ExtensionManifest["name"] },
   spec: DialogSpec | PanelSpec | FormSpec | { url: string; body: string }
 ) => Promise<unknown>;
@@ -80,7 +85,7 @@ export function validateManifest(m: unknown): string | undefined {
     return `apiVersion ${String(v.apiVersion)} is not supported (supported: ${SUPPORTED_API_VERSIONS.join(", ")})`;
   }
   const p = (v.permissions ?? {}) as Record<string, unknown>;
-  for (const origin of (p.network as unknown[]) ?? []) {
+  for (const origin of [...((p.network as unknown[]) ?? []), ...((p.links as unknown[]) ?? [])]) {
     try {
       const u = new URL(String(origin));
       if (u.protocol !== "https:" || u.origin !== String(origin).replace(/\/$/, "")) return `network: "${origin}" must be an https origin`;
@@ -139,7 +144,7 @@ export class ExtensionManager {
       const id = manifest?.id ?? d;
       if (this.hosts.has(id)) continue;
       this.hosts.set(id, {
-        info: { id, dir, manifest, state: error ? "error" : "disabled", error, categories: [], classifiers: [] },
+        info: { id, dir, manifest, state: error ? "error" : "disabled", error, categories: [], classifiers: [], annotators: [] },
         pending: new Map(),
       });
     }
@@ -206,6 +211,7 @@ export class ExtensionManager {
     host.info.error = undefined;
     host.info.categories = [];
     host.info.classifiers = [];
+    host.info.annotators = [];
     const win = new BrowserWindow({
       show: false,
       webPreferences: {
@@ -257,6 +263,7 @@ export class ExtensionManager {
     host.info.state = "disabled";
     host.info.categories = [];
     host.info.classifiers = [];
+    host.info.annotators = [];
   }
 
   private fail(host: Host, message: string): void {
@@ -298,6 +305,13 @@ export class ExtensionManager {
         const c = args as { id: string; version: string };
         if (typeof c?.id !== "string" || !c.id.startsWith(`${m.id}.`)) throw new Error(`classifier ids must start with "${m.id}."`);
         host.info.classifiers = [...host.info.classifiers.filter((x) => x.id !== c.id), { id: c.id, version: String(c.version) }];
+        return null;
+      }
+      case "registerFigureAnnotator": {
+        const c = args as { id: string; version: string };
+        if (!perms.ui?.includes("figure")) throw new Error('the "figure" UI permission is not declared in manifest.json');
+        if (typeof c?.id !== "string" || !c.id.startsWith(`${m.id}.`)) throw new Error(`annotator ids must start with "${m.id}."`);
+        host.info.annotators = [...host.info.annotators.filter((x) => x.id !== c.id), { id: c.id, version: String(c.version) }];
         return null;
       }
       case "ui.showDialog":
@@ -353,8 +367,64 @@ export class ExtensionManager {
   }
 
   /** 有効な拡張のカテゴリと分類器 */
-  registrations(): { extId: string; categories: CategorySpec[]; classifiers: { id: string; version: string }[] }[] {
-    return this.active().map((h) => ({ extId: h.info.id, categories: h.info.categories, classifiers: h.info.classifiers }));
+  registrations(): {
+    extId: string;
+    name: ExtensionManifest["name"];
+    categories: CategorySpec[];
+    classifiers: { id: string; version: string }[];
+    annotators: { id: string; version: string }[];
+  }[] {
+    return this.active().map((h) => ({
+      extId: h.info.id,
+      name: h.info.manifest!.name,
+      categories: h.info.categories,
+      classifiers: h.info.classifiers,
+      annotators: h.info.annotators,
+    }));
+  }
+
+  /** 図の注釈のリンクとして開いてよい URL か (宣言したオリジンの https だけ) */
+  linkAllowed(extId: string, url: string): boolean {
+    const m = this.hosts.get(extId)?.info.manifest;
+    if (!m) return false;
+    try {
+      const u = new URL(url);
+      const declared = (m.permissions?.links ?? []).map((o) => o.replace(/\/$/, ""));
+      return u.protocol === "https:" && declared.includes(u.origin);
+    } catch {
+      return false;
+    }
+  }
+
+  manifest(extId: string): ExtensionManifest | undefined {
+    return this.hosts.get(extId)?.info.manifest;
+  }
+
+  /**
+   * 拡張の注釈を求める。target が文字列でないもの・宣言していないオリジンのリンクは取り除く。
+   * 失敗したら空の結果とエラーを返す
+   */
+  async annotateFigure(extId: string, annotatorId: string, ctx: FigureContext): Promise<{ annotations: FigureAnnotationSpec[]; error?: string }> {
+    const host = this.hosts.get(extId);
+    if (!host || host.info.state !== "active") return { annotations: [], error: "the extension is not running" };
+    try {
+      const redacted = { ...ctx, analysis: this.redact(host, ctx.analysis) };
+      const r = await this.invoke(host, "annotateFigure", { annotatorId, ctx: redacted }, ANNOTATE_TIMEOUT_MS);
+      const list = (Array.isArray(r) ? r : []).slice(0, MAX_ANNOTATIONS) as FigureAnnotationSpec[];
+      const keys = new Set(ctx.targets.map((t) => t.key));
+      return {
+        annotations: list
+          .filter((a) => a && typeof a.target === "string" && keys.has(a.target))
+          .map((a) => ({
+            target: a.target,
+            tooltip: a.tooltip,
+            popup: a.popup && Array.isArray(a.popup.blocks) ? a.popup : undefined,
+            href: typeof a.href === "string" && this.linkAllowed(extId, a.href) ? a.href : undefined,
+          })),
+      };
+    } catch (err) {
+      return { annotations: [], error: err instanceof Error ? err.message : String(err) };
+    }
   }
 
   /** 拡張の分類器を実行する。失敗したら空の結果とエラーを返す (アプリの解析は続ける) */
