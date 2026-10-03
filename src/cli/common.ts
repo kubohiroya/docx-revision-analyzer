@@ -18,6 +18,8 @@ import {
 } from "../lib/historySettings";
 import { t } from "../lib/i18n";
 import { enableHistoryPreservation } from "../node/historyFile";
+import { lockTemplateFile } from "../node/lockFile";
+import { hasLockPassword } from "../lib/trackLock";
 import { parse as parseYaml } from "yaml";
 import type { DocxLayoutModel } from "../lib/docxLayout";
 import { extractRevisionPositions } from "../lib/revisionPositions";
@@ -27,6 +29,12 @@ import {
   WindowOptions,
 } from "../lib/insertionWindows";
 import type { IntegrityReport } from "../lib/integrity";
+import {
+  checkTamperEvidence,
+  hasTamperEvidence,
+  tamperedFileName,
+  TamperReport,
+} from "../lib/tamperEvidence";
 import { FigureAnnotation, FigureTarget, ResolvedAnnotation, resolveAnnotations } from "../lib/figureTargets";
 import { CategoryRegistry, contrastWithWhite, MIN_GRAPHIC_CONTRAST } from "../lib/categories";
 import {
@@ -122,6 +130,89 @@ function askYesNo(question: string): Promise<boolean> {
   });
 }
 
+/**
+ * ターミナルで、入力した文字を表示せずに1行読む (パスワード用)。質問は標準エラー出力に書く。
+ * Ctrl+C で中止する
+ */
+function askHidden(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    const stdin = process.stdin;
+    process.stderr.write(question);
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding("utf8");
+    let value = "";
+    const finish = () => {
+      stdin.setRawMode(false);
+      stdin.pause();
+      stdin.removeListener("data", onData);
+      process.stderr.write("\n");
+      resolve(value);
+    };
+    const onData = (chunk: string) => {
+      for (const c of chunk) {
+        if (c === "\r" || c === "\n" || c === "\u0004") return finish();
+        if (c === "\u0003") {
+          stdin.setRawMode(false);
+          process.stderr.write("\n");
+          process.exit(130);
+        }
+        if (c === "\u007f" || c === "\b") value = value.slice(0, -1);
+        else value += c;
+      }
+    };
+    stdin.on("data", onData);
+  });
+}
+
+/**
+ * --lock で使うパスワードを決める。ターミナルなら2回尋ね、そうでなければ環境変数 DOCX_LOCK_PASSWORD を使う。
+ * 空ならパスワード無し (警告を返す)。2回の入力が違えば undefined。
+ * chosen は、利用者がパスワード (空を含む) を明示的に決めたか (ターミナルで入力した・環境変数で指定した)
+ */
+async function lockPassword(
+  options: Record<string, any>
+): Promise<{ password: string; chosen: boolean; notes: string[] } | undefined> {
+  let password = process.env.DOCX_LOCK_PASSWORD ?? "";
+  let chosen = process.env.DOCX_LOCK_PASSWORD !== undefined;
+  if (!chosen && canAskInteractively(options) && typeof process.stdin.setRawMode === "function") {
+    password = await askHidden(t("lockPasswordPrompt"));
+    if (password && (await askHidden(t("lockPasswordConfirm"))) !== password) return undefined;
+    chosen = true;
+  }
+  return { password, chosen, notes: password ? [] : [t("warning", t("lockNoPassword"))] };
+}
+
+/** --lock: 各ファイルに変更履歴のロックをかけて上書きする */
+async function lockFiles(files: string[], options: Record<string, any>): Promise<FileResult[]> {
+  const pw = await lockPassword(options);
+  if (!pw) {
+    console.error(t("lockPasswordMismatch"));
+    process.exit(1);
+  }
+  for (const n of pw.notes) console.error(n);
+  const results: FileResult[] = [];
+  for (const file of files) {
+    try {
+      const resolved = path.resolve(file);
+      if (!fs.existsSync(resolved)) throw new Error(t("fileNotFound", resolved));
+      // パスワードを尋ねられなかったときに、パスワード付きのロックをパスワード無しで置き換えない
+      if (!pw.password && !pw.chosen && (await hasLockPassword(await fs.promises.readFile(resolved)))) {
+        throw new Error(t("lockKeepsPassword"));
+      }
+      const r = await lockTemplateFile(resolved, pw.password || undefined);
+      const notes: string[] = [];
+      if (r.wasLocked) notes.push(t("lockReplaced"));
+      if (!r.wasTracking) notes.push(t("lockTrackingTurnedOn"));
+      if (r.removedPersonalInfoSetting) notes.push(t("lockPersonalInfoRemoved"));
+      results.push({ input: file, ok: true, outFile: resolved, notes, message: t("lockDone", r.backupPath) });
+    } catch (err) {
+      results.push({ input: file, ok: false, message: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return results;
+}
+
 /** 対話的に y/N を尋ねられる状況か (ドロップ起動やパイプ経由ではない) */
 function canAskInteractively(options: Record<string, any>): boolean {
   return !options.drop && Boolean(process.stdin.isTTY) && Boolean(process.stderr.isTTY);
@@ -168,13 +259,14 @@ export async function checkAndFixHistorySettings(
   return [t("preserveDone", r.backupPath ?? "")];
 }
 
-/** --drop / --preserve-history / --check-history-settings / --lang を登録する */
+/** --drop / --preserve-history / --check-history-settings / --lock / --lang を登録する */
 export function addCommonOptions(program: Command): Command {
   return program
     .option("--drop", t("optDrop"))
     .option("--preserve-history", t("optPreserveHistory"))
     .addOption(new Option("--preserveHistory", t("optPreserveHistoryAlias")).hideHelp())
     .option("--check-history-settings", t("optCheckHistorySettings"))
+    .option("--lock", t("optLock"))
     .addOption(langOption());
 }
 
@@ -186,7 +278,43 @@ export function addAnalysisOptions(program: Command): Command {
     .option("--json [file.json]", t("optJson"))
     .option("--window-seconds <s>", t("optWindowSeconds"))
     .option("--window-chars <n>", t("optWindowChars"))
-    .option("--window-paras <n>", t("optWindowParas"));
+    .option("--window-paras <n>", t("optWindowParas"))
+    .option("--template <file.docx>", t("optTemplate"))
+    .option("--no-tamper-check", t("optNoTamperCheck"));
+}
+
+/** 読み込んだテンプレート (フォルダを処理するときに毎回読まないよう、パスごとに保持する) */
+const templateCache = new Map<string, Buffer>();
+
+/**
+ * 改ざんの痕跡を調べる。--no-tamper-check のときは undefined。
+ * --template があれば、そのテンプレートとも照合する
+ */
+export async function checkTamper(buf: Buffer, options: Record<string, any>): Promise<TamperReport | undefined> {
+  if (options.tamperCheck === false) return undefined;
+  let template: Buffer | undefined;
+  if (options.template) {
+    const file = path.resolve(String(options.template));
+    if (!templateCache.has(file)) {
+      if (!fs.existsSync(file)) throw new Error(t("errTemplateNotFound", file));
+      templateCache.set(file, await fs.promises.readFile(file));
+    }
+    template = templateCache.get(file);
+  }
+  return checkTamperEvidence(buf, { template });
+}
+
+/**
+ * 痕跡が見つかったときの出力先とメッセージ。-o で出力先を指定した場合は名前を変えない
+ */
+export function tamperedOutput(
+  outFile: string,
+  explicitOutput: string | undefined,
+  report: TamperReport | undefined
+): { outFile: string; note?: string } {
+  if (!hasTamperEvidence(report)) return { outFile };
+  const ids = report!.evidence.map((e) => e.id).join(", ");
+  return { outFile: explicitOutput ? outFile : tamperedFileName(outFile), note: t("warning", t("tamperFound", ids)) };
 }
 
 function nonNegativeOption(value: unknown, name: string): number {
@@ -286,7 +414,8 @@ export function writeAnalysisJson(
   inputFile: string,
   analysis: RuleAnalysis,
   integrity?: IntegrityReport,
-  figureTargets?: FigureTarget[]
+  figureTargets?: FigureTarget[],
+  tamper?: TamperReport
 ): string | undefined {
   const json = options.json;
   if (json === undefined || json === false || json === "false") return undefined;
@@ -304,6 +433,8 @@ export function writeAnalysisJson(
     highlights: analysis.classification.highlights.map(highlightToJson),
     // 整合性の簡易チェック (判定ではなく情報として)
     integrity: integrity ?? null,
+    // 改ざんの痕跡 (--no-tamper-check のときは null)
+    tamperEvidence: tamper ?? null,
     // 図の部分の一覧 (--annotations の target に使うキー)
     figureTargets: figureTargets ?? [],
   };
@@ -346,7 +477,7 @@ export function expandInputs(inputs: string[]): string[] {
 /**
  * 各ファイルを processOne で処理し、結果を表示して終了コードを決める。
  * フォルダを渡した場合は、その下の .docx をすべて処理する (それぞれの隣に結果を書き出す)。
- * --check-history-settings 指定時は設定の確認だけを行う。
+ * --check-history-settings 指定時は設定の確認だけを、--lock 指定時はロックをかけるだけを行う。
  */
 export async function runForFiles(
   toolName: string,
@@ -379,8 +510,8 @@ export async function runForFiles(
     process.exit(1);
   }
 
-  const results: FileResult[] = [];
-  for (const file of files) {
+  const results: FileResult[] = options.lock ? await lockFiles(files, options) : [];
+  for (const file of options.lock ? [] : files) {
     try {
       results.push(await processOne(file, files.length === 1 ? options.output : undefined));
     } catch (err) {

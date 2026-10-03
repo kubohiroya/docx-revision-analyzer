@@ -346,6 +346,11 @@ export interface SessionedChartOptions extends ChartOptions {
   gapThresholdHours?: number;
   /** 1バケットあたりのおおよその横幅(px) */
   pixelsPerBucket?: number;
+  /**
+   * パネルごとの見出し (sessions と同じ順。スナップショットの通し解析で「第1回の提出」などを示す)。
+   * warn なら赤で示す (改ざんの痕跡が見つかった回)
+   */
+  sessionLabels?: { text: string; warn?: boolean; tooltip?: string }[];
 }
 
 /**
@@ -379,7 +384,8 @@ export function renderSessionedRevisionChart(
 
   const marginLeft = 70;
   const marginRight = 70;
-  const marginTop = (opts.gapThresholdHours !== undefined ? 78 : 60) + 14; // +14: 期間の月日の行
+  const marginTop =
+    (opts.gapThresholdHours !== undefined ? 78 : 60) + 14 + (opts.sessionLabels ? 18 : 0); // +14: 期間の月日の行、+18: パネルの見出し
   const marginBottom = 70;
   const plotH = height - marginTop - marginBottom;
 
@@ -511,7 +517,7 @@ export function renderSessionedRevisionChart(
 
   // --- パネルごとの棒・折れ線・X軸ラベル ---
   const panelContents: string[] = [];
-  for (const p of panels) {
+  for (const [k, p] of panels.entries()) {
     const n = p.buckets.length;
     if (n === 0) continue;
     const bandW = p.width / n;
@@ -554,9 +560,16 @@ export function renderSessionedRevisionChart(
     // 期間の月日 (最初と最後の変更の日時から)
     const evs = p.session.events;
     const dayLabel = renderDayLabel(evs[0].date, evs[evs.length - 1].date, p.x + p.width / 2, marginTop - 26);
+    const sl = opts.sessionLabels?.[k];
+    const panelLabel = sl
+      ? `<text x="${(p.x + p.width / 2).toFixed(2)}" y="${marginTop - 44}" text-anchor="middle" font-size="12" font-weight="bold" fill="${
+          sl.warn ? "#c5221f" : "#1a1a1a"
+        }">${esc(sl.text)}${sl.tooltip ? `<title>${esc(sl.tooltip)}</title>` : ""}</text>`
+      : "";
 
     panelContents.push(
-      dayLabel +
+      panelLabel +
+        dayLabel +
         `<g>${bars.join("")}</g>` +
         `<polyline points="${linePoints}" fill="none" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>` +
         `<g fill="${TOTAL_COLOR}">${dots}</g>` +

@@ -10,11 +10,13 @@
  * 解析の設定 (区間のしきい値・一括挿入・時間の刻み・判定ルール・有効な拡張の分類器) は、画面と同じものを使う。
  */
 import {
+  addTamperWarning,
   applyClassification,
   buildBuckets,
   buildDefaultTitle,
   buildFlow,
   BucketSpec,
+  checkTamperEvidence,
   createAnalysisContext,
   defaultClassifiers,
   defaultRuleSet,
@@ -22,6 +24,7 @@ import {
   extractRevisionPositions,
   extractRevisions,
   highlightCategoryMap,
+  localize,
   parseDocxLayout,
   renderFlowSvg,
   renderRevisionChart,
@@ -30,6 +33,7 @@ import {
   runClassifiers,
   splitIntoSessions,
   t as libT,
+  TAMPERED_SUFFIX,
 } from "../../../src/core";
 import type { AnalysisSettings, AppLang, BatchFolder } from "../shared";
 import type { Strings } from "./strings";
@@ -55,6 +59,8 @@ interface Row {
   highlights?: number;
   bulkInserted?: number;
   note?: string;
+  /** 改ざんの痕跡が見つかったか (見つかった図は <名前>-tampered.svg にする) */
+  tampered?: boolean;
 }
 
 /** 1つの docx からチャートとフローの SVG を作る */
@@ -103,10 +109,14 @@ async function renderFigures(
   const flowSvg = flow.sessions.length
     ? renderFlowSvg(flow, { title: buildDefaultTitle(libT("flowTitlePrefix"), name, when), note, categories: cls.categories, titleLink })
     : undefined;
+  const tamper = await checkTamperEvidence(bytes);
+  const tampered = tamper.evidence.length > 0;
   return {
     ok: true,
-    chart,
-    flow: flowSvg,
+    chart: addTamperWarning(chart, tamper),
+    flow: flowSvg && addTamperWarning(flowSvg, tamper),
+    tampered,
+    note: tampered ? tamper.evidence.map((e) => localize(e.message)).join(" ") : undefined,
     revisions: data.events.length,
     inserted: data.totalInserted,
     deleted: data.totalDeleted,
@@ -127,6 +137,10 @@ const stem = (p: string) => {
   return layout === "flat" ? s.split("/").join("__") : s;
 };
 
+/** 図のファイル名 (痕跡が見つかった図は末尾に -tampered を付ける) */
+const chartFile = (r: { path: string; tampered?: boolean }) => `${stem(r.path)}${r.tampered ? TAMPERED_SUFFIX : ""}.svg`;
+const flowFile = (r: { path: string; tampered?: boolean }) => `${stem(r.path)}-flow${r.tampered ? TAMPERED_SUFFIX : ""}.svg`;
+
 function csvCell(v: unknown): string {
   const s = v === undefined || v === null ? "" : String(v);
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -142,7 +156,7 @@ function summaryCsv(rows: Row[], S: Strings): string {
   const lines = [head.join(",")];
   for (const r of rows) {
     lines.push(
-      [r.path, r.ok ? "ok" : "error", r.revisions, r.inserted, r.deleted, r.sessions, r.bulkInserted, r.highlights, r.chart ? `${stem(r.path)}.svg` : "", r.flow ? `${stem(r.path)}-flow.svg` : "", r.note]
+      [r.path, r.ok ? "ok" : "error", r.revisions, r.inserted, r.deleted, r.sessions, r.bulkInserted, r.highlights, r.chart ? chartFile(r) : "", r.flow ? flowFile(r) : "", r.note]
         .map(csvCell)
         .join(",")
     );
@@ -156,9 +170,9 @@ function summaryHtml(folder: BatchFolder, rows: Row[], S: Strings, lang: AppLang
   const body = rows
     .map(
       (r) =>
-        `<tr${r.ok ? "" : ' class="err"'}><td>${escapeHtml(r.path)}</td>` +
-        `<td>${r.chart ? link(`${stem(r.path)}.svg`, S.batchChart) : ""}</td>` +
-        `<td>${r.flow ? link(`${stem(r.path)}-flow.svg`, S.batchFlow) : ""}</td>` +
+        `<tr${!r.ok || r.tampered ? ' class="err"' : ""}><td>${escapeHtml(r.path)}</td>` +
+        `<td>${r.chart ? link(chartFile(r), S.batchChart) : ""}</td>` +
+        `<td>${r.flow ? link(flowFile(r), S.batchFlow) : ""}</td>` +
         `<td class="n">${r.revisions ?? ""}</td><td class="n">${r.inserted ?? ""}</td><td class="n">${r.deleted ?? ""}</td>` +
         `<td class="n">${r.sessions ?? ""}</td><td class="n">${r.bulkInserted ?? ""}</td><td class="n">${r.highlights ?? ""}</td>` +
         `<td>${escapeHtml(r.note ?? "")}</td></tr>`
@@ -264,8 +278,9 @@ async function runBatch(folder: BatchFolder, outputRoot: string, ctx: BatchConte
     try {
       const bytes = await window.app.readBatchFile(f.ref);
       const r = await renderFigures(bytes, f.name, f.mtime, ctx, f.webUrl);
-      if (r.chart) await window.app.writeOutput(outputRoot, `${stem(f.path)}.svg`, r.chart);
-      if (r.flow) await window.app.writeOutput(outputRoot, `${stem(f.path)}-flow.svg`, r.flow);
+      const named = { path: f.path, tampered: r.tampered };
+      if (r.chart) await window.app.writeOutput(outputRoot, chartFile(named), r.chart);
+      if (r.flow) await window.app.writeOutput(outputRoot, flowFile(named), r.flow);
       rows.push({ path: f.path, ...r });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

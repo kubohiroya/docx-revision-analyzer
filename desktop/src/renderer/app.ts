@@ -149,6 +149,7 @@ function applyLang(): void {
   setText("l-split", S.chartSplit);
   setText("save-svg", S.saveSvg);
   setText("save-png", S.savePng);
+  setText("lock-template", S.lockTemplate);
   setText("drop-here", S.dropHere);
   setText("open2", S.open);
   setText("drop-hint", S.dropHint);
@@ -522,6 +523,8 @@ async function openFile(opened: OpenedFile | null): Promise<void> {
   if (!opened) return;
   file = opened;
   setText("file-name", opened.path);
+  // 解析できない文書 (変更履歴の無いテンプレートなど) でもロックはかけられるよう、解析の前に出す
+  $("lock-template").hidden = false;
   document.title = `${opened.name} — ${S.appTitle}`;
   await runSafely(analyze);
 }
@@ -533,6 +536,64 @@ async function fixHistory(): Promise<void> {
     file = await window.app.readDocx(file!.path);
     await analyze();
     banner(S.fixed(r.backupPath ?? ""));
+  });
+}
+
+/** パスワードを尋ねる。キャンセルなら undefined */
+function askLockPassword(): Promise<string | undefined> {
+  return modal<string | undefined>((root, close) => {
+    header(root, S.lockTitle);
+    root.append(el("p", S.lockIntro));
+    const field = (label: string) => {
+      const l = el("label", undefined, "field");
+      const input = el("input");
+      input.type = "password";
+      input.autocomplete = "new-password";
+      l.append(el("span", label), input);
+      root.append(l);
+      return input;
+    };
+    const pw = field(S.lockPassword);
+    const again = field(S.lockPasswordAgain);
+    root.append(el("p", S.lockPasswordHint, "hint"));
+    const error = el("p", S.lockMismatch, "error");
+    error.hidden = true;
+    root.append(error);
+    const buttons = el("div", undefined, "buttons");
+    const no = el("button", S.cancel);
+    no.onclick = () => close(undefined);
+    const yes = el("button", S.lockSave, "primary");
+    yes.onclick = () => {
+      if (pw.value !== again.value) {
+        error.hidden = false;
+        again.focus();
+        return;
+      }
+      close(pw.value);
+    };
+    buttons.append(no, yes);
+    root.append(buttons);
+    pw.focus();
+  }, undefined);
+}
+
+/** 開いている文書にロックをかけたものを、保存ダイアログで保存する */
+async function lockTemplate(): Promise<void> {
+  if (!file) return;
+  const opened = file;
+  const password = await askLockPassword();
+  if (password === undefined) return;
+  await runSafely(async () => {
+    const r = await window.app.saveLockedDocx(opened.bytes, `${opened.name.replace(/\.docx$/i, "")}-locked.docx`, password);
+    if (!r) return;
+    const notes = [
+      S.lockSaved(r.path),
+      ...(r.wasLocked ? [S.lockReplaced] : []),
+      ...(r.wasTracking ? [] : [S.lockTrackingOn]),
+      ...(r.removedPersonalInfoSetting ? [S.lockPersonalInfo] : []),
+    ];
+    status(S.lockSaved(r.path));
+    banner(notes.join(" "));
   });
 }
 
@@ -944,6 +1005,7 @@ async function main(): Promise<void> {
   }
   $("save-svg").onclick = () => void save("svg");
   $("save-png").onclick = () => void save("png");
+  $("lock-template").onclick = () => void lockTemplate();
 
   $("lang").addEventListener("change", async () => {
     const v = $<HTMLSelectElement>("lang").value as AppLang | "";

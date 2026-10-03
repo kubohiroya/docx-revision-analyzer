@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 English | [日本語](./README.ja.md)
 
-Three CLI tools that analyze Word (`.docx`) files edited with Track Changes
+Four CLI tools that analyze Word (`.docx`) files edited with Track Changes
 enabled:
 
 1. **`docx-revision-chart`** — renders an SVG chart of edit activity over time
@@ -14,6 +14,9 @@ enabled:
 3. **`docx-ai-suspicion-score`** — scores how likely it is that a chunk of
    text was pasted in from an external app (e.g. an AI writing tool) rather
    than typed and reviewed inside Word, on a 0–100 scale
+4. **`docx-revision-snapshot`** — archives each submission of a long-running
+   document (such as a thesis handed in at the end of each sprint) under a
+   serial number, and charts the revision history across all of them
 
 They're published as an npm package and also distributed as single, dependency-free executables built with
 [Bun](https://bun.sh) (no Node.js required). Licensed under MIT.
@@ -83,6 +86,137 @@ back to D, whichever state it is in now. This restores an earlier copy of the wh
 it, and it isn't guaranteed: OneDrive keeps only a limited number of versions, and a file that was never in state D
 has no such version to restore.
 
+### In a class: hand out a template with locked tracking through a Teams assignment
+
+To use these tools on student reports, the reliable way is for the teacher to prepare a template with Track
+Changes on and hand each student a copy of it through a Microsoft Teams assignment. The template can also be
+protected with Word's built-in Lock Tracking.
+
+#### 1. Make the template
+
+Leave the title, student ID and name blank for students to fill in. If useful, add the report's section headings
+or dummy body text for students to write over. Finally, turn Track Changes on (Review tab → Track Changes) and
+save. The template is now in state B.
+
+#### 2. Lock tracking (optional)
+
+**How to set it (teacher)**
+
+- **Word for Windows:** Review tab → the Track Changes ▼ → Lock Tracking, enter a password, then OK
+- **Word for Windows (another way):** Review tab → Restrict Editing → under "2. Editing restrictions", check "Allow
+  only this type of editing in the document" and choose "Tracked changes" → under "3. Start enforcement", click
+  "Yes, Start Enforcing Protection" → enter a password
+- **Word for Mac:** Review tab → Protect Document (in some versions, Protect → Protect Document), choose "Tracked
+  changes" and enter a password
+
+The password is optional, but without one anyone can unlock tracking from the same menu, so set one. To edit the
+template later, unlock it from the same menu with the password, make your changes, and lock it again.
+
+**Locking with these tools**
+
+Instead of using Word, you can lock the template with these tools. Both also turn Track Changes on, and turn off
+the setting that removes authors and dates on save if it is set.
+
+- **CLI:** pass the template with `--lock`. It asks for the password twice and locks the file in place (the
+  original is kept as `<name>.backup-<date>.docx`). No figure is drawn.
+
+  ```bash
+  docx-revision-chart --lock template.docx
+  ```
+
+  Where there is no terminal (such as when launched by drag and drop), pass the password in the
+  `DOCX_LOCK_PASSWORD` environment variable. Without it the file is locked with no password, except that a file
+  already locked with a password is left unchanged with an error rather than re-locked without one.
+- **Desktop app:** open (drop) the template and click "Lock template". After you enter the password, a dialog asks
+  where to save the locked copy (named `<name>-locked.docx` by default). The opened file itself is not changed.
+
+The password hash follows the specification (ECMA-376) and Apache POI's implementation, in the format Word 2013
+and later use (SHA-512, 100,000 rounds), so Word's Lock Tracking menu should accept the same password. Before
+handing the template out, open it in Word once and check that the password unlocks it.
+
+**What this does**
+
+- Track Changes stays on, and students who don't know the password can't turn it off.
+- Accept and Reject are grayed out and can't be used. This closes the ways a student could lose tracked changes
+  (state D → C, C / D → B, C / D → A).
+- Typing and deleting work as usual, and every edit is recorded as a tracked change.
+- Inside the file, `word/settings.xml` gets `<w:documentProtection w:edit="trackedChanges" w:enforcement="1" .../>`
+  and `<w:trackRevisions/>`. The lock is a setting of the file, so copies of the template keep it.
+
+**Limits**
+
+The lock is not strong protection. The password is stored only as a hash in `settings.xml`, and unzipping the
+`.docx` and deleting that element removes the lock. Selecting all the text and pasting it into a new document
+gives a document with neither the lock nor any tracked changes, and apps other than Word may not honor the lock.
+Also, deleting text you inserted while tracking removes it outright, leaving no record of the deletion, even with
+the lock on (this is how Word works). Treat the lock as a guard against mistakes, and pair it with a way to check
+that a submitted file was made from the template. These tools show a warning in the figure when a submitted file
+has traces of the lock being removed or of text typed with tracking off (see
+[Detecting traces of tampering](#detecting-traces-of-tampering)); pass the template you handed out with
+`--template` to also check each file against it.
+
+Before handing it out, check with a test account that the locked file can be edited in the app students will
+actually use (Word desktop, Word for the web and so on). Some apps may not let you edit a protected document.
+
+#### 3. Hand it out with a Teams assignment
+
+1. In Teams, open Assignments and create a new assignment
+2. Enter the assignment's title and instructions
+3. Under Attach, choose the template file from step 1 (and 2)
+4. Click "Students can't edit" below the attached file and change it to **"Students edit their own copy"**
+
+When a student opens the assignment, a copy of the template just for them is created automatically. They edit
+that copy on OneDrive with AutoSave on, and turn it in as is.
+
+#### 4. Tell students what to do
+
+- Don't use Accept or Reject while writing (with the lock on, they can't).
+- If the markup gets in the way, set the display to "No Markup" to write on a clean view; changing the display
+  doesn't stop the recording.
+- Keep AutoSave (top left of the window) on. Turning it off means fewer saves, so fewer versions are kept in
+  Version History.
+
+#### Why this is reliable
+
+- Students don't have to turn Track Changes on themselves. Each copy starts in state B, so nobody ends up writing
+  in state A because they forgot. With the lock on, nobody can turn it off midway either.
+- Each copy lives on OneDrive and is saved automatically, so the Version History described
+  [above](#files-saved-on-onedrive) keeps a fine-grained record.
+- Students open their copy, write in it and turn it in as is, which leaves less room to swap in a file rebuilt on
+  their own computer.
+
+#### Long-running writing (such as a thesis): submissions at each sprint
+
+In a document written over months, tracked changes get lost in two ways:
+
+- OneDrive's Version History drops old versions, because of limits on their number and age and the
+  organization's retention policies.
+- Text you typed while tracking is your own pending insertion until it is accepted. Deleting it leaves no record
+  of the deletion; it simply disappears. Rewrite the same passage several times and the drafts in between are gone.
+
+So have the writer hand the document in at the end of each sprint (one or two weeks, or each chapter), archive
+it, then accept all the changes and hand it back. Rewriting accepted text is recorded as a deletion, so every
+revision across sprints is kept; only rewrites within a single sprint are lost.
+
+1. The student hands the document in at the end of the sprint.
+2. The teacher archives it with [`docx-revision-snapshot`](#4-docx-revision-snapshot--archive-and-chart-submissions-over-time),
+   which numbers it, checks it against the previous submission, and draws each submission's figures and a chart
+   across all of them.
+3. The teacher opens the same file in Word, unlocks it, clicks "Accept All Changes", locks it again and saves.
+4. The teacher hands it back, and the student continues in the same file.
+
+The submitted file sits in the student's OneDrive, where the student can delete it, so keep the archive on the
+teacher's side.
+
+
+If you make these requirements of the assignment, state them in advance, for example in the syllabus's notes for
+students. A sample:
+
+> To ensure the integrity of the learning process, assignments in this course that require submitting a file based
+> on a template must be worked on in OneDrive, with Track Changes kept on at all times and the Version History
+> preserved. Students with a legitimate reason they cannot follow this must tell the instructor in advance.
+> Submissions that do not meet these requirements will not be graded.
+
 ---
 
 ## Installation
@@ -93,7 +227,7 @@ has no such version to restore.
 npm install -g docx-revision-analyzer
 ```
 
-This installs three commands: `docx-revision-chart`, `docx-revision-flow`, and `docx-ai-suspicion-score`.
+This installs four commands: `docx-revision-chart`, `docx-revision-flow`, `docx-ai-suspicion-score`, and `docx-revision-snapshot`.
 
 ### Single executables (no Node.js needed)
 
@@ -136,8 +270,11 @@ be used with a single input file.
 | `--json [file.json]` | Also write the analysis (insertion windows and their features) as JSON. See "Analysis JSON" below | off (`<output>.json` when given without a name) |
 | `--rules <file>` | Rules file that assigns highlight levels to insertion windows (replaces `--bulk-chars`). See "Highlight rules" below | none |
 | `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | Insertion windows: time window Δt, and distance in the document in characters / paragraphs. Overrides the rules' `window` | from the rules |
+| `--template <file.docx>` | The template you handed out; each file is checked against it for traces of tampering ([Detecting traces of tampering](#detecting-traces-of-tampering)) | none |
+| `--no-tamper-check` | Don't check for traces of tampering (no warning, no `-tampered`) | off |
 | `--preserve-history` | If the document removes personal information (tracked-change authors and dates) on save, remove that setting, turn Track Changes on, and save it in place (the original is kept as a backup; fails if the document is open). `--preserveHistory` also works. See "When timestamps are missing" below | off |
 | `--check-history-settings` | Don't draw a chart; only check the settings and print `ok` or `needs-fix` on the first line, followed by the confirmation text when `needs-fix` | off |
+| `--lock` | Don't draw a chart; lock Track Changes in the given template and overwrite it (the original is kept as a backup). See [Locking with these tools](#2-lock-tracking-optional) | off |
 | `--drop` | Desktop drag-and-drop launch mode. When `-o` isn't given, names each output `<same directory as its input>/<filename>-<that input file's last-modified time>.svg` instead of the plain `<filename>.svg` default. Intended for the macOS Finder droplet or a direct Windows Explorer drop (see [INSTALL.md](./INSTALL.md)) (or any other double-click/drag-drop launch with no terminal attached). On Windows, also shows a native message box summarizing the result | off |
 | `--lang <en\|ja>` | Display language for messages and the figure (see [Language](#language)) | OS locale |
 
@@ -231,6 +368,8 @@ node dist/cli/flow.js report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 | `--json [file.json]` | Also write the analysis (insertion windows and their features) as JSON. See "Analysis JSON" below | off (`<output>.json` when given without a name) |
 | `--rules <file>` | Rules file that assigns highlight levels to insertion windows (replaces `--bulk-chars`). See "Highlight rules" below | none |
 | `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | Insertion windows: time window Δt, and distance in the document in characters / paragraphs. Overrides the rules' `window` | from the rules |
+| `--template <file.docx>` | The template you handed out; each file is checked against it for traces of tampering ([Detecting traces of tampering](#detecting-traces-of-tampering)) | none |
+| `--no-tamper-check` | Don't check for traces of tampering (no warning, no `-tampered`) | off |
 | `--page-width <px>` | Width of each page thumbnail | `150` |
 | `--slope-width <px>` | Width of the band area between two thumbnail columns | `72` |
 | `-t, --title <text>` | Title | `Edit flow: <file name> (last modified <last-modified time>)` |
@@ -397,6 +536,56 @@ Other technical constraints:
 
 ---
 
+## 4. `docx-revision-snapshot` — archive and chart submissions over time
+
+Archives the submissions (snapshots) of a long-running document, such as a thesis handed in at the end of each
+sprint, and analyzes them as one history. For the workflow, see
+[Long-running writing](#long-running-writing-such-as-a-thesis-submissions-at-each-sprint).
+
+```bash
+# Sprint 1: pass the folder of submissions (the first one is checked against the template you handed out)
+docx-revision-snapshot archive/ submissions-sprint1/ --template template.docx
+
+# Later sprints: pass that sprint's folder to the same archive
+docx-revision-snapshot archive/ submissions-sprint2/
+
+# Redraw the figures and the index from what is archived
+docx-revision-snapshot archive/
+```
+
+For each submission it:
+
+1. **Archives** it in the document's folder as `<name>-s01.docx`, `<name>-s02.docx`, … and records each one
+   (source, time archived, SHA-256) in `snapshots.json`. A file identical to the previous submission is not archived
+   again.
+2. **Checks** it against the previous submission for [traces of tampering](#detecting-traces-of-tampering) (the
+   first one against `--template`). Because the previous submission is the reference, `untrackedText` (text typed
+   outside Track Changes) is checked even without a template. The lock's password is not compared, since the
+   teacher re-locking the file to accept changes changes its hash. It also reports `datedBeforePrevious` when changes
+   first seen in a submission are dated before the last change of the previous one (a file edited elsewhere swapped
+   in, or rewritten dates).
+3. **Draws each submission's figures**: a chart (`<name>-s01.svg`) and a flow (`<name>-s01-flow.svg`), with
+   `-tampered` added when traces were found.
+4. **Charts the whole history** (`<name>-through.svg`): one panel per submission, labeled "#1", "#2", … above
+   it (in red when traces were found). Only the changes new in each submission are counted, so changes left in a
+   file handed back without accepting them are not counted twice (changes with the same type, author, date and text
+   are treated as the same change).
+5. **Writes an index** next to the documents: `index.html` (links to every figure) and `summary.csv` (for Excel).
+
+A document is identified by its path relative to the folder you pass (without the extension), so passing the same
+folder layout each time keeps each document in the same place. If file names or the folders below change between
+submissions, use `--key-depth <n>` to identify documents by only their first n folders (for example
+`--key-depth 1` for `<student>/<assignment>/<file>.docx`).
+
+| Option | Description | Default |
+|---|---|---|
+| `--template <file.docx>` | The template handed out at the start; the first submission is checked against it | none |
+| `--key-depth <n>` | Identify a document by only this many leading folders of its path | none (the whole path) |
+| `-p, --gap-threshold <hours>` | Session gap for each submission's flow | `1` |
+| `--bulk-chars <n>` / `--rules <file>` | Bulk-insertion detection (as in `docx-revision-chart`) | `150` / none |
+| `--no-tamper-check` | Don't check for traces of tampering | off |
+| `--lang <en\|ja>` | Display language | from the OS |
+
 ## Language
 
 Messages, help, and the figures are shown in English or Japanese. The language is chosen in this order:
@@ -560,6 +749,48 @@ whether the file was altered — Word versions, other apps and converters produc
 
 The desktop app shows the same list under the Highlights tab. Library: `checkIntegrity(bytes)`.
 
+Only the items in "Detecting traces of tampering" below lead to a warning.
+
+## Detecting traces of tampering
+
+`docx-revision-chart` and `docx-revision-flow` check each file for traces of tampering with its tracked changes.
+When they find any:
+
+- The figure gets a red-bordered warning at the top listing the traces found.
+- The output file name ends in `-tampered` (`report.svg` → `report-tampered.svg`, `report-flow.svg` →
+  `report-flow-tampered.svg`), and so does the `--json` output. If you set the output path with `-o`, the name is
+  left as is.
+- The `--json` output lists the traces under `tamperEvidence`.
+
+```bash
+# Process a folder of submissions, checking each against the template you handed out
+docx-revision-chart submissions/ --template template.docx
+```
+
+| Trace | What it means | `--template` |
+|---|---|---|
+| `trackingOff` | Track Changes was off when the file was saved | Not needed |
+| `lockReleased` | The Track Changes lock was released; with a template, also when the template was locked but the file is not | Not needed |
+| `authorDateRemoved` | Some changes have no author or date | Not needed |
+| `notFromTemplate` | The file was not made from the template (its first editing session, rsidRoot, differs) | Needed |
+| `lockChanged` | The lock's password differs from the template's | Needed |
+| `untrackedText` | Text typed in editing sessions (rsid) that aren't in the template is outside the tracked changes: it was typed with tracking off, or its changes were accepted | Needed |
+
+`untrackedText` is not checked without a template because it can't be told apart from a legitimate pattern:
+creating a document, typing a little, and turning tracking on within the same editing session. In the settings
+file, use `template: template.docx`; a relative path is resolved against the settings file's folder. To skip the
+check, pass `--no-tamper-check`.
+
+**A trace is not proof of tampering.** Saving with an app other than Word, an old Word version, or a converter can
+produce the same marks. How files saved by Word for the web (often used when a Teams assignment is opened) come
+out has not been fully checked yet. For example, `notFromTemplate` and `untrackedText` can't
+be checked in a file saved by an app that doesn't write editing-session ids (rsid). Equally, finding no trace does
+not prove there was no tampering. Check the file and ask the writer before drawing conclusions.
+
+The desktop app's folder batch uses the same warning and file names for the checks that need no template, and
+notes the traces in the summary (summary.csv, index.html). Library: `checkTamperEvidence(bytes, { template })` and
+`addTamperWarning(svg, report)`.
+
 ## Desktop app (preview)
 
 [`desktop/`](desktop/) contains a desktop app (Electron) for people who don't use the command line: open or drop a
@@ -574,6 +805,9 @@ create) an output folder: the source folder's hierarchy is recreated there with 
 everything is put in one folder with the path in the file names). Both also write `summary.csv` (for Excel) and
 `index.html` (links to every figure). The CLIs (and the macOS droplets) also accept folders: `docx-revision-flow
 submissions/`.
+
+**Lock template**: saves a copy of the opened document with Track Changes locked, through a save dialog (see
+[Locking with these tools](#2-lock-tracking-optional)).
 
 ## Using it as a library
 

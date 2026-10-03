@@ -14,9 +14,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { parse as parseYaml } from "yaml";
 import { enableHistoryPreservation } from "../../src/node/historyFile";
+import { lockDocxBytes } from "../../src/node/lockFile";
 import { macSystemLocale } from "../../src/node/locale";
 import { langFromLocale } from "../../src/lib/i18n";
-import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules, MicrosoftStatus, OpenedFile, RecentUrl } from "./shared";
+import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules, LockSaveResult, MicrosoftStatus, OpenedFile, RecentUrl } from "./shared";
 import { MicrosoftClient, MicrosoftConfig, MicrosoftError } from "./microsoft";
 import { EXT_SCHEME, ExtensionManager } from "./extensions";
 import { NetMediator } from "./sendLog";
@@ -212,6 +213,17 @@ function registerIpc(): void {
     if (r.canceled || !r.filePath) return null;
     await fs.promises.writeFile(r.filePath, typeof data === "string" ? data : Buffer.from(data));
     return r.filePath;
+  });
+  ipcMain.handle("save-locked-docx", async (_e, bytes: Uint8Array, defaultName: string, password: string): Promise<LockSaveResult | null> => {
+    // 先にロックをかけ、かけられない文書 (settings.xml が無いなど) なら保存ダイアログを出さずにエラーにする
+    const r = await lockDocxBytes(bytes, password || undefined);
+    const d = await dialog.showSaveDialog(mainWindow!, {
+      defaultPath: defaultName,
+      filters: [{ name: "Word", extensions: ["docx"] }],
+    });
+    if (d.canceled || !d.filePath) return null;
+    await fs.promises.writeFile(d.filePath, r.output);
+    return { path: d.filePath, wasLocked: r.wasLocked, wasTracking: r.wasTracking, removedPersonalInfoSetting: r.removedPersonalInfoSetting };
   });
   ipcMain.handle("get-settings", () => loadSettings());
   ipcMain.handle("set-settings", (_e, s: AppSettings) => {

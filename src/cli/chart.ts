@@ -13,6 +13,7 @@ import { applyClassification } from "../lib/classifiers";
 import { DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { parseDocxLayout } from "../lib/docxLayout";
 import { checkIntegrity } from "../lib/integrity";
+import { addTamperWarning } from "../lib/tamperEvidence";
 import { chartTargets, FigureTarget, sessionedChartTargets } from "../lib/figureTargets";
 import {
   addAnalysisOptions,
@@ -20,6 +21,8 @@ import {
   analyzeWithRules,
   loadAnnotations,
   checkAndFixHistorySettings,
+  checkTamper,
+  tamperedOutput,
   FileResult,
   runForFiles,
   resolveRules,
@@ -85,12 +88,16 @@ async function processOne(
   } else {
     outFile = resolved.replace(/\.docx$/i, "") + ".svg";
   }
+  const tamper = await checkTamper(buf, options);
+  const marked = tamperedOutput(outFile, explicitOutput, tamper);
+  outFile = marked.outFile;
+  if (marked.note) warnings.push(marked.note);
   const width = options.width ? parseInt(options.width, 10) : undefined;
   const annotations = loadAnnotations(options);
   const highlightIds = analysis.categories.highlights().map((c) => c.id);
   const writeJson = async (svgOut: string, targets: FigureTarget[]) => {
     const jsonOut = writeAnalysisJson(options, svgOut, "docx-revision-chart", inputFile, analysis,
-      options.json ? await checkIntegrity(buf) : undefined, targets);
+      options.json ? await checkIntegrity(buf) : undefined, targets, tamper);
     if (jsonOut) warnings.push(t("jsonWritten", jsonOut));
   };
 
@@ -114,7 +121,7 @@ async function processOne(
       categories: analysis.categories,
       annotations,
     });
-    fs.writeFileSync(outFile, svg, "utf-8");
+    fs.writeFileSync(outFile, addTamperWarning(svg, tamper), "utf-8");
     await writeJson(outFile, sessionedChartTargets(sessions, data.baselineCharCount, bucketSpec, highlightIds));
 
     return {
@@ -136,7 +143,7 @@ async function processOne(
       categories: analysis.categories,
       annotations,
     });
-    fs.writeFileSync(outFile, svg, "utf-8");
+    fs.writeFileSync(outFile, addTamperWarning(svg, tamper), "utf-8");
     await writeJson(outFile, chartTargets(buckets, highlightIds));
 
     return {

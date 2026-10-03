@@ -10,6 +10,7 @@
 #   ./scripts/build-binary.sh chart               # 同上 (明示指定)
 #   ./scripts/build-binary.sh score                # score (AI不正利用疑いスコア) CLI をビルド
 #   ./scripts/build-binary.sh flow              # flow (編集フロー) CLI をビルド
+#   ./scripts/build-binary.sh snapshot          # snapshot (スナップショットの保管と通し解析) CLI をビルド
 #   ./scripts/build-binary.sh chart --all          # 主要OS/CPU向けに一括クロスビルド
 #
 # 出力先: dist-bin/
@@ -22,8 +23,8 @@ set -euo pipefail
 TARGET_CLI="${1:-chart}"
 ALL_FLAG="${2:-}"
 
-if [[ "$TARGET_CLI" != "chart" && "$TARGET_CLI" != "score" && "$TARGET_CLI" != "flow" ]]; then
-  echo "エラー: 第1引数には 'chart'、'score'、'flow' のいずれかを指定してください (指定値: '$TARGET_CLI')" >&2
+if [[ "$TARGET_CLI" != "chart" && "$TARGET_CLI" != "score" && "$TARGET_CLI" != "flow" && "$TARGET_CLI" != "snapshot" ]]; then
+  echo "エラー: 第1引数には 'chart'、'score'、'flow'、'snapshot' のいずれかを指定してください (指定値: '$TARGET_CLI')" >&2
   exit 1
 fi
 
@@ -41,6 +42,7 @@ ENTRY="$ROOT_DIR/src/cli/${TARGET_CLI}.ts"
 case "$TARGET_CLI" in
   chart) BASENAME="docx-revision-chart" ;;
   flow) BASENAME="docx-revision-flow" ;;
+  snapshot) BASENAME="docx-revision-snapshot" ;;
   *) BASENAME="docx-ai-suspicion-score" ;;
 esac
 

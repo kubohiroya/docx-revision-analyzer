@@ -91,6 +91,38 @@ export interface EnableHistoryResult {
 }
 
 /**
+ * ファイルを新しい内容で置き換える。元のファイルは "<名前>.backup-<YYYYMMDD-HHMMSS>.docx" として同じフォルダに残し、
+ * そのパスを返す
+ */
+export async function replaceWithBackup(filePath: string, out: Uint8Array): Promise<string> {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath).replace(/\.docx$/i, "");
+  const stamp = formatTimestampForFilename(new Date());
+  // 同じ秒のうちに続けて書き換えた場合は、-2, -3 ... を付けて既存のバックアップを残す
+  let backupPath = path.join(dir, `${base}.backup-${stamp}.docx`);
+  for (let n = 2; ; n++) {
+    try {
+      await fs.promises.copyFile(filePath, backupPath, fs.constants.COPYFILE_EXCL);
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST" || n > 100) throw err;
+      backupPath = path.join(dir, `${base}.backup-${stamp}-${n}.docx`);
+    }
+  }
+
+  // 途中で失敗しても元のファイルが壊れないよう、一時ファイルに書いてから置き換える
+  const tmpPath = path.join(dir, `.${base}.tmp-${process.pid}.docx`);
+  try {
+    await fs.promises.writeFile(tmpPath, out);
+    await fs.promises.rename(tmpPath, filePath);
+  } catch (err) {
+    await fs.promises.rm(tmpPath, { force: true });
+    throw err;
+  }
+  return backupPath;
+}
+
+/**
  * 文書の設定を書き換え、変更履歴の作成者・日時が保存されるようにする。
  * 元のファイルは "<名前>.backup-<YYYYMMDD-HHMMSS>.docx" として同じフォルダに残す。
  * ファイルが他で開かれている場合はエラーを投げる。
@@ -107,19 +139,6 @@ export async function enableHistoryPreservation(filePath: string): Promise<Enabl
   if (!r.output) return { changed: false, before };
   const out = r.output;
 
-  const dir = path.dirname(filePath);
-  const base = path.basename(filePath).replace(/\.docx$/i, "");
-  const backupPath = path.join(dir, `${base}.backup-${formatTimestampForFilename(new Date())}.docx`);
-  await fs.promises.copyFile(filePath, backupPath, fs.constants.COPYFILE_EXCL);
-
-  // 途中で失敗しても元のファイルが壊れないよう、一時ファイルに書いてから置き換える
-  const tmpPath = path.join(dir, `.${base}.tmp-${process.pid}.docx`);
-  try {
-    await fs.promises.writeFile(tmpPath, out);
-    await fs.promises.rename(tmpPath, filePath);
-  } catch (err) {
-    await fs.promises.rm(tmpPath, { force: true });
-    throw err;
-  }
+  const backupPath = await replaceWithBackup(filePath, out);
   return { changed: true, backupPath, before };
 }

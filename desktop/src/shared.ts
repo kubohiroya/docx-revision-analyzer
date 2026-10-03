@@ -115,6 +115,16 @@ export interface OpenedFile {
   bytes: Uint8Array;
 }
 
+export interface LockSaveResult {
+  path: string;
+  /** もともとロックされていたか (ロックとパスワードを置き換えた) */
+  wasLocked: boolean;
+  /** もともと「変更履歴の記録」がオンだったか */
+  wasTracking: boolean;
+  /** 保存時に作成者・日時を削除する設定を外したか */
+  removedPersonalInfoSetting: boolean;
+}
+
 export interface LoadedRules {
   path: string;
   /** YAML / JSON を解析した値 (検証はレンダラで parseRuleSet により行う) */
@@ -210,6 +220,11 @@ export interface AppApi {
   chooseRulesDialog(): Promise<LoadedRules | null>;
   /** 保存してあるパスのルールファイルを読む */
   readRules(path: string): Promise<LoadedRules>;
+  /**
+   * 文書に変更履歴のロックをかけたものを作り、保存ダイアログで保存する。保存したパスと、書き換えた内容を返す
+   * (キャンセルなら null)。password が空ならパスワード無しのロック
+   */
+  saveLockedDocx(bytes: Uint8Array, defaultName: string, password: string): Promise<LockSaveResult | null>;
   /** 保存ダイアログを出してバイト列を書き出す。保存したパス (キャンセルなら null) を返す */
   saveFile(defaultName: string, data: Uint8Array | string, kind: "svg" | "png"): Promise<string | null>;
   getSettings(): Promise<AppSettings>;

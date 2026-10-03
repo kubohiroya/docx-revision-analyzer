@@ -145,6 +145,57 @@ const en = {
   optWindowChars: "Insertion windows: group insertions within this many characters of each other in the document",
   optWindowParas: "Insertion windows: also require insertions to be within this many paragraphs of each other",
   jsonWritten: (p: string) => `Wrote the analysis JSON to ${p}`,
+  optTemplate:
+    "The template .docx handed out to writers. Also checks each file against it (made from it, lock kept, " +
+    "no text typed outside Track Changes)",
+  optNoTamperCheck: "Don't check for traces of tampering (no warning in the figure, no -tampered in the file name)",
+  tamperFound: (ids: string) =>
+    `Traces of tampering with the tracked changes were found (${ids}); the figure shows a warning`,
+  errTemplateNotFound: (p: string) => `Template not found: ${p}`,
+  snapDescription:
+    "Archive each submission of a long-running document (submitted at the end of each sprint) under a serial number, " +
+    "check it against the previous one, and draw each submission's figures and a chart running through all of them",
+  snapArgArchive: "Folder to keep the submissions in (one folder per document is created inside)",
+  snapArgInputs:
+    "Submitted .docx files or folders. Without them, only redraws the figures and the index from what is archived",
+  snapOptTemplate: "The template handed out at the start; the first submission is checked against it",
+  snapOptKeyDepth:
+    "Identify a document by only this many leading folders of its path (use when file names or the folders below " +
+    "change between submissions, e.g. 1 for <student>/<assignment>/<file>.docx)",
+  snapAdded: (key: string, n: number, p: string) => `${key}: archived submission #${n} as ${p}`,
+  snapUnchanged: (key: string, n: number) => `${key}: same as submission #${n}; not archived again`,
+  snapThroughTitle: (name: string, n: number) => `Revision history across submissions: ${name} (${n} submissions)`,
+  snapPanelLabel: (n: number) => `#${n}`,
+  snapPanelTooltip: (file: string, ins: number, del: number) => `${file}: +${ins} / -${del} chars new in this submission`,
+  snapEvidenceFound: (key: string) => `${key}: traces of tampering were found; see the figures and index.html`,
+  snapNoSnapshots: (dir: string) => `No archived submissions in ${dir}`,
+  snapIndexWritten: (p: string) => `Wrote the index to ${p}`,
+  snapIndexTitle: "Archived submissions",
+  snapIndexNote:
+    "Each submission is checked against the previous one. Changes already present in an earlier submission are not counted again.",
+  snapColumns:
+    "Document|#|File|Last modified|Archived|New changes|Carried over|Inserted chars|Deleted chars|Traces|Chart|Flow|Through chart|Note",
+  snapChart: "Chart",
+  snapFlow: "Flow",
+  snapThroughLink: "Chart across all submissions",
+  optLock:
+    "Instead of drawing figures, lock Track Changes in each input file (a template to hand out): turns Track " +
+    "Changes on and sets a password. Overwrites the file (the original is kept as <name>.backup-<date>.docx)",
+  lockPasswordPrompt: "Password to unlock (leave empty for no password): ",
+  lockPasswordConfirm: "Type the password again: ",
+  lockPasswordMismatch: "The passwords don't match. Nothing was changed.",
+  lockNoPassword:
+    "Locking without a password: anyone can unlock it from Word's menu. Set DOCX_LOCK_PASSWORD to lock with a " +
+    "password when no terminal is available.",
+  lockDone: (backup: string) => `Locked Track Changes (original kept as ${backup})`,
+  lockReplaced: "The file was already locked; the lock and password were replaced.",
+  lockKeepsPassword:
+    "The file is already locked with a password, so it was left unchanged rather than re-locked without one. " +
+    "Run in a terminal, or set DOCX_LOCK_PASSWORD (an empty value removes the password).",
+  lockTrackingTurnedOn: "Track Changes was off and has been turned on.",
+  lockPersonalInfoRemoved: "The setting that removes authors and dates on save was turned off.",
+  errLockNoSettings: "The document has no settings part (word/settings.xml), so it can't be locked. Open it in Word and save it first.",
+  errNoCrypto: "This environment has no Web Crypto (crypto.subtle), so a password can't be set.",
   optRules: "Rules file (YAML/JSON) that assigns highlight levels to insertion windows. Replaces --bulk-chars",
   optAnnotations:
     "Annotations file (YAML/JSON): tooltips and links for parts of the figure, shown on mouse-over / opened on click",
@@ -347,6 +398,55 @@ const ja: Catalog = {
   optWindowChars: "挿入の窓: 文書上の距離がこの文字数以内の挿入をまとめる",
   optWindowParas: "挿入の窓: 段落の差がこの数以内であることも条件にする",
   jsonWritten: (p) => `解析結果の JSON を ${p} に出力しました`,
+  optTemplate:
+    "配布したテンプレートの .docx。各ファイルをこれと照合する (テンプレートから作られたか、ロックが保たれているか、" +
+    "変更履歴の外で入力された本文が無いか)",
+  optNoTamperCheck: "改ざんの痕跡を調べない (図に警告を出さず、ファイル名に -tampered を付けない)",
+  tamperFound: (ids) =>
+    `変更履歴が改ざんされた痕跡が見つかりました (${ids})。図に警告を表示しました`,
+  errTemplateNotFound: (p) => `テンプレートが見つかりません: ${p}`,
+  snapDescription:
+    "長く書く文書を区切り (スプリント) ごとに提出させたものを、通し番号を付けて保管し、前回の提出と照合して、" +
+    "各回の図と、すべての回を通したチャートを作る",
+  snapArgArchive: "提出物を保管するフォルダ (中に文書ごとのフォルダを作る)",
+  snapArgInputs: "提出された .docx のファイルまたはフォルダ。省略すると、保管済みのものから図と一覧を作り直すだけを行う",
+  snapOptTemplate: "最初に配ったテンプレート。第1回の提出物をこれと照合する",
+  snapOptKeyDepth:
+    "パスの先頭からこの数のフォルダだけで文書を見分ける (提出のたびにファイル名やその下のフォルダ名が変わる場合。" +
+    "例: <学生>/<課題>/<ファイル>.docx なら 1)",
+  snapAdded: (key, n, p) => `${key}: 第${n}回の提出として ${p} に保管しました`,
+  snapUnchanged: (key, n) => `${key}: 第${n}回の提出と同じ内容のため、保管しませんでした`,
+  snapThroughTitle: (name, n) => `通しの編集履歴: ${name} (${n}回の提出)`,
+  snapPanelLabel: (n) => `第${n}回`,
+  snapPanelTooltip: (file, ins, del) => `${file}: この回に新しく +${ins}字 / −${del}字`,
+  snapEvidenceFound: (key) => `${key}: 改ざんの痕跡が見つかりました。図と index.html を確認してください`,
+  snapNoSnapshots: (dir) => `${dir} に保管された提出物がありません`,
+  snapIndexWritten: (p) => `一覧を ${p} に出力しました`,
+  snapIndexTitle: "保管した提出物",
+  snapIndexNote: "各回の提出物は、前回の提出物と照合しています。前の回にもあった変更は、重ねて数えていません。",
+  snapColumns:
+    "文書|回|ファイル|最終更新|保管日時|新しい変更|前回から残る変更|挿入した文字数|削除した文字数|痕跡|チャート|フロー|通しのチャート|備考",
+  snapChart: "チャート",
+  snapFlow: "フロー",
+  snapThroughLink: "すべての回を通したチャート",
+  optLock:
+    "図を作る代わりに、入力した各ファイル (配布するテンプレート) に変更履歴のロックをかける。変更履歴の記録をオンにし、" +
+    "パスワードを設定して上書きする (元のファイルは <名前>.backup-<日時>.docx として残す)",
+  lockPasswordPrompt: "ロックを外すためのパスワード (空のままならパスワード無し): ",
+  lockPasswordConfirm: "もう一度入力してください: ",
+  lockPasswordMismatch: "パスワードが一致しません。何も変更していません。",
+  lockNoPassword:
+    "パスワード無しでロックします。誰でも Word のメニューからロックを外せます。ターミナルが無い環境でパスワードを" +
+    "付けるには、環境変数 DOCX_LOCK_PASSWORD を設定してください。",
+  lockDone: (backup) => `変更履歴をロックしました (元のファイルは ${backup} として残しています)`,
+  lockReplaced: "もともとロックされていたため、ロックとパスワードを置き換えました。",
+  lockKeepsPassword:
+    "このファイルはすでにパスワード付きでロックされているため、パスワード無しで置き換えずにそのままにしました。" +
+    "ターミナルで実行するか、環境変数 DOCX_LOCK_PASSWORD を設定してください (空にするとパスワードを外します)。",
+  lockTrackingTurnedOn: "「変更履歴の記録」がオフだったため、オンにしました。",
+  lockPersonalInfoRemoved: "保存時に作成者・日時を削除する設定を外しました。",
+  errLockNoSettings: "文書に設定 (word/settings.xml) が無いため、ロックをかけられません。一度 Word で開いて保存してください。",
+  errNoCrypto: "この環境には Web Crypto (crypto.subtle) が無いため、パスワードを設定できません。",
   optRules: "挿入の窓にハイライトの段階を付けるルールファイル (YAML/JSON)。指定すると --bulk-chars の代わりに使う",
   optAnnotations: "注釈ファイル (YAML/JSON): 図の部分ごとに、マウスオーバーで出る説明とクリックで開くリンクを付ける",
   annotationsInvalid: (p, msg) => `注釈ファイル ${p} が不正です: ${msg}`,
