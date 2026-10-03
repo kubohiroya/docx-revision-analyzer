@@ -7,9 +7,12 @@
  *  - fixtures/suspicious-paste.docx  : 最初は少し自分でタイプした後、大きな塊を
  *                                       一瞬で貼り付けたことを想定 (AI生成文の貼付を模擬)
  *  - fixtures/chart-demo.docx       : 2日にわたる3回の執筆。1回まとめて貼り付け、下書きを散発的に削除
- *                                       (docx-revision-chart の README 用)
+ *                                       (README と docs/usage の docx-revision-chart の図の例)
  *  - fixtures/flow-demo.docx      : 見出し・図を含む複数段落の文書を3つの時間区間で編集
  *                                       (docx-revision-flow 用)
+ *  - fixtures/snapshot-demo/sprint{1,2,3}/thesis.docx
+ *                                     : 卒論を3回の区切り (スプリント) で提出したもの。各回の前に教員がすべて承諾して返し、
+ *                                       第3回には記録をオフにして入力した段落がある (docx-revision-snapshot 用)
  */
 import JSZip from "jszip";
 import * as fs from "fs";
@@ -24,22 +27,25 @@ function escapeXml(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
+/** rsid: その文字列を入力した編集セッションの識別子 (w:rsidR)。省略すると付けない */
 type Segment =
-  | { kind: "text"; text: string }
-  | { kind: "ins"; text: string; author: string; date: Date; id: number }
-  | { kind: "del"; text: string; author: string; date: Date; id: number };
+  | { kind: "text"; text: string; rsid?: string }
+  | { kind: "ins"; text: string; author: string; date: Date; id: number; rsid?: string }
+  | { kind: "del"; text: string; author: string; date: Date; id: number; rsid?: string };
+
+const rsidAttr = (seg: Segment) => (seg.rsid ? ` w:rsidR="${seg.rsid}"` : "");
 
 function buildDocumentXml(segments: Segment[]): string {
   const runs = segments
     .map((seg) => {
       if (seg.kind === "text") {
-        return `<w:r><w:t xml:space="preserve">${escapeXml(seg.text)}</w:t></w:r>`;
+        return `<w:r${rsidAttr(seg)}><w:t xml:space="preserve">${escapeXml(seg.text)}</w:t></w:r>`;
       } else if (seg.kind === "ins") {
-        return `<w:ins w:id="${seg.id}" w:author="${escapeXml(seg.author)}" w:date="${seg.date.toISOString()}"><w:r><w:t xml:space="preserve">${escapeXml(
+        return `<w:ins w:id="${seg.id}" w:author="${escapeXml(seg.author)}" w:date="${seg.date.toISOString()}"><w:r${rsidAttr(seg)}><w:t xml:space="preserve">${escapeXml(
           seg.text
         )}</w:t></w:r></w:ins>`;
       } else {
-        return `<w:del w:id="${seg.id}" w:author="${escapeXml(seg.author)}" w:date="${seg.date.toISOString()}"><w:r><w:delText xml:space="preserve">${escapeXml(
+        return `<w:del w:id="${seg.id}" w:author="${escapeXml(seg.author)}" w:date="${seg.date.toISOString()}"><w:r${rsidAttr(seg)}><w:delText xml:space="preserve">${escapeXml(
           seg.text
         )}</w:delText></w:r></w:del>`;
       }
@@ -75,17 +81,38 @@ const DOCUMENT_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`;
 
+const SETTINGS_TYPE =
+  '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>';
+const SETTINGS_REL =
+  '  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>';
+
+/** 変更履歴の記録をオンにし、編集セッションの一覧 (rsid) を持つ settings.xml */
+function settingsWithRsids(rsidRoot: string, rsids: string[]): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:trackRevisions/>
+  <w:defaultTabStop w:val="840"/>
+  <w:rsids><w:rsidRoot w:val="${rsidRoot}"/>${[...new Set([rsidRoot, ...rsids])].map((r) => `<w:rsid w:val="${r}"/>`).join("")}</w:rsids>
+</w:settings>`;
+}
+
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:docDefaults/>
 </w:styles>`;
 
-async function writeDocx(outPath: string, segments: Segment[]): Promise<void> {
+/** settingsXml を渡すと word/settings.xml も入れる (変更履歴の記録・編集セッションの一覧など) */
+async function writeDocx(outPath: string, segments: Segment[], settingsXml?: string): Promise<void> {
   const zip = new JSZip();
-  zip.file("[Content_Types].xml", CONTENT_TYPES);
+  zip.file("[Content_Types].xml", settingsXml ? CONTENT_TYPES.replace("</Types>", `${SETTINGS_TYPE}\n</Types>`) : CONTENT_TYPES);
   zip.file("_rels/.rels", ROOT_RELS);
   zip.file("word/document.xml", buildDocumentXml(segments));
-  zip.file("word/_rels/document.xml.rels", DOCUMENT_RELS);
+  zip.file(
+    "word/_rels/document.xml.rels",
+    settingsXml ? DOCUMENT_RELS.replace("</Relationships>", `${SETTINGS_REL}\n</Relationships>`) : DOCUMENT_RELS
+  );
+  if (settingsXml) zip.file("word/settings.xml", settingsXml);
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
   zip.file("word/styles.xml", STYLES);
   const buf = await zip.generateAsync({ type: "nodebuffer" });
   fs.writeFileSync(outPath, buf);
@@ -517,6 +544,83 @@ async function makeChartDemo() {
   await writeDocx(path.join(__dirname, "..", "fixtures", "chart-demo.docx"), segments);
 }
 
+/**
+ * 卒論を3回の区切り (スプリント) で提出したもの。各回の提出の後、教員がすべての変更を承諾して返す
+ * (承諾した文章は変更履歴の外の本文になり、次の回にそれを消すと削除として記録される)。
+ * 第3回には、別のアプリで書いた段落を記録をオフにして入力したもの (前回までに無い編集セッションの本文) がある。
+ */
+async function makeSnapshotDemo() {
+  const rnd = mulberry32(2026);
+  const author = "学生F";
+  const root = "00A00000";
+  let id = 1;
+  let sessionNo = 0;
+  const rsids: string[] = [];
+  const newSession = () => {
+    const r = `00B${String(++sessionNo).padStart(5, "0")}`;
+    rsids.push(r);
+    return r;
+  };
+  /** 承諾した状態: 削除を除き、挿入を本文にする */
+  const accept = (segs: Segment[]): Segment[] =>
+    segs.filter((s) => s.kind !== "del").map((s) => ({ kind: "text", text: s.text, rsid: s.rsid }));
+  /** start から minutes 分、20〜80秒ごとに語句を入力する */
+  const type = (segs: Segment[], start: string, minutes: number) => {
+    const rsid = newSession();
+    let t = new Date(start).getTime();
+    const until = t + minutes * 60_000;
+    while (t < until) {
+      t += 20_000 + Math.floor(rnd() * 60_000);
+      segs.push({ kind: "ins", text: WORDS[Math.floor(rnd() * WORDS.length)], author, date: new Date(t), id: id++, rsid });
+    }
+  };
+  /** 承諾済みの本文の語句を、いくつか削除する */
+  const trim = (segs: Segment[], start: string, count: number) => {
+    let t = new Date(start).getTime();
+    const texts = segs.map((s, i) => (s.kind === "text" ? i : -1)).filter((i) => i >= 0);
+    for (let k = 0; k < count && texts.length; k++) {
+      const i = texts.splice(Math.floor(rnd() * texts.length), 1)[0];
+      const s = segs[i];
+      t += 30_000 + Math.floor(rnd() * 90_000);
+      segs[i] = { kind: "del", text: s.text, author, date: new Date(t), id: id++, rsid: s.rsid };
+    }
+  };
+  const dir = path.join(__dirname, "..", "fixtures", "snapshot-demo");
+  const write = (n: number, segs: Segment[]) =>
+    writeDocx(path.join(dir, `sprint${n}`, "thesis.docx"), segs, settingsWithRsids(root, rsids));
+
+  // 第1回 (2週間): 3回に分けて書き始める
+  const s1: Segment[] = [];
+  type(s1, "2026-10-06T01:00:00Z", 50);
+  type(s1, "2026-10-09T06:00:00Z", 40);
+  type(s1, "2026-10-14T02:30:00Z", 60);
+  await write(1, s1);
+
+  // 第2回: 承諾して返したものを推敲 (確定した語句の削除) し、書き進める
+  const s2 = accept(s1);
+  trim(s2, "2026-10-20T01:00:00Z", 6);
+  type(s2, "2026-10-20T01:20:00Z", 45);
+  type(s2, "2026-10-27T05:00:00Z", 70);
+  await write(2, s2);
+
+  // 第3回: 推敲・入力に加えて、外部で作った文章の貼り付けと、記録をオフにして入力した段落
+  const s3 = accept(s2);
+  trim(s3, "2026-11-03T02:00:00Z", 8);
+  type(s3, "2026-11-03T02:30:00Z", 40);
+  const pasteRsid = newSession();
+  const pasted =
+    "先行研究では、面接評価の自動化において主に音声認識の精度や語彙の多様性が指標として用いられてきた。" +
+    "しかし、これらの指標は発話の論理的なつながりを十分に捉えられないという課題が指摘されている。" +
+    "そこで本研究では、発話の時系列構造に着目した新たな評価指標を提案し、その妥当性を検証する。" +
+    "具体的には、発話をいくつかの区間に分け、区間どうしの意味的な近さを埋め込みベクトルから求めたうえで、" +
+    "論理展開の自然さを点数化する。";
+  s3.push({ kind: "ins", text: pasted, author, date: new Date("2026-11-08T07:10:00Z"), id: id++, rsid: pasteRsid });
+  type(s3, "2026-11-08T07:12:00Z", 35);
+  const untracked = newSession();
+  s3.push({ kind: "text", text: "（記録をオフにして入力した段落）今後の課題として、評価データの拡充が挙げられる。", rsid: untracked });
+  await write(3, s3);
+}
+
 async function main() {
   fs.mkdirSync(path.join(__dirname, "..", "fixtures"), { recursive: true });
   await makeNatural();
@@ -524,6 +628,7 @@ async function main() {
   await makeMultiSession();
   await makeFlowDemo();
   await makeChartDemo();
+  await makeSnapshotDemo();
 }
 
 main().catch((e) => {

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Draws the state diagrams in the README's "The .docx files these tools expect" section:
+// Draws the state diagrams in the README's "The .docx files these tools expect" section and the operations guide
+// (docs/operations-guide.md, "Files saved on OneDrive"):
 //   fixtures/revision-states{,.ja}.svg           a .docx saved on your computer
 //   fixtures/revision-states-onedrive{,.ja}.svg  a .docx saved on OneDrive (adds restoring from Version History)
 // With Inkscape on the PATH it also renders each one to .png at 2x; otherwise the PNGs are left as they are.

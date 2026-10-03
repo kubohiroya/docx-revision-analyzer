@@ -325,11 +325,14 @@ export function estimateTextWidth(text: string, fontSize: number): number {
   return text.length * fontSize * 0.62;
 }
 
-/** 無編集期間 (時間) を "12 h" のような表記に整形する */
+/** 無編集期間 (時間) を "12 h" (2日以上は "5.9 d") のような表記に整形する */
 export function formatGapHours(hours: number): string {
-  const rounded = Math.round(hours * 10) / 10;
+  // 2日以上は日数で示す (区切りごとの提出の間など、長い無編集期間を読みやすくする)
+  const days = hours >= 48;
+  const v = days ? hours / 24 : hours;
+  const rounded = Math.round(v * 10) / 10;
   const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
-  return `${text} h`;
+  return `${text} ${days ? "d" : "h"}`;
 }
 
 interface PanelGeom {

@@ -93,7 +93,7 @@ interface HostApi {
 
 ### Categories and classifiers / カテゴリと分類器
 
-Categories are drawn like the built-in ones (see the main README, "Color categories"): `priority` decides which
+Categories are drawn like the built-in ones (see [Color categories](../docs/library.md#color-categories)): `priority` decides which
 category fills a paragraph when several apply (built-ins are 0, rule levels 10+). Give a `pattern` so the category
 isn't distinguished by color alone, and use colors with at least 3:1 contrast against white.
 
