@@ -223,6 +223,8 @@ npm run fixtures
 Sample output for each is bundled under `fixtures/*.svg` (`*.png` versions are included for quick visual
 inspection). The files with plain names were rendered in English (`--lang en`) and the `*.ja.svg` / `*.ja.png`
 ones in Japanese (`--lang ja`); README.md and README.ja.md use them respectively.
+`fixtures/revision-states.svg`, `revision-states-onedrive.svg` and their `.ja.svg` / `.png` versions are the hand-drawn state diagrams in the README, not
+tool output; regenerate them with `npm run diagrams` (`scripts/make-revision-states.mjs`; the PNGs need Inkscape) rather than `npm run fixtures`.
 
 ---
 

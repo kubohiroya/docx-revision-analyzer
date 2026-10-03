@@ -219,6 +219,8 @@ npm run fixtures
 これらに対する出力例が `fixtures/*.svg` (`*.png` は確認用にラスタライズしたもの) として同梱されています。
 既定の名前のものは英語 (`--lang en`)、`*.ja.svg` / `*.ja.png` は日本語 (`--lang ja`) で出力したもので、
 README.md と README.ja.md でそれぞれ使っています。
+なお `fixtures/revision-states.svg`・`revision-states-onedrive.svg` (と各 `.ja.svg` / `.png`) は README の状態遷移図として手で作成したもので、
+ツールの出力ではありません。`npm run fixtures` ではなく `npm run diagrams` (`scripts/make-revision-states.mjs`。PNG の生成には Inkscape が必要) で再生成します。
 
 ---
 

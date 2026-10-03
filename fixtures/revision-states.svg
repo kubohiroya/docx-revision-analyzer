@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 282" font-family="'Helvetica Neue',Arial,sans-serif" font-size="13">
+<defs>
+<marker id="fwd-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9CA3AF"/></marker>
+<marker id="start-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#111827"/></marker>
+<marker id="danger-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#DC2626"/></marker>
+<marker id="restore-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#16A34A"/></marker>
+</defs>
+<rect x="0" y="0" width="920" height="282" fill="#FFFFFF"/>
+<text x="24" y="28" text-anchor="start" font-size="15" font-weight="600" fill="#111827">Four states of a .docx's tracked-change history</text>
+<text x="24" y="46" text-anchor="start" font-size="11.5" fill="#6B7280">These tools analyze documents in state D. Dashed red = tracked changes reduced or erased, which can't be undone</text>
+<circle cx="30" cy="162" r="7" fill="#111827"/>
+<path d="M38 162H80" fill="none" stroke="#111827" stroke-width="1.25" marker-end="url(#start-arrow)"/>
+<text x="30" y="186" text-anchor="middle" font-size="11.5" fill="#6B7280">Start</text>
+<path d="M230 154H300" fill="none" stroke="#9CA3AF" stroke-width="1.25" marker-end="url(#fwd-arrow)"/>
+<text x="265" y="147" text-anchor="middle" font-size="11.5" fill="#6B7280">Turn on</text>
+<path d="M450 162H520" fill="none" stroke="#9CA3AF" stroke-width="1.25" marker-end="url(#fwd-arrow)"/>
+<text x="485" y="155" text-anchor="middle" font-size="11.5" fill="#6B7280">Edit</text>
+<path d="M670 162H740" fill="none" stroke="#9CA3AF" stroke-width="1.25" marker-end="url(#fwd-arrow)"/>
+<text x="705" y="155" text-anchor="middle" font-size="11.5" fill="#6B7280">More edits</text>
+<path d="M300 170H230" fill="none" stroke="#9CA3AF" stroke-width="1.25" stroke-dasharray="4 4" marker-end="url(#fwd-arrow)"/>
+<text x="265" y="185" text-anchor="middle" font-size="11.5" fill="#6B7280">Turn off</text>
+<path d="M815 134C815 88 595 88 595 134" fill="none" stroke="#DC2626" stroke-width="1.25" stroke-dasharray="4 4" marker-end="url(#danger-arrow)"/>
+<text x="705" y="90" text-anchor="middle" font-size="11.5" fill="#111827">Accept / reject some changes</text>
+<g fill="none" stroke="#DC2626" stroke-width="1.25" stroke-dasharray="4 4">
+<path d="M595 190V224"/><path d="M815 190V224"/><path d="M815 224H595"/>
+<path d="M595 224H375V190" marker-end="url(#danger-arrow)"/>
+<path d="M705 224V264H155V190" marker-end="url(#danger-arrow)"/>
+</g>
+<circle cx="595" cy="224" r="2.5" fill="#DC2626"/><circle cx="705" cy="224" r="2.5" fill="#DC2626"/>
+<text x="485" y="218" text-anchor="middle" font-size="11.5" fill="#111827">Accept All / Reject All</text>
+<text x="430" y="258" text-anchor="middle" font-size="11.5" fill="#111827">Accept All Changes and Stop Tracking</text>
+<rect x="80" y="134" width="150" height="56" rx="8" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.25"/>
+<text x="155" y="158" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">A: No tracking</text>
+<text x="155" y="176" text-anchor="middle" font-size="11.5" fill="#6B7280">Track Changes OFF</text>
+<rect x="300" y="134" width="150" height="56" rx="8" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.25"/>
+<text x="375" y="158" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">B: Tracking on</text>
+<text x="375" y="176" text-anchor="middle" font-size="11.5" fill="#6B7280">0 changes yet</text>
+<rect x="520" y="134" width="150" height="56" rx="8" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="1.25"/>
+<text x="595" y="158" text-anchor="middle" font-size="14" font-weight="600" fill="#111827">C: Too sparse</text>
+<text x="595" y="176" text-anchor="middle" font-size="11.5" fill="#6B7280">Too few / too short</text>
+<rect x="740" y="134" width="150" height="56" rx="8" fill="#DBEAFE" stroke="#2563EB" stroke-width="2.5"/>
+<text x="815" y="158" text-anchor="middle" font-size="14" font-weight="700" fill="#1D4ED8">D: Sufficient</text>
+<text x="815" y="176" text-anchor="middle" font-size="11.5" font-weight="600" fill="#1D4ED8">Analysis target</text>
+</svg>

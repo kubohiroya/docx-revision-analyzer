@@ -55,6 +55,7 @@
     "build:installers": "node scripts/build-all.mjs --only=desktop --installers",
     "prepublishOnly": "npm run clean && npm run build:lib",
     "fixtures": "ts-node scripts/makeFixtures.ts",
+    "diagrams": "node scripts/make-revision-states.mjs",
     "build:binary": "bash scripts/build-binary.sh chart",
     "build:binary:all": "bash scripts/build-binary.sh chart --all",
     "build:binary:score": "bash scripts/build-binary.sh score",
