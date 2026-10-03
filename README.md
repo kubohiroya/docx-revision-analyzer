@@ -22,13 +22,66 @@ They're published as an npm package and also distributed as single, dependency-f
 > with Word's "Track Changes" turned on (Review tab → Track Changes). Files
 > edited with Track Changes off don't retain insertion (`w:ins`) / deletion
 > (`w:del`) markup, so there's nothing to analyze (the tools exit with an
-> error explaining why).
+> error explaining why). See "[The `.docx` files these tools expect](#the-docx-files-these-tools-expect)".
 
 > **What this is for**: a tool for writers to look back on how their own document was written — not a way to police
-> others. Tracked changes in a `.docx` saved on a computer are easy to remove or rewrite: turning Track Changes off,
-> accepting all changes, or editing the XML to change `w:date` / `w:author`. Other apps and converters also write
+> others. Tracked changes in a `.docx` saved on a computer are easy to leave out, remove or rewrite: edits made with
+> Track Changes off are never recorded, accepting or rejecting all changes erases the ones already recorded, and
+> editing the XML can change `w:date` / `w:author`. Other apps and converters also write
 > files differently from Word. So the history these tools show can be incomplete or altered, and nothing they output
 > is proof of how a document was written. See "[Integrity notes](#integrity-notes)".
+
+---
+
+## The `.docx` files these tools expect
+
+**These tools are meant for `.docx` files in state D below ("Sufficient"): files that hold enough tracked
+changes, recorded over a long enough period, for their content to be analyzed.** The tools read the tracked
+changes (`w:ins` / `w:del`, with their `w:date` and `w:author`) stored inside a `.docx`, and how much a file can
+tell you depends on how much of that history it still holds. A document starts in state A and is always in one of
+four states:
+
+![Revision history in four states. From the start, a document is in A (no tracking), then moves to B (tracking on) → C (too sparse) → D (sufficient), the state these tools analyze. Accepting or rejecting some changes moves D back to C; "Accept All" or "Reject All" moves C or D back to B; "Accept All Changes and Stop Tracking" moves them back to A, and none of this can be undone](./fixtures/revision-states.png)
+
+| State | The document | What the tools do |
+|---|---|---|
+| **A: No tracking** | Track Changes is off, so edits leave no record | Exit with an error saying the file was saved with Track Changes off |
+| **B: Tracking on** | Track Changes is on, but nothing has been edited since | Exit with an error saying there are no tracked changes yet |
+| **C: Too sparse** | Some edits are recorded, but too few or over too short a time | Run, but the chart and flow show little, and `docx-ai-suspicion-score` warns that fewer than 5 insertion events are statistically weak |
+| **D: Sufficient** | Enough edits recorded over a long enough period | **What these tools are for:** produce meaningful results |
+
+A document moves forward, A → B → C → D, as you keep writing with Track Changes on. Turn it on (Review tab →
+Track Changes) **before** you start writing; what was typed while it was off is never recorded.
+
+It can also move backward, and every red path in the figure loses tracked changes:
+
+- **D → C:** accepting or rejecting individual changes removes them from the history, which can leave too little
+  to analyze.
+- **C / D → B:** "Accept All" or "Reject All" removes every tracked change. Track Changes stays on, so the
+  document is back to "tracking on, no changes yet".
+- **C / D → A:** "Accept All Changes and Stop Tracking" removes every tracked change and turns tracking off.
+
+Turning Track Changes off is not one of these: in state C or D the changes already recorded stay in the file, and
+only later edits go unrecorded. In state B it takes the document back to A, but there is nothing to lose there.
+
+**Lost tracked changes can't be brought back** (for files saved on OneDrive, see [below](#files-saved-on-onedrive)),
+so to keep the history, analyze — or keep a copy of — the file before accepting or rejecting changes.
+
+Also check that each change keeps its timestamp. If the document is set to remove personal information on save,
+Word strips the author and date of every tracked change, so the timeline is lost even in state D; see
+"[When timestamps are missing](#when-timestamps-are-missing---preserve-history)".
+
+### Files saved on OneDrive
+
+OneDrive keeps earlier versions of a file in Version History, which adds a way back that a file on your computer
+doesn't have:
+
+![The same four states for a file saved on OneDrive. In addition to the paths above, a document in A, B or C can return to D by restoring, from Version History, a version saved while it was in D](./fixtures/revision-states-onedrive.png)
+
+If a version saved while the document was in state D is still in Version History, restoring it brings the document
+back to D, whichever state it is in now. This restores an earlier copy of the whole file, so later edits are not in
+it, and it isn't guaranteed: OneDrive keeps only a limited number of versions, and a file that was never in state D
+has no such version to restore.
 
 ---
 
