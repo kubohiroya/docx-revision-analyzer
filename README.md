@@ -25,8 +25,9 @@ They're published as an npm package and also distributed as single, dependency-f
 > error explaining why). See "[The `.docx` files these tools expect](#the-docx-files-these-tools-expect)".
 
 > **What this is for**: a tool for writers to look back on how their own document was written — not a way to police
-> others. Tracked changes in a `.docx` saved on a computer are easy to remove or rewrite: turning Track Changes off,
-> accepting all changes, or editing the XML to change `w:date` / `w:author`. Other apps and converters also write
+> others. Tracked changes in a `.docx` saved on a computer are easy to leave out, remove or rewrite: edits made with
+> Track Changes off are never recorded, accepting or rejecting all changes erases the ones already recorded, and
+> editing the XML can change `w:date` / `w:author`. Other apps and converters also write
 > files differently from Word. So the history these tools show can be incomplete or altered, and nothing they output
 > is proof of how a document was written. See "[Integrity notes](#integrity-notes)".
 
