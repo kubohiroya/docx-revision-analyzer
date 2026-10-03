@@ -182,9 +182,8 @@ A document typed little by little, then with 295 characters inserted within a se
   times only to the minute.
 - **Only the body text is analyzed.** Footnotes, headers and text boxes are not, and the pages in the flow are a
   schematic approximation.
-- **Some environments are not fully checked yet.** Tamper detection on files saved by Word for the web, and Word
-  accepting the password of a lock set by these tools, have not been fully verified. The Track Changes lock is weak
-  protection that editing the file can remove.
+- **Some environments are not fully checked yet.** Tamper detection on files saved by Word for the web has not been
+  fully verified. The Track Changes lock is weak protection that editing the file can remove.
 
 ---
 

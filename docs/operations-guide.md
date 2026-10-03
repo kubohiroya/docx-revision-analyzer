@@ -83,9 +83,9 @@ the setting that removes authors and dates on save if it is set.
 - **Desktop app:** open (drop) the template and click "Lock template". After you enter the password, a dialog asks
   where to save the locked copy (named `<name>-locked.docx` by default). The opened file itself is not changed.
 
-The password hash follows the specification (ECMA-376) and Apache POI's implementation, in the format Word 2013
-and later use (SHA-512, 100,000 rounds), so Word's Lock Tracking menu should accept the same password. Before
-handing the template out, open it in Word once and check that the password unlocks it.
+The password hash is made in the format Word 2013 and later use (SHA-512, 100,000 rounds), so Word's Lock Tracking
+menu accepts the same password. This has been checked in Word for Mac with both an ASCII password and one containing
+Japanese: the file opens locked, a wrong password doesn't unlock it, and the right one does.
 
 **What this does**
 

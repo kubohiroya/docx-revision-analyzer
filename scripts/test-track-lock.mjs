@@ -50,6 +50,17 @@ check("legacy key matches the ECMA-376 example", DRA.legacyPasswordKey("Example"
 check("legacy key of an empty password", DRA.legacyPasswordKey("") === "00000000");
 check("password is truncated to 15 characters", DRA.legacyPasswordKey("123456789012345") === DRA.legacyPasswordKey("1234567890123456789"));
 
+// Word (Word for Mac) が「変更履歴のロック」で書き出したハッシュ値と一致する。日本語のパスワードは、各文字の下位バイトが
+// 0x80 以上になるため、バイトを符号なしとして扱うことを確かめる (Apache POI のように符号付きで扱うと一致しない)
+const fromWord = [
+  ["Teacher2026", "RgLp8iDWIxKFGIUl0I4aWA==", "OJG4rIAmgXYL7zhvrW9dAdhp+pDTHdJ2j03hTqy2VeMtmPSp7WcLXMwtYsx6YU/SFYqg740eNj5ax4Wq7v3fYg=="],
+  ["研究室ゼミ2026", "p+u5HPMSU3+QXuds9tVQoA==", "AR4WTTSf4yvCQoXd7BGwO0H0qYtAzJU9Hlv4ChfENSCc7CXDqHJUHD0yixE34mY/9Tj3C9HF76mf5Iw75kFu9w=="],
+];
+for (const [pw, saltB64, hashB64] of fromWord) {
+  const h = await DRA.hashLockPassword(pw, new Uint8Array(Buffer.from(saltB64, "base64")), 100000, DRA.nodeSha512);
+  check(`matches Word's hash for "${pw}"`, Buffer.from(h).toString("base64") === hashB64);
+}
+
 // Web Crypto と node:crypto で同じハッシュ値になる
 const salt = new Uint8Array(16).map((_, i) => i);
 const web = await DRA.hashLockPassword("Teacher2026", salt, 1000);

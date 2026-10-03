@@ -6,7 +6,8 @@
  * あわせて「変更履歴の記録」をオンにし、保存時に作成者・日時を削除する設定を外す。
  *
  * パスワードのハッシュ値は、Word と同じ方式で作る (ECMA-376 Part 4 の documentProtection と、
- * Apache POI の XWPFSettings.setEnforcementEditValue / CryptoFunctions を参照):
+ * Apache POI の XWPFSettings.setEnforcementEditValue / CryptoFunctions を参照。ただし 1. のバイトの扱いは
+ * POI と違い、Word が書き出したハッシュ値に合わせてある):
  *  1. パスワード (先頭15文字) から、Word 2003 以前の 32 ビットの鍵を作る
  *  2. その鍵のバイト順を逆にして 16 進の文字列 (大文字) にし、UTF-16LE のバイト列にする
  *  3. salt + 2. を SHA-512 でハッシュし、続けて「前回のハッシュ値 + 回数 (32 ビット LE)」を spinCount 回ハッシュする
@@ -109,11 +110,12 @@ export function legacyPasswordKey(password: string): string {
       const row = ENCRYPTION_MATRIX[line++];
       for (let bit = 0; bit < 7; bit++) if (b & (1 << bit)) high ^= row[bit];
     }
-    // 下位の語。Java の実装と同じく、バイトは符号付きとして XOR する
+    // 下位の語。バイトは符号なしとして XOR する (Apache POI は Java の byte のまま符号付きで XOR するため、
+    // 0x80 以上のバイトを含むパスワード (日本語など) で Word と食い違う。Word for Mac で確かめた)
     let low = 0;
     for (let i = bytes.length - 1; i >= 0; i--) {
       low = rotateLeft15(low);
-      low = (low ^ (bytes[i] >= 0x80 ? bytes[i] - 0x100 : bytes[i])) & 0xffff;
+      low = (low ^ bytes[i]) & 0xffff;
     }
     low = rotateLeft15(low);
     low = (low ^ bytes.length ^ 0xce4b) & 0xffff;
