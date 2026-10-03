@@ -18,7 +18,7 @@ How to get and set up the npm package, the single executables and the drag-and-d
 npm install -g docx-revision-analyzer
 ```
 
-This installs four commands: `docx-revision-chart`, `docx-revision-flow`, `docx-ai-suspicion-score`, and `docx-revision-snapshot`.
+This installs five commands: `docx-revision-chart`, `docx-revision-flow`, `docx-ai-suspicion-score`, `docx-revision-snapshot`, and `docx-revision-versions`.
 
 ## Single executables (no Node.js needed)
 

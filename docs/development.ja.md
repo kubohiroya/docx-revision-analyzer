@@ -169,6 +169,7 @@ docx-revision-analyzer/
 │   │   ├── flow.ts        docx-revision-flow CLI本体
 │   │   ├── score.ts       docx-ai-suspicion-score CLI本体
 │   │   ├── snapshot.ts    docx-revision-snapshot CLI本体 (区切りごとの提出の保管と通し解析)
+│   │   ├── versions.ts    docx-revision-versions CLI本体 (過去の時点の文書の書き出し)
 │   │   ├── config.ts      設定ファイル (<ツール名>.yml) の読み込み
 │   │   └── common.ts      CLI共通処理 (--preserve-history・--lock・--template の処理、複数ファイルの処理と結果表示)
 │   ├── lib/
@@ -192,6 +193,7 @@ docx-revision-analyzer/
 │   │   ├── tamperEvidence.ts 改ざんの痕跡の検出と図の警告 (-tampered.svg)
 │   │   ├── trackLock.ts      変更履歴のロック (--lock。Word と同じ形式のパスワードのハッシュ値)
 │   │   ├── snapshots.ts      スナップショットの通し解析 (重複を除いて各回の新しい変更を取り出す)
+│   │   ├── versions.ts       変更履歴から指定時刻の文書 (.docx) を復元する
 │   │   ├── filenames.ts      出力ファイル名・見出しの日時
 │   │   ├── input.ts          入力 (docx のバイト列) の型
 │   │   └── i18n.ts           表示言語の判定とメッセージ (英語・日本語)

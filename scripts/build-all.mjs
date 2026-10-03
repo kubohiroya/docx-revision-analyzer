@@ -75,7 +75,7 @@ function step(name, title, fn) {
 step("lib", "Library and CLIs (TypeScript → dist/)", () => {
   fs.rmSync(path.join(root, "dist"), { recursive: true, force: true });
   run(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"]);
-  return ["dist/index.js", "dist/core.js", "dist/cli/{chart,flow,score,snapshot}.js"];
+  return ["dist/index.js", "dist/core.js", "dist/cli/{chart,flow,score,snapshot,versions}.js"];
 });
 
 // 2. 単体実行ファイル
@@ -84,6 +84,7 @@ const CLIS = [
   ["flow", "docx-revision-flow"],
   ["score", "docx-ai-suspicion-score"],
   ["snapshot", "docx-revision-snapshot"],
+  ["versions", "docx-revision-versions"],
 ];
 const binDir = path.join(root, "dist-bin");
 step("binaries", "Single executables (Bun → dist-bin/)", () => {

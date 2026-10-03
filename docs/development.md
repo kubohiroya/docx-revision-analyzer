@@ -178,6 +178,7 @@ docx-revision-analyzer/
 │   │   ├── flow.ts        docx-revision-flow CLI
 │   │   ├── score.ts       docx-ai-suspicion-score CLI
 │   │   ├── snapshot.ts    docx-revision-snapshot CLI (archiving and charting submissions over time)
+│   │   ├── versions.ts    docx-revision-versions CLI (writing out the document at earlier points in time)
 │   │   ├── config.ts      Settings files (<tool>.yml)
 │   │   └── common.ts      Shared CLI logic (--preserve-history, --lock, --template, multiple files and result output)
 │   ├── lib/
@@ -201,6 +202,7 @@ docx-revision-analyzer/
 │   │   ├── tamperEvidence.ts Traces of tampering and the warning in figures (-tampered.svg)
 │   │   ├── trackLock.ts      Locking Track Changes (--lock; Word-compatible password hash)
 │   │   ├── snapshots.ts      Analysis across snapshots (new changes per submission, without duplicates)
+│   │   ├── versions.ts       Rebuilding the document (.docx) at a given time from its tracked changes
 │   │   ├── filenames.ts      Output file names and dates in titles
 │   │   ├── input.ts          The input type (.docx bytes)
 │   │   └── i18n.ts           Display language detection and messages (English / Japanese)

@@ -23,12 +23,13 @@ system or child processes, so it also runs in a browser, a WebView or a sandboxe
 setting).
 
 ```ts
-import { extractRevisions, parseDocxLayout, buildFlow, renderFlowSvg, preserveHistoryInDocx } from "docx-revision-analyzer/core";
+import { extractRevisions, parseDocxLayout, buildFlow, renderFlowSvg, preserveHistoryInDocx, docxVersionAt } from "docx-revision-analyzer/core";
 
 const bytes = new Uint8Array(await file.arrayBuffer());
 const data = await extractRevisions(bytes);
 const svg = renderFlowSvg(buildFlow(await parseDocxLayout(bytes), { gapThresholdHours: 1, bulkChars: 150 }));
 const { output } = await preserveHistoryInDocx(bytes); // the fixed .docx as bytes, if it needed fixing
+const earlier = await docxVersionAt(bytes, new Date("2026-06-01T10:30:00Z")); // the .docx as it was at that time
 ```
 
 `npm test` bundles the core for the browser with esbuild (failing if it imports a Node.js module) and runs it on

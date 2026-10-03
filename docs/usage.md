@@ -10,6 +10,7 @@ Each command's options and how to read the figures it draws. For running it toge
 - [2. `docx-revision-flow` — edit flow across editing sessions](#2-docx-revision-flow--edit-flow-across-editing-sessions)
 - [3. `docx-ai-suspicion-score` — AI-misuse suspicion score](#3-docx-ai-suspicion-score--ai-misuse-suspicion-score)
 - [4. `docx-revision-snapshot` — archive and chart submissions over time](#4-docx-revision-snapshot--archive-and-chart-submissions-over-time)
+- [5. `docx-revision-versions` — the document as it was at earlier points in time](#5-docx-revision-versions--the-document-as-it-was-at-earlier-points-in-time)
 - [Detecting traces of tampering](#detecting-traces-of-tampering)
 - [When timestamps are missing (`--preserve-history`)](#when-timestamps-are-missing---preserve-history)
 - [Settings file](#settings-file)
@@ -354,6 +355,50 @@ submissions, use `--key-depth <n>` to identify documents by only their first n f
 | `-p, --gap-threshold <hours>` | Session gap for each submission's flow | `1` |
 | `--bulk-chars <n>` / `--rules <file>` | Bulk-insertion detection (as in `docx-revision-chart`) | `150` / none |
 | `--no-tamper-check` | Don't check for traces of tampering | off |
+| `--lang <en\|ja>` | Display language | from the OS |
+
+## 5. `docx-revision-versions` — the document as it was at earlier points in time
+
+Rebuilds the document as it was at earlier points in time from the dates of its tracked changes, and writes each
+version out as `.docx` (and/or plain text). Changes dated up to that time are accepted and later ones undone, so a
+version holds no tracked changes.
+
+```bash
+# The document at the end of each session, plus just before the first change (the default)
+docx-revision-versions report.docx
+
+# The document at given times
+docx-revision-versions report.docx --at "2026-06-01 10:30" --at 2026-06-02
+
+# Every 10 minutes from the first change, as .docx and as text
+docx-revision-versions report.docx --every 10m -f docx,txt
+```
+
+The versions are written to `<name>-versions/` next to the input as `<name>-<YYYYMMDD-HHMMSS>.docx` (local time), and
+`<name>.versions.json` lists each version's time, why it was made (`initial`, `at`, `every`, `session`), and how many
+changes it includes.
+
+How a version is rebuilt:
+
+- Insertions, deletions and moves dated up to that time are accepted; later ones are undone.
+- So are inserted and deleted paragraph marks: where a paragraph mark did not exist yet (or was already deleted),
+  the paragraph is joined to the next one. Inserted and deleted table rows are handled the same way.
+- Formatting changes made later (`w:rPrChange`, `w:pPrChange`, …) are reverted to the formatting recorded with them.
+- Changes without a date (e.g. removed by the "remove personal information" setting) are treated as made before the
+  first dated change, as in `docx-revision-flow`.
+- Only what the tracked changes recorded can be rebuilt. Edits made while Track Changes was off, and changes that
+  were accepted or rejected, are not in any version.
+- `--every` skips intervals with no changes, so consecutive versions always differ.
+- The text output has one line per paragraph (one per paragraph in a table cell) and leaves out figures.
+
+| Option | Description | Default |
+|---|---|---|
+| `--at <datetime>` | Write the version at this time (`YYYY-MM-DD HH:mm` in local time, or ISO 8601; a date alone means the end of that day). Can be given more than once | none |
+| `--every <interval>` | Write a version at this interval from the first change (`30s`, `10m`, `2h`, `1d`, or seconds), plus the version just before the first change | none |
+| `--sessions` | Write the version at the end of each session, plus the version just before the first change | on when neither `--at` nor `--every` is given |
+| `-p, --gap-threshold <hours>` | Session gap for `--sessions` (as in `docx-revision-flow`) | `1` |
+| `-f, --format <list>` | `docx`, `txt`, or `docx,txt` | `docx` |
+| `-o, --out-dir <dir>` | Folder to write the versions to | `<name>-versions` next to the input |
 | `--lang <en\|ja>` | Display language | from the OS |
 
 ## Detecting traces of tampering

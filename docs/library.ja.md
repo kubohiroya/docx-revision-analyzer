@@ -22,12 +22,13 @@
 `buildDropOutputPath`、macOS の言語設定の読み取り) を加えたものです。
 
 ```ts
-import { extractRevisions, parseDocxLayout, buildFlow, renderFlowSvg, preserveHistoryInDocx } from "docx-revision-analyzer/core";
+import { extractRevisions, parseDocxLayout, buildFlow, renderFlowSvg, preserveHistoryInDocx, docxVersionAt } from "docx-revision-analyzer/core";
 
 const bytes = new Uint8Array(await file.arrayBuffer());
 const data = await extractRevisions(bytes);
 const svg = renderFlowSvg(buildFlow(await parseDocxLayout(bytes), { gapThresholdHours: 1, bulkChars: 150 }));
 const { output } = await preserveHistoryInDocx(bytes); // 書き換えが必要なら、書き換えた .docx のバイト列
+const earlier = await docxVersionAt(bytes, new Date("2026-06-01T10:30:00Z")); // その時点の文書の .docx
 ```
 
 `npm test` は、コアを esbuild でブラウザ向けにバンドルし (Node.js のモジュールを import していれば失敗)、`process` /

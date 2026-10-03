@@ -22,6 +22,7 @@ import {
   runForFiles,
   analyzeWithRules,
   loadAnnotations,
+  parseDateOption,
   resolveRules,
   writeAnalysisJson,
 } from "./common";
@@ -38,28 +39,6 @@ initLangFromArgv(process.argv, loadedConfig.config?.values.lang);
 const toolConfig = loadToolConfigOrExit(TOOL, loadedConfig);
 
 const program = new Command();
-
-/**
- * "YYYY-MM-DD" / "YYYY-MM-DD HH:mm" (ローカル時刻) または ISO 8601 形式の日時を解釈する。
- * 日付だけの場合、endOfDay なら その日の終わり (23:59:59.999) とする。
- */
-function parseDateOption(value: string, name: string, endOfDay: boolean): Date {
-  const m = value.trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?$/);
-  if (m) {
-    const [, y, mo, d, h, mi] = m;
-    if (h === undefined) {
-      return endOfDay
-        ? new Date(Number(y), Number(mo) - 1, Number(d), 23, 59, 59, 999)
-        : new Date(Number(y), Number(mo) - 1, Number(d));
-    }
-    return new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), endOfDay ? 59 : 0, endOfDay ? 999 : 0);
-  }
-  const parsed = Date.parse(value);
-  if (Number.isNaN(parsed)) {
-    throw new Error(t("errDate", name, value));
-  }
-  return new Date(parsed);
-}
 
 function positiveNumber(value: string, name: string): number {
   const n = parseFloat(value);

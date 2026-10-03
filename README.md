@@ -15,6 +15,7 @@ that links schematic pages of the document.
 | `docx-revision-flow` | For each session of continuous editing, draws schematic pages at its start and end, with bands showing how each paragraph, figure and table changed |
 | `docx-ai-suspicion-score` | Scores, from 0 to 100, unnatural jumps in length that suggest text written elsewhere was pasted in |
 | `docx-revision-snapshot` | Archives each submission of a long-running document (such as a thesis) under a serial number and charts the history across all of them |
+| `docx-revision-versions` | Rebuilds the document as it was at earlier points in time from its tracked changes and writes each version out (.docx or text) |
 
 They can also check submissions for **traces of tampering** (with a warning in the figure) and put a **Track Changes
 lock** on the template you hand out. They come as an npm package, single executables that need no Node.js,
@@ -36,6 +37,7 @@ made big revisions.
 
 ```bash
 docx-revision-flow report.docx -p 2     # draw the edit flow, splitting sessions at idle gaps over 2 hours
+docx-revision-versions report.docx      # write out the document as it was at the end of each session
 ```
 
 ### 2. Checking assignment submissions (Microsoft Teams)

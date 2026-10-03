@@ -178,6 +178,28 @@ const en = {
   snapChart: "Chart",
   snapFlow: "Flow",
   snapThroughLink: "Chart across all submissions",
+  versionsDescription:
+    "Rebuild a Word file (.docx) as it was at earlier points in time from the dates of its tracked changes, and " +
+    "write each version out. Changes dated up to that time are accepted and later ones undone; the versions keep " +
+    "no tracked changes. Only what the tracked changes recorded can be rebuilt",
+  versionsArgFiles: ".docx files or folders (a folder means every .docx in it, including subfolders)",
+  versionsOptAt:
+    "Write the version at this time (\"YYYY-MM-DD HH:mm\" in local time, or ISO 8601; a date alone means the end " +
+    "of that day). Can be given more than once",
+  versionsOptEvery:
+    "Write a version at this interval from the first change (30s, 10m, 2h, 1d, or seconds), skipping intervals " +
+    "with no changes, plus the version just before the first change",
+  versionsOptSessions:
+    "Write the version at the end of each session (split as in docx-revision-flow, by -p), plus the version just " +
+    "before the first change. This is the default when neither --at nor --every is given",
+  versionsOptFormat: "Output format: docx, txt, or both (docx,txt)",
+  versionsOptOutDir: "Folder to write the versions to (default: <name>-versions next to the input)",
+  versionsDone: (n: number, dir: string) => `Wrote ${n} version(s) to ${dir}`,
+  versionsUndated: (n: number) =>
+    `${n} tracked change(s) have no date; they are treated as made before the first dated change.`,
+  errInterval: (name: string, value: string) =>
+    `${name}: can't read the interval "${value}" (e.g. 30s, 10m, 2h, 1d; at least 1 second).`,
+  errVersionFormat: (value: string) => `--format: "${value}" is not docx, txt, or docx,txt.`,
   optLock:
     "Instead of drawing figures, lock Track Changes in each input file (a template to hand out): turns Track " +
     "Changes on and sets a password. Overwrites the file (the original is kept as <name>.backup-<date>.docx)",
@@ -429,6 +451,25 @@ const ja: Catalog = {
   snapChart: "チャート",
   snapFlow: "フロー",
   snapThroughLink: "すべての回を通したチャート",
+  versionsDescription:
+    "Word ファイル (.docx) の変更履歴の日時から、過去の時点の文書 (版) を復元して書き出す。その時点までの変更は" +
+    "受け入れ、その後の変更は元に戻す。版には変更履歴を残さない。復元できるのは変更履歴に残っている範囲だけ",
+  versionsArgFiles: ".docx ファイルまたはフォルダ (フォルダはサブフォルダを含む中のすべての .docx)",
+  versionsOptAt:
+    "この時刻の版を書き出す (\"YYYY-MM-DD HH:mm\" のローカル時刻、または ISO 8601。日付だけならその日の終わり)。" +
+    "複数回指定できる",
+  versionsOptEvery:
+    "最初の変更から、この間隔ごとの版を書き出す (30s, 10m, 2h, 1d、または秒数)。変更の無い間隔は飛ばす。" +
+    "最初の変更の直前の版も書き出す",
+  versionsOptSessions:
+    "時間区間 (docx-revision-flow と同じく -p で区切る) の終わりごとの版と、最初の変更の直前の版を書き出す。" +
+    "--at も --every も指定しなければこれになる",
+  versionsOptFormat: "出力形式: docx、txt、または両方 (docx,txt)",
+  versionsOptOutDir: "版を書き出すフォルダ (既定: 入力と同じフォルダの <名前>-versions)",
+  versionsDone: (n, dir) => `${n}個の版を ${dir} に書き出しました`,
+  versionsUndated: (n) => `日時の無い変更が ${n} 件あります。最初の日時のある変更より前に行われたものとして扱いました。`,
+  errInterval: (name, value) => `${name}: 間隔「${value}」を解釈できません (例: 30s, 10m, 2h, 1d。1秒以上)。`,
+  errVersionFormat: (value) => `--format: 「${value}」は docx、txt、docx,txt のいずれでもありません。`,
   optLock:
     "図を作る代わりに、入力した各ファイル (配布するテンプレート) に変更履歴のロックをかける。変更履歴の記録をオンにし、" +
     "パスワードを設定して上書きする (元のファイルは <名前>.backup-<日時>.docx として残す)",

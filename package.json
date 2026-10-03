@@ -46,7 +46,8 @@
     "docx-revision-chart": "dist/cli/chart.js",
     "docx-ai-suspicion-score": "dist/cli/score.js",
     "docx-revision-flow": "dist/cli/flow.js",
-    "docx-revision-snapshot": "dist/cli/snapshot.js"
+    "docx-revision-snapshot": "dist/cli/snapshot.js",
+    "docx-revision-versions": "dist/cli/versions.js"
   },
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
@@ -62,13 +63,15 @@
     "build:binary:score": "bash scripts/build-binary.sh score",
     "build:binary:flow": "bash scripts/build-binary.sh flow",
     "build:binary:snapshot": "bash scripts/build-binary.sh snapshot",
+    "build:binary:versions": "bash scripts/build-binary.sh versions",
     "build:mac-app": "bash scripts/make-mac-droplet.sh chart",
     "build:mac-app:flow": "bash scripts/make-mac-droplet.sh flow",
-    "test": "node scripts/test-browser-bundle.mjs && node scripts/test-tamper-evidence.mjs && node scripts/test-track-lock.mjs && node scripts/test-snapshots.mjs",
+    "test": "node scripts/test-browser-bundle.mjs && node scripts/test-tamper-evidence.mjs && node scripts/test-track-lock.mjs && node scripts/test-snapshots.mjs && node scripts/test-versions.mjs",
     "test:browser": "node scripts/test-browser-bundle.mjs",
     "test:tamper": "node scripts/test-tamper-evidence.mjs",
     "test:lock": "node scripts/test-track-lock.mjs",
-    "test:snapshots": "node scripts/test-snapshots.mjs"
+    "test:snapshots": "node scripts/test-snapshots.mjs",
+    "test:versions": "node scripts/test-versions.mjs"
   },
   "dependencies": {
     "commander": "^12.1.0",

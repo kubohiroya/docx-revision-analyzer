@@ -21,6 +21,7 @@ export * from "./lib/integrity";
 export * from "./lib/tamperEvidence";
 export * from "./lib/trackLock";
 export * from "./lib/snapshots";
+export * from "./lib/versions";
 export * from "./lib/figureTargets";
 export * from "./lib/flow";
 export * from "./lib/flowSvg";

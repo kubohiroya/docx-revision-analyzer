@@ -18,7 +18,7 @@ npm パッケージ・単体実行ファイル・ドラッグ&ドロップ版の
 npm install -g docx-revision-analyzer
 ```
 
-`docx-revision-chart` / `docx-revision-flow` / `docx-ai-suspicion-score` / `docx-revision-snapshot` の4つのコマンドが使えるようになります。
+`docx-revision-chart` / `docx-revision-flow` / `docx-ai-suspicion-score` / `docx-revision-snapshot` / `docx-revision-versions` の5つのコマンドが使えるようになります。
 
 ## 単体バイナリ (Node.js 不要)
 
