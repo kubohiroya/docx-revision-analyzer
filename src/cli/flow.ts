@@ -5,6 +5,7 @@ import * as path from "path";
 import { describeMissingRevisions } from "../lib/docxRevisions";
 import { parseDocxLayout } from "../lib/docxLayout";
 import { checkIntegrity } from "../lib/integrity";
+import { addTamperWarning } from "../lib/tamperEvidence";
 import { flowTargets } from "../lib/figureTargets";
 import { buildFlow, DEFAULT_FLOW_OPTIONS } from "../lib/flow";
 import { highlightCategoryMap } from "../lib/classifiers";
@@ -15,6 +16,8 @@ import {
   addAnalysisOptions,
   addCommonOptions,
   checkAndFixHistorySettings,
+  checkTamper,
+  tamperedOutput,
   FileResult,
   runForFiles,
   analyzeWithRules,
@@ -111,6 +114,10 @@ async function processOne(
       ? buildDropOutputPath(`${base}-flow.docx`, fs.statSync(resolved).mtime, ".svg")
       : `${base}-flow.svg`;
   }
+  const tamper = await checkTamper(buf, options);
+  const marked = tamperedOutput(outFile, explicitOutput, tamper);
+  outFile = marked.outFile;
+  if (marked.note) notes.push(marked.note);
 
   const svg = renderFlowSvg(result, {
     title: options.title ?? buildDefaultTitle(t("flowTitlePrefix"), inputFile, fs.statSync(resolved).mtime),
@@ -120,9 +127,9 @@ async function processOne(
     annotations: loadAnnotations(options),
     categories: analysis.categories,
   });
-  fs.writeFileSync(outFile, svg, "utf-8");
+  fs.writeFileSync(outFile, addTamperWarning(svg, tamper), "utf-8");
   const jsonOut = writeAnalysisJson(options, outFile, TOOL, inputFile, analysis,
-    options.json ? await checkIntegrity(buf) : undefined, flowTargets(result));
+    options.json ? await checkIntegrity(buf) : undefined, flowTargets(result), tamper);
   if (jsonOut) notes.push(t("jsonWritten", jsonOut));
 
   const pages = Math.max(...result.sessions.flatMap((s) => [s.startPages.length, s.endPages.length]));

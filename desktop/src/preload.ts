@@ -52,6 +52,7 @@ const api: AppApi = {
   chooseRulesDialog: () => ipcRenderer.invoke("choose-rules-dialog"),
   readRules: (p) => ipcRenderer.invoke("read-rules", p),
   saveFile: (name, data, kind) => ipcRenderer.invoke("save-file", name, data, kind),
+  saveLockedDocx: (bytes, name, password) => ipcRenderer.invoke("save-locked-docx", bytes, name, password),
   getSettings: () => ipcRenderer.invoke("get-settings"),
   setSettings: (s) => ipcRenderer.invoke("set-settings", s),
   systemLang: () => ipcRenderer.invoke("system-lang"),

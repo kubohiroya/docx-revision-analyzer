@@ -23,6 +23,10 @@ its text are never sent anywhere (the app blocks all network access).
   the figures. / ハイライトの一覧 (理由・本文)。クリックで図の該当箇所を示す
 - Settings: language, rules file (`--rules`), extensions ([EXTENSIONS.md](EXTENSIONS.md)). / 設定: 表示言語・ルールファイル・拡張機能
 - Save the figure as SVG or PNG. / 図を SVG / PNG で保存
+- Lock template: save a copy of the opened document with Track Changes locked (same as `--lock`). /
+  テンプレートにロックを施す: 変更履歴をロックしたものを保存 (`--lock` と同じ)
+- In a folder batch, figures with traces of tampering get a warning and a `-tampered` name. /
+  フォルダの一括処理で、改ざんの痕跡がある図には警告を付け、名前に `-tampered` を付ける
 
 ## Development / 開発
 

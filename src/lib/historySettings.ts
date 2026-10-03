@@ -141,7 +141,7 @@ const WML_NAMESPACES = [
  * Word は要素順がスキーマと異なると「ファイルが破損している」と判定することがあるため、
  * これらのうち最初に現れる要素の直前に w:trackRevisions を挿入する。
  */
-const ELEMENTS_AFTER_TRACK_REVISIONS = new Set([
+export const ELEMENTS_AFTER_TRACK_REVISIONS = new Set([
   "doNotTrackMoves", "doNotTrackFormatting", "documentProtection", "autoFormatOverride",
   "styleLockTheme", "styleLockQFSet", "defaultTabStop", "autoHyphenation",
   "consecutiveHyphenLimit", "hyphenationZone", "doNotHyphenateCaps", "showEnvelope",
@@ -173,32 +173,28 @@ function elementRegExp(prefix: string, name: string): RegExp {
   return new RegExp(`<${q}(?=[\\s/>])[^>]*?/>|<${q}(?=[\\s>])[^>]*>[\\s\\S]*?</${q}\\s*>`, "g");
 }
 
-/**
- * settings.xml の文字列を書き換え、個人情報削除の設定を外して変更履歴の記録を有効にする。
- * 書式を保つため XML を再シリアライズせず、該当要素だけを文字列として操作する。
- */
-export function patchSettingsXml(xml: string): string {
+/** settings.xml で WordprocessingML の名前空間に使われている接頭辞 (通常は w) */
+export function wmlPrefix(xml: string): string {
   const nsMatch = WML_NAMESPACES.map((ns) =>
     xml.match(new RegExp(`xmlns:([A-Za-z_][\\w.-]*)="${escapeRegExp(ns)}"`))
   ).find((m) => m);
   if (!nsMatch) {
     throw new Error(t("errNoWmlNamespace"));
   }
-  const w = nsMatch[1];
+  return nsMatch[1];
+}
 
-  let out = xml
-    .replace(elementRegExp(w, "removePersonalInformation"), "")
-    .replace(elementRegExp(w, "removeDateAndTime"), "");
+/** w:settings 直下から要素を取り除く (空要素・中身付き要素の両方) */
+export function removeSettingsElement(xml: string, w: string, name: string): string {
+  return xml.replace(elementRegExp(w, name), "");
+}
 
-  const trackRe = elementRegExp(w, "trackRevisions");
-  if (trackRe.test(out)) {
-    // w:val="false" 等で明示的にオフになっている場合も含め、オンの形に置き換える
-    out = out.replace(elementRegExp(w, "trackRevisions"), `<${w}:trackRevisions/>`);
-    return out;
-  }
-
-  // w:settings の開始タグの後ろから、trackRevisions より後ろに置くべき最初の要素を探す
-  const rootOpen = out.match(new RegExp(`<${escapeRegExp(w)}:settings(?=[\\s>])[^>]*>`));
+/**
+ * w:settings 直下に要素を挿入する。スキーマ上 element より後ろに置かれる要素 (later) のうち、
+ * 最初に現れるものの直前に置く (w 以外の名前空間の要素はすべて後ろとみなす)
+ */
+export function insertSettingsElement(xml: string, w: string, element: string, later: Set<string>): string {
+  const rootOpen = xml.match(new RegExp(`<${escapeRegExp(w)}:settings(?=[\\s>])[^>]*>`));
   if (!rootOpen || rootOpen.index === undefined) {
     throw new Error(t("errNoSettingsElement"));
   }
@@ -206,7 +202,7 @@ export function patchSettingsXml(xml: string): string {
   const tagRe = /<(\/?)([A-Za-z_][\w.-]*):([A-Za-z_][\w.-]*)/g;
   tagRe.lastIndex = bodyStart;
   let insertAt = -1;
-  for (let m = tagRe.exec(out); m; m = tagRe.exec(out)) {
+  for (let m = tagRe.exec(xml); m; m = tagRe.exec(xml)) {
     const [, closing, prefix, local] = m;
     if (closing) {
       if (prefix === w && local === "settings") {
@@ -215,8 +211,8 @@ export function patchSettingsXml(xml: string): string {
       }
       continue;
     }
-    // w 以外の名前空間の要素 (m:mathPr, w14:*, w15:* など) はすべて trackRevisions より後ろ
-    if (prefix !== w || ELEMENTS_AFTER_TRACK_REVISIONS.has(local)) {
+    // w 以外の名前空間の要素 (m:mathPr, w14:*, w15:* など) はすべて後ろ
+    if (prefix !== w || later.has(local)) {
       insertAt = m.index;
       break;
     }
@@ -224,7 +220,24 @@ export function patchSettingsXml(xml: string): string {
   if (insertAt < 0) {
     throw new Error(t("errSettingsStructure"));
   }
-  return out.slice(0, insertAt) + `<${w}:trackRevisions/>` + out.slice(insertAt);
+  return xml.slice(0, insertAt) + element + xml.slice(insertAt);
+}
+
+/** 「変更履歴の記録」をオンにする (w:val="false" 等で明示的にオフの場合も含む) */
+export function ensureTrackRevisions(xml: string, w: string): string {
+  const trackRe = elementRegExp(w, "trackRevisions");
+  if (trackRe.test(xml)) return xml.replace(elementRegExp(w, "trackRevisions"), `<${w}:trackRevisions/>`);
+  return insertSettingsElement(xml, w, `<${w}:trackRevisions/>`, ELEMENTS_AFTER_TRACK_REVISIONS);
+}
+
+/**
+ * settings.xml の文字列を書き換え、個人情報削除の設定を外して変更履歴の記録を有効にする。
+ * 書式を保つため XML を再シリアライズせず、該当要素だけを文字列として操作する。
+ */
+export function patchSettingsXml(xml: string): string {
+  const w = wmlPrefix(xml);
+  const out = removeSettingsElement(removeSettingsElement(xml, w, "removePersonalInformation"), w, "removeDateAndTime");
+  return ensureTrackRevisions(out, w);
 }
 
 // ---------------------------------------------------------------------------
