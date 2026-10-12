@@ -14,6 +14,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as fs from "fs";
 import * as path from "path";
 import { isTargetDocx, MAX_FOLDER_FILES, MicrosoftClient, MicrosoftError } from "./microsoft";
+import { openFileInBrowser } from "./openInBrowser";
 import type { BatchFolder } from "./shared";
 
 /**
@@ -174,6 +175,13 @@ export function registerBatchIpc(
     if (process.env.DRA_SMOKE_FILE || process.env.DRA_SMOKE_URL || process.env.DRA_SMOKE_BATCH) console.log(`smoke: would open ${url}`);
     else await shell.openExternal(url);
     return true;
+  });
+
+  ipcMain.handle("open-summary-in-browser", async (_e, dir: string) => {
+    // 出力先として登録したフォルダの一覧 (index.html) だけを開く
+    const r = path.resolve(dir);
+    if (!outputRoots.has(r)) return;
+    await openFileInBrowser(path.join(r, "index.html")).catch((err) => console.error(err));
   });
 
   ipcMain.handle("show-folder", (_e, dir: string) => {

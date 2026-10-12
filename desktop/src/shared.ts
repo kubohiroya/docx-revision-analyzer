@@ -34,6 +34,11 @@ export interface AppSettings {
   checkForUpdates?: boolean;
   /** 拡張の外部送信の前に毎回確認するか (id → 確認するか)。無ければ確認する */
   extensionConfirmSends?: Record<string, boolean>;
+  /**
+   * SVG を作ったあと既定のブラウザで開くか (既定は開かない)。「SVG を保存」ではその SVG を、
+   * フォルダの一括処理では一覧 (index.html) を開く
+   */
+  openSvgInBrowser?: boolean;
   /** 拡張モジュールの有効/無効 (id → 有効か)。拡張の仕組みは #15 */
   extensions: Record<string, boolean>;
   /** 解析の設定 (前回の値を覚えておく) */
@@ -210,6 +215,8 @@ export interface AppApi {
   /** 出力先のフォルダの中に書き込む (.svg / .csv / .html のみ)。書き込んだパスを返す */
   writeOutput(root: string, rel: string, content: string): Promise<string>;
   showFolder(dir: string): Promise<void>;
+  /** 一括処理の出力先の一覧 (index.html) を既定のブラウザで開く */
+  openSummaryInBrowser(dir: string): Promise<void>;
   /** 開いている (または一括処理した) OneDrive / SharePoint の文書の URL を既定のブラウザで開く */
   openSourceLink(url: string): Promise<boolean>;
   /** ドロップされた File のパス */

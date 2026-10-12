@@ -45,6 +45,8 @@ export interface BatchContext {
   analysis(): AnalysisSettings;
   rules(): RuleSet | undefined;
   status(msg: string): void;
+  /** 作り終えたら一覧 (index.html) を既定のブラウザで開くか */
+  openInBrowser(): boolean;
 }
 
 interface Row {
@@ -292,6 +294,7 @@ async function runBatch(folder: BatchFolder, outputRoot: string, ctx: BatchConte
   await window.app.writeOutput(outputRoot, "index.html", summaryHtml(folder, rows, S, ctx.lang()));
   closeProgress();
   await shown;
+  if (ctx.openInBrowser() && rows.some((r) => r.ok)) await window.app.openSummaryInBrowser(outputRoot);
   return { rows, cancelled };
 }
 
