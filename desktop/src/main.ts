@@ -22,6 +22,7 @@ import { MicrosoftClient, MicrosoftConfig, MicrosoftError } from "./microsoft";
 import { EXT_SCHEME, ExtensionManager } from "./extensions";
 import { NetMediator } from "./sendLog";
 import { isSourceLink, registerBatchIpc, rememberSource } from "./batchMain";
+import { openFileInBrowser } from "./openInBrowser";
 import type { AnalysisResult, ClassifierContext, FigureContext } from "./extension-api";
 
 // 拡張のページ (dra-ext://<id>/) を、ES モジュールを読み込める安全なオリジンとして扱う
@@ -212,6 +213,8 @@ function registerIpc(): void {
     });
     if (r.canceled || !r.filePath) return null;
     await fs.promises.writeFile(r.filePath, typeof data === "string" ? data : Buffer.from(data));
+    // 開けなくても保存はできているので、保存の結果は変えない
+    if (kind === "svg" && loadSettings().openSvgInBrowser) void openFileInBrowser(r.filePath).catch((err) => console.error(err));
     return r.filePath;
   });
   ipcMain.handle("save-locked-docx", async (_e, bytes: Uint8Array, defaultName: string, password: string): Promise<LockSaveResult | null> => {

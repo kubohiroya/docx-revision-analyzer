@@ -148,6 +148,7 @@ function applyLang(): void {
   setText("o-day", S.bucketDay);
   setText("l-split", S.chartSplit);
   setText("save-svg", S.saveSvg);
+  setText("l-open-svg-in-browser", S.openSvgInBrowser);
   setText("save-png", S.savePng);
   setText("lock-template", S.lockTemplate);
   setText("drop-here", S.dropHere);
@@ -241,6 +242,7 @@ function writeControls(): void {
   setText("l-bulk", rules ? `${S.bulkChars} — ${S.bulkCharsByRules}` : S.bulkChars);
   $<HTMLSelectElement>("bucket").value = a.bucket;
   $<HTMLInputElement>("split").checked = a.chartSplit;
+  $<HTMLInputElement>("open-svg-in-browser").checked = !!settings.openSvgInBrowser;
 }
 
 async function analyze(): Promise<void> {
@@ -623,6 +625,7 @@ const batchCtx: BatchContext = {
   analysis: () => settings.analysis,
   rules: () => rules,
   status: (msg) => status(msg),
+  openInBrowser: () => !!settings.openSvgInBrowser,
 };
 
 // ---------------------------------------------------------------------------
@@ -1003,6 +1006,10 @@ async function main(): Promise<void> {
       if (href) void window.app.openSourceLink(href);
     });
   }
+  $("open-svg-in-browser").addEventListener("change", () => {
+    settings.openSvgInBrowser = $<HTMLInputElement>("open-svg-in-browser").checked;
+    void persist();
+  });
   $("save-svg").onclick = () => void save("svg");
   $("save-png").onclick = () => void save("png");
   $("lock-template").onclick = () => void lockTemplate();

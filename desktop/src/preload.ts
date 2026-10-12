@@ -39,6 +39,7 @@ const api: AppApi = {
   chooseOutputDir: (name) => ipcRenderer.invoke("choose-output-dir", name),
   writeOutput: (root, rel, content) => ipcRenderer.invoke("write-output", root, rel, content),
   showFolder: (dir) => ipcRenderer.invoke("show-folder", dir),
+  openSummaryInBrowser: (dir) => ipcRenderer.invoke("open-summary-in-browser", dir),
   openSourceLink: (url) => ipcRenderer.invoke("open-source-link", url),
   openUrl: (target) => ipcRenderer.invoke("open-url", target),
   recentUrls: () => ipcRenderer.invoke("recent-urls"),
