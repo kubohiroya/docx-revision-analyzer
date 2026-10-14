@@ -29,24 +29,55 @@ pnpm も使えます (`pnpm install`、`pnpm run build`) が、`pnpm-lock.yaml` 
 
 `npm run build` (`pnpm run build`) は、**この環境で作れるものを一括で**作り、最後に一覧を表示します。
 
+ビルドの成果物は 2 か所にまとまります。`dist/` (npm パッケージ) と `release/` (配布するものすべて) で、`release/` の中は
+種類ごと、さらにプラットフォームごとのフォルダに分かれます。`<os>` は `mac` / `win` / `linux`、`<arch>` は `x64` / `arm64` です
+(electron-builder の呼び方に合わせています)。
+
 | 工程 | 作るもの | 条件 |
 |---|---|---|
-| `lib` | ライブラリと CLI → `dist/` | 常に |
-| `binaries` | 単体実行ファイル `docx-revision-chart` / `docx-revision-flow` / `docx-ai-suspicion-score` → `dist-bin/` | [Bun](https://bun.sh) があれば |
-| `droplets` | macOS のドロップレット `docx-revision-chart.app` / `docx-revision-flow.app` → `dist-bin/` | macOS で Bun があれば |
-| `desktop` | この OS / CPU 向けのデスクトップアプリ (署名なし) → `desktop/release/` (初回は `desktop/` の依存も入れる) | 常に |
+| `lib` | ライブラリと CLI (JavaScript) → `dist/` | 常に |
+| `cli` | 単体実行ファイル `docx-revision-chart` / `-flow` / `-snapshot` / `-versions` / `docx-ai-suspicion-score` → `release/cli/<os>-<arch>/` | [Bun](https://bun.sh) があれば |
+| `droplet` | macOS のドロップレット `docx-revision-chart.app` / `docx-revision-flow.app` → `release/droplet/mac-<arch>/` | macOS で Bun があれば |
+| `desktop` | この OS / CPU 向けのデスクトップアプリ (署名なし) → `release/desktop/<os>/` (初回は `desktop/` の依存も入れる) | 常に |
 
-必要なツールが無い工程は、理由を表示して飛ばします。オプション (`--` の後に指定):
+```
+dist/                         npm パッケージ (tsc の出力)
+release/
+├── cli/
+│   ├── mac-arm64/            docx-revision-chart, docx-revision-flow, …
+│   ├── mac-x64/
+│   ├── linux-x64/
+│   ├── linux-arm64/
+│   └── win-x64/              docx-revision-chart.exe, …
+├── droplet/
+│   └── mac-arm64/            docx-revision-chart.app, docx-revision-flow.app
+└── desktop/
+    ├── mac/                  *.dmg, *.zip, mac-arm64/ または mac-universal/ (.app)
+    └── win/                  *Setup*.exe, *.zip, win-unpacked/, win-arm64-unpacked/
+```
+
+必要なツールが無い工程は、理由を表示して飛ばします。工程ごとのコマンドもあります。
+
+| コマンド | 内容 |
+|---|---|
+| `npm run build` | この環境で作れる工程をすべて |
+| `npm run build:lib` | ライブラリのコンパイルだけ (`prepublishOnly` と CI はこちら) |
+| `npm run build:cli` | この OS / CPU 向けの単体実行ファイル |
+| `npm run build:cli:all-platforms` | Linux/macOS/Windows × x64/arm64 向けの単体実行ファイル |
+| `npm run build:droplet` | macOS のドロップレット |
+| `npm run build:desktop` | この OS / CPU 向けのデスクトップアプリ (展開済みのアプリのみ。インストーラなし) |
+| `npm run build:desktop:installers` | デスクトップアプリのインストーラ (dmg/zip/NSIS。時間がかかる) |
+| `npm run clean` | `dist/` と `release/` を消す |
+
+オプション (`npm run build` や上のコマンドの `--` の後に指定):
 
 ```bash
 npm run build -- --skip=desktop          # デスクトップアプリ以外
-npm run build -- --only=lib,binaries     # 指定した工程だけ
-npm run build -- --all-platforms         # 単体実行ファイルを Linux/macOS/Windows × x64/arm64 向けにクロスビルド
-npm run build -- --installers            # デスクトップアプリのインストーラ (dmg/zip/NSIS) も作る (時間がかかる)
+npm run build -- --only=lib,cli          # 指定した工程だけ
+npm run build:cli -- --cli=flow,score    # 指定した CLI だけ (chart, flow, score, snapshot, versions)
+npm run build -- --all-platforms         # 単体実行ファイルをすべてのプラットフォーム向けにクロスビルド
+npm run build -- --installers            # デスクトップアプリのインストーラも作る
 ```
-
-ライブラリのコンパイルだけなら `npm run build:lib` です (`prepublishOnly` と CI はこちらを使います)。以下の個別のコマンド
-(`build:binary:flow`、`build:mac-app:flow` など) も引き続き使えます。
 
 Node.js 18 以降を想定しています (開発・動作確認は Node.js 22 で実施)。
 ビルド後は `dist/cli/chart.js` / `dist/cli/flow.js` / `dist/cli/score.js` を `node` で直接実行できます
@@ -65,26 +96,23 @@ commander などの依存パッケージもすべてバイナリに埋め込ま�
 # Bun のインストール (未導入の場合)
 curl -fsSL https://bun.sh/install | bash
 
-# 実行中のOS/CPU向けに1つビルド → dist-bin/docx-revision-chart
-npm run build:binary
+# 実行中のOS/CPU向けにすべての CLI をビルド → release/cli/<os>-<arch>/
+npm run build:cli
 
-# 主要なOS/CPU向けに一括クロスビルド (Linux/macOS/Windows × x64/arm64)
-npm run build:binary:all
+# 一部の CLI だけ
+npm run build:cli -- --cli=chart,flow
+
+# 主要なOS/CPU向けに一括クロスビルド → release/cli/{linux,mac,win}-{x64,arm64}/
+npm run build:cli:all-platforms
 ```
 
 生成された実行ファイルはそのまま配布・実行できます (Node.jsのインストール不要):
 
 ```bash
-./dist-bin/docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
+./release/cli/mac-arm64/docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
 ```
 
-内部的には `scripts/build-binary.sh` を呼んでいます。`docx-ai-suspicion-score` の
-方をバイナリ化したい場合は `npm run build:binary:score`、または
-`bash scripts/build-binary.sh score` を実行してください
-(`--all` を追加すると同様に一括クロスビルドできます)。`docx-revision-flow` は
-`npm run build:binary:flow` (`bash scripts/build-binary.sh flow`) でバイナリ化できます。
-
-> クロスコンパイル (`--all`) で生成した他OS向けの実行ファイルは、ビルドを実行した
+> クロスコンパイル (`--all-platforms`) で生成した他OS向けの実行ファイルは、ビルドを実行した
 > マシン上では動作確認できません。配布前に対象OSでの動作確認を推奨します。
 
 ## npm への公開 (メンテナー向け)
@@ -101,13 +129,11 @@ npm publish
 ## GitHub Releases への単体バイナリの添付 (メンテナー向け)
 
 ```bash
-npm run build:binary:all            # docx-revision-chart
-bash scripts/build-binary.sh flow --all
-bash scripts/build-binary.sh score --all
-npm run build:mac-app && npm run build:mac-app:flow   # macOS 上でのみ
+npm run build:cli:all-platforms     # すべての CLI をすべてのプラットフォーム向けに
+npm run build:droplet               # macOS 上でのみ
 ```
 
-`dist-bin/` にできたファイルを zip にして、リリースに添付します。
+`release/cli/` (と `release/droplet/`) の下のフォルダごとに zip にして、リリースに添付します。
 
 ## テスト用フィクスチャ
 
@@ -152,7 +178,7 @@ npm run fixtures
 
 標準的な npm パッケージのレイアウトに沿っています。`src/` が TypeScript ソース、
 `dist/` がビルド成果物 (JS + 型定義、`.gitignore` 済・npm publish 時のみ `files` で
-同梱)、`dist-bin/` が Bun によるシングルバイナリの出力先です。
+同梱)、`release/` が配布用の成果物 (単体実行ファイル、ドロップレット、デスクトップアプリ。上記) の出力先です。
 
 ```
 docx-revision-analyzer/
@@ -204,8 +230,7 @@ docx-revision-analyzer/
 │       ├── snapshotArchive.ts スナップショットの通し番号付きの保管
 │       └── locale.ts         macOS の言語設定の読み取り
 ├── scripts/
-│   ├── build-all.mjs         作れるものを一括でビルド (npm run build)
-│   ├── build-binary.sh       Bunでシングルバイナリ化するビルドスクリプト
+│   ├── build-all.mjs         作れるものを一括でビルド (npm run build と build:*)
 │   ├── make-mac-droplet.sh   macOS用Finderドロップレット(.app)を作るビルドスクリプト
 │   ├── makeFixtures.ts       テスト用docx生成スクリプト
 │   ├── make-revision-states.mjs 状態遷移図の生成
@@ -214,7 +239,7 @@ docx-revision-analyzer/
 ├── examples/              判定ルールの例
 ├── fixtures/              生成済みのテスト用docx・出力例・状態遷移図
 ├── dist/                  `npm run build:lib` の出力 (gitignore対象)
-└── dist-bin/              `npm run build:binary` の出力 (gitignore対象)
+└── release/               `npm run build` の配布用の出力 (gitignore対象)
 ```
 
 ## コントリビュート

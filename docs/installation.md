@@ -45,17 +45,18 @@ the chart next to it, named `<filename>-<that file's last-modified time>.svg`
 native notification/dialog instead of console output.
 
 ```bash
-npm run build:mac-app
+npm run build:droplet
 ```
 
-This builds the Bun binary and wraps it into `dist-bin/docx-revision-chart.app`
+This builds the Bun binary and wraps it into
+`release/droplet/mac-<arch>/docx-revision-chart.app` (`<arch>` is `arm64` or `x64`)
 using `osacompile` (an AppleScript compiler that ships with every Mac — no
 extra install beyond Bun itself). Move or copy that `.app` anywhere convenient
 (e.g. your Applications folder or the Dock) and drop `.docx` files onto its
 icon.
 
-`npm run build:mac-app:flow` builds the same kind of droplet for
-`docx-revision-flow` (`dist-bin/docx-revision-flow.app`). It covers the
+The same command also builds a droplet for
+`docx-revision-flow` (`release/droplet/mac-<arch>/docx-revision-flow.app`). It covers the
 whole editing period with default settings and writes
 `<file name>-flow-<that file's last-modified time>.svg`.
 
@@ -85,7 +86,7 @@ A few things worth knowing:
 
 Windows doesn't need a wrapper app the way macOS does: Explorer launches a
 `.exe` directly with the dropped file path(s) as plain command-line
-arguments, so the Windows binary produced by `npm run build:binary:all`
+arguments, so the Windows binary produced by `npm run build:cli:all-platforms`
 (the `bun-windows-x64` target) can be dropped onto directly, with no
 `osacompile`-style packaging step.
 
@@ -109,8 +110,8 @@ arguments, so the Windows binary produced by `npm run build:binary:all`
 
 ```powershell
 # Cross-compile from macOS/Linux (or run natively on Windows with Bun installed)
-npm run build:binary:all
-# -> dist-bin/docx-revision-chart-windows-x64.exe (exact name depends on build-binary.sh)
+npm run build:cli:all-platforms
+# -> release/cli/win-x64/docx-revision-chart.exe
 ```
 
 ## Desktop app

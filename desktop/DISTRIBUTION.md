@@ -96,5 +96,5 @@ network.
 
 ```bash
 cd desktop
-CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist -- --mac dir --arm64   # unsigned .app in release/
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist -- --mac dir --arm64   # unsigned .app in ../release/desktop/mac/
 ```

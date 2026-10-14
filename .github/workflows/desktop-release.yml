@@ -73,8 +73,8 @@ jobs:
         with:
           name: desktop-${{ matrix.os }}
           path: |
-            desktop/release/*.dmg
-            desktop/release/*.zip
-            desktop/release/*.exe
-            desktop/release/*.yml
+            release/desktop/*/*.dmg
+            release/desktop/*/*.zip
+            release/desktop/*/*.exe
+            release/desktop/*/*.yml
           if-no-files-found: warn

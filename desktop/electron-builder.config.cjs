@@ -20,7 +20,8 @@ module.exports = {
   appId: "io.github.kubohiroya.docx-revision-analyzer",
   productName: "Docx Revision Analyzer",
   copyright: "Copyright © Hiroya Kubo",
-  directories: { output: "release", buildResources: "build" },
+  // 配布物はリポジトリ直下の release/ にまとめる (release/desktop/mac/, release/desktop/win/ など。scripts/build-all.mjs)
+  directories: { output: "../release/desktop/${os}", buildResources: "build" },
   // microsoft.json: OneDrive / SharePoint から開くための Microsoft のアプリ (クライアント) ID (DISTRIBUTION.md)
   files: ["dist/**", "extensions/**", "package.json", "microsoft.json"],
   // 依存はすべて dist/main.js にバンドル済み。electron-updater だけは実行時に node_modules から読む

@@ -47,17 +47,17 @@ Windows では `.exe` に `.docx` を直接ドロップできます。
 知らされます。
 
 ```bash
-npm run build:mac-app
+npm run build:droplet
 ```
 
-このコマンドはBunバイナリをビルドしたうえで、`osacompile`
+このコマンドは `docx-revision-chart` と `docx-revision-flow` のBunバイナリをビルドしたうえで、`osacompile`
 (AppleScriptを.appにコンパイルする、Macに標準搭載されているツール。Bun以外の
-追加インストール不要) を使って `dist-bin/docx-revision-chart.app` として
-パッケージします。生成された `.app` は好きな場所 (Applicationsフォルダや
+追加インストール不要) を使って `release/droplet/mac-<arch>/docx-revision-chart.app`
+(`<arch>` は `arm64` または `x64`) としてパッケージします。生成された `.app` は好きな場所 (Applicationsフォルダや
 Dockなど) に置いて、`.docx` ファイルをそのアイコンにドロップしてください。
 
-`npm run build:mac-app:flow` を実行すると、同じ仕組みで `docx-revision-flow` の
-ドロップレット `dist-bin/docx-revision-flow.app` を作れます。こちらは全期間・既定の設定で
+同じ仕組みで `docx-revision-flow` の
+ドロップレット `release/droplet/mac-<arch>/docx-revision-flow.app` も作られます。こちらは全期間・既定の設定で
 `<ファイル名>-flow-<そのファイルの最終更新日時>.svg` を出力します。
 
 なぜラッパーが必要か: macOSのFinderは、ドロップされたファイルを
@@ -87,7 +87,7 @@ AppleScriptアプリを生成することでこれを解決しています。
 
 Windowsでは、macOSのような専用ラッパーアプリは不要です。エクスプローラーは
 `.exe` にドロップされたファイルをそのままコマンドライン引数として渡して
-直接起動するため、`npm run build:binary:all` で生成されるWindows向けバイナリ
+直接起動するため、`npm run build:cli:all-platforms` で生成されるWindows向けバイナリ
 (`bun-windows-x64` ターゲット) には `osacompile` のようなパッケージング工程
 なしで直接ファイルをドロップできます。
 
@@ -112,8 +112,8 @@ Windowsでは、macOSのような専用ラッパーアプリは不要です。�
 
 ```powershell
 # macOS/Linux上でクロスコンパイル (Windows上でBunをインストールして直接ビルドも可)
-npm run build:binary:all
-# -> dist-bin/docx-revision-chart-windows-x64.exe (正確なファイル名は build-binary.sh に依存)
+npm run build:cli:all-platforms
+# -> release/cli/win-x64/docx-revision-chart.exe
 ```
 
 ## デスクトップアプリ

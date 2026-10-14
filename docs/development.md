@@ -29,24 +29,55 @@ local builds (`pnpm install`, `pnpm run build`), but don't commit `pnpm-lock.yam
 
 `npm run build` (`pnpm run build`) builds **everything this machine can build** in one go and prints a summary:
 
+All build output goes to two places: `dist/` (the npm package) and `release/` (everything you distribute),
+grouped by kind and then by platform. `<os>` is `mac` / `win` / `linux` and `<arch>` is `x64` / `arm64`
+(the names electron-builder uses).
+
 | Step | Output | When |
 |---|---|---|
-| `lib` | Library and CLIs → `dist/` | always |
-| `binaries` | Single executables `docx-revision-chart` / `docx-revision-flow` / `docx-ai-suspicion-score` → `dist-bin/` | if [Bun](https://bun.sh) is installed |
-| `droplets` | macOS droplets `docx-revision-chart.app` / `docx-revision-flow.app` → `dist-bin/` | on macOS with Bun |
-| `desktop` | Desktop app for this OS/CPU (unsigned) → `desktop/release/` (installs `desktop/` dependencies the first time) | always |
+| `lib` | Library and CLIs (JavaScript) → `dist/` | always |
+| `cli` | Single executables `docx-revision-chart` / `-flow` / `-snapshot` / `-versions` / `docx-ai-suspicion-score` → `release/cli/<os>-<arch>/` | if [Bun](https://bun.sh) is installed |
+| `droplet` | macOS droplets `docx-revision-chart.app` / `docx-revision-flow.app` → `release/droplet/mac-<arch>/` | on macOS with Bun |
+| `desktop` | Desktop app for this OS/CPU (unsigned) → `release/desktop/<os>/` (installs `desktop/` dependencies the first time) | always |
 
-Steps whose tools are missing are skipped with the reason. Options (after `--`):
+```
+dist/                         npm package (tsc output)
+release/
+├── cli/
+│   ├── mac-arm64/            docx-revision-chart, docx-revision-flow, …
+│   ├── mac-x64/
+│   ├── linux-x64/
+│   ├── linux-arm64/
+│   └── win-x64/              docx-revision-chart.exe, …
+├── droplet/
+│   └── mac-arm64/            docx-revision-chart.app, docx-revision-flow.app
+└── desktop/
+    ├── mac/                  *.dmg, *.zip, mac-arm64/ or mac-universal/ (the .app)
+    └── win/                  *Setup*.exe, *.zip, win-unpacked/, win-arm64-unpacked/
+```
+
+Steps whose tools are missing are skipped with the reason. Each step also has its own script:
+
+| Script | Does |
+|---|---|
+| `npm run build` | every step this machine can do |
+| `npm run build:lib` | only compile the library (what `prepublishOnly` and CI use) |
+| `npm run build:cli` | single executables for this OS/CPU |
+| `npm run build:cli:all-platforms` | single executables for Linux/macOS/Windows × x64/arm64 |
+| `npm run build:droplet` | macOS droplets |
+| `npm run build:desktop` | desktop app for this OS/CPU (unpacked, no installer) |
+| `npm run build:desktop:installers` | desktop app installers (dmg/zip/NSIS; slow) |
+| `npm run clean` | delete `dist/` and `release/` |
+
+Options (after `--`, for `npm run build` and the scripts above):
 
 ```bash
 npm run build -- --skip=desktop          # everything except the desktop app
-npm run build -- --only=lib,binaries     # only these steps
-npm run build -- --all-platforms         # cross-build the executables for Linux/macOS/Windows × x64/arm64
-npm run build -- --installers            # also build the desktop installers (dmg/zip/NSIS; slow)
+npm run build -- --only=lib,cli          # only these steps
+npm run build:cli -- --cli=flow,score    # only these CLIs (chart, flow, score, snapshot, versions)
+npm run build -- --all-platforms         # cross-build the executables for every platform
+npm run build -- --installers            # also build the desktop installers
 ```
-
-`npm run build:lib` only compiles the library (what `prepublishOnly` and CI use). The individual commands below
-(`build:binary:flow`, `build:mac-app:flow`, …) still work.
 
 Requires Node.js 18+ (developed and tested on Node.js 22). After building,
 run `dist/cli/chart.js` / `dist/cli/flow.js` / `dist/cli/score.js` directly with `node` (see
@@ -65,27 +96,24 @@ no need to run `npm run build:lib` first.
 # Install Bun if you don't have it
 curl -fsSL https://bun.sh/install | bash
 
-# Build one binary for the current OS/CPU -> dist-bin/docx-revision-chart
-npm run build:binary
+# Build every CLI for the current OS/CPU -> release/cli/<os>-<arch>/
+npm run build:cli
 
-# Cross-build for the major OS/CPU combinations (Linux/macOS/Windows × x64/arm64)
-npm run build:binary:all
+# Only some CLIs
+npm run build:cli -- --cli=chart,flow
+
+# Cross-build for the major OS/CPU combinations -> release/cli/{linux,mac,win}-{x64,arm64}/
+npm run build:cli:all-platforms
 ```
 
 The resulting binary can be run and distributed as-is (no Node.js install
 needed):
 
 ```bash
-./dist-bin/docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
+./release/cli/mac-arm64/docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
 ```
 
-This wraps `scripts/build-binary.sh` under the hood. To build a binary for
-`docx-ai-suspicion-score` instead, run `npm run build:binary:score` or
-`bash scripts/build-binary.sh score` (add `--all` for the same cross-build).
-For `docx-revision-flow`, use `npm run build:binary:flow`
-(`bash scripts/build-binary.sh flow`).
-
-> Binaries cross-compiled for other OSes (`--all`) can't be smoke-tested on
+> Binaries cross-compiled for other OSes (`--all-platforms`) can't be smoke-tested on
 > the machine that built them — verify them on the target OS before
 > distributing.
 
@@ -103,13 +131,11 @@ Only `dist/`, `README.md` / `README.ja.md`, and `LICENSE` are published (the `fi
 ## Attaching single executables to a GitHub Release (maintainers)
 
 ```bash
-npm run build:binary:all            # docx-revision-chart
-bash scripts/build-binary.sh flow --all
-bash scripts/build-binary.sh score --all
-npm run build:mac-app && npm run build:mac-app:flow   # macOS only
+npm run build:cli:all-platforms     # every CLI for every platform
+npm run build:droplet               # macOS only
 ```
 
-Zip the files in `dist-bin/` and attach them to the release.
+Zip each folder under `release/cli/` (and `release/droplet/`) and attach them to the release.
 
 ## Test fixtures
 
@@ -160,8 +186,8 @@ tool output; regenerate them with `npm run diagrams` (`scripts/make-revision-sta
 
 Follows a standard npm package layout. `src/` holds the TypeScript sources;
 `dist/` is the build output (JS + type declarations, gitignored, included in
-the published package via `files`); `dist-bin/` is where Bun writes the
-single-binary build.
+the published package via `files`); `release/` holds everything built for
+distribution (single executables, droplets and the desktop app; see above).
 
 ```
 docx-revision-analyzer/
@@ -213,8 +239,7 @@ docx-revision-analyzer/
 │       ├── snapshotArchive.ts Archiving snapshots under serial numbers
 │       └── locale.ts         Reading the macOS language setting
 ├── scripts/
-│   ├── build-all.mjs         Builds everything this environment can (npm run build)
-│   ├── build-binary.sh       Builds single executables with Bun
+│   ├── build-all.mjs         Builds everything this environment can (npm run build and build:*)
 │   ├── make-mac-droplet.sh   Builds the macOS Finder droplets (.app)
 │   ├── makeFixtures.ts       Generates the test .docx files
 │   ├── make-revision-states.mjs Generates the state diagrams
@@ -223,7 +248,7 @@ docx-revision-analyzer/
 ├── examples/              Example highlight rules
 ├── fixtures/              Generated test .docx files, sample outputs and state diagrams
 ├── dist/                  Output of `npm run build:lib` (gitignored)
-└── dist-bin/              Output of `npm run build:binary` (gitignored)
+└── release/               Output of `npm run build` for distribution (gitignored)
 ```
 
 ## Contributing
