@@ -1,6 +1,7 @@
 node_modules/
 dist/
-dist-bin/
+# 配布物 (npm run build の出力。scripts/build-all.mjs)
+/release/
 *.tsbuildinfo
 .DS_Store
 npm-debug.log*

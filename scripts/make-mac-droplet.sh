@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # ----------------------------------------------------------------------------
-# macOS 専用: docx-revision-chart (または docx-revision-flow) を
+# macOS 専用: docx-revision-chart (または docx-revision-flow) の単体実行ファイルを
 # Finder にドラッグ&ドロップできる ".app" (ドロップレット) にパッケージする。
 #
+# 通常は npm run build:droplet (scripts/build-all.mjs) から呼ばれる。build-all.mjs が
+# Bun で実行ファイルを作ってから、このスクリプトに渡す。
+#
 # 使い方:
-#   ./scripts/make-mac-droplet.sh            # docx-revision-chart.app
-#   ./scripts/make-mac-droplet.sh flow    # docx-revision-flow.app
+#   ./scripts/make-mac-droplet.sh <chart|flow> <実行ファイル> <出力フォルダ>
+#   例: ./scripts/make-mac-droplet.sh flow release/cli/mac-arm64/docx-revision-flow release/droplet/mac-arm64
 #
 # 仕組み:
 #   - 素の (バンドル化されていない) Unix実行ファイルは Finder の
@@ -17,7 +20,7 @@
 #   - Bunでコンパイルした本体バイナリは、このアプリの Contents/Resources/ に
 #     同梱し、AppleScript側から `do shell script` で呼び出す。
 #
-# 出力: dist-bin/docx-revision-chart.app (flow 指定時は docx-revision-flow.app)
+# 出力: <出力フォルダ>/docx-revision-chart.app (flow 指定時は docx-revision-flow.app)
 #   ここに .docx ファイルをドラッグ&ドロップすると、同じディレクトリに
 #   "<ファイル名>-<最終更新日時 YYYYMMDD-HHMMSS>.svg"
 #   (flow は "<ファイル名>-flow-<最終更新日時>.svg") が作成される
@@ -30,10 +33,7 @@
 #   (OK なら --preserve-history を付けて実行する)。
 #
 # 必要なもの:
-#   - macOS (このスクリプト自体はmacOS上のターミナルで実行すること。
-#     Claude Desktopの「接続されたコンピュータ」機能経由のサンドボックスは
-#     Linuxなので、そこからは実行できない)
-#   - Bun (ビルド時のみ必要。生成された .app の実行にBun/Node.jsは不要)
+#   - macOS (このスクリプト自体はmacOS上のターミナルで実行すること)
 #   - osacompile, codesign (どちらもmacOS標準搭載)
 # ----------------------------------------------------------------------------
 set -euo pipefail
@@ -48,13 +48,14 @@ if ! command -v osacompile >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v bun >/dev/null 2>&1; then
-  echo "エラー: bun が見つかりません。https://bun.sh からインストールしてください。" >&2
-  echo "  curl -fsSL https://bun.sh/install | bash" >&2
+if [[ $# -ne 3 ]]; then
+  echo "使い方: $0 <chart|flow> <実行ファイル> <出力フォルダ>" >&2
   exit 1
 fi
 
-TARGET_CLI="${1:-chart}"
+TARGET_CLI="$1"
+BIN_PATH="$2"
+OUT_DIR="$3"
 case "$TARGET_CLI" in
   chart)
     BIN_NAME="docx-revision-chart"
@@ -72,20 +73,16 @@ case "$TARGET_CLI" in
     ;;
 esac
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT_DIR="$ROOT_DIR/dist-bin"
 APP_NAME="$BIN_NAME.app"
 APP_PATH="$OUT_DIR/$APP_NAME"
 
+if [[ ! -x "$BIN_PATH" ]]; then
+  echo "エラー: 実行ファイルが見つかりません: $BIN_PATH" >&2
+  exit 1
+fi
 mkdir -p "$OUT_DIR"
 
-# SKIP_BINARY_BUILD=1 なら、dist-bin/ にある実行ファイルをそのまま使う (scripts/build-all.mjs が先に作った場合)
-if [[ "${SKIP_BINARY_BUILD:-}" == "1" && -x "$OUT_DIR/$BIN_NAME" ]]; then
-  echo "==> [1/4] 既存の Bun バイナリを使います ($OUT_DIR/$BIN_NAME)"
-else
-  echo "==> [1/4] Bunバイナリをビルド中 (scripts/build-binary.sh $TARGET_CLI)..."
-  bash "$ROOT_DIR/scripts/build-binary.sh" "$TARGET_CLI"
-fi
+echo "==> [1/4] 同梱する実行ファイル: $BIN_PATH"
 
 echo "==> [2/4] AppleScriptドロップレットを作成中 (osacompile)..."
 SCRIPT_SRC="$(mktemp -t "$BIN_NAME-droplet").applescript"
@@ -165,7 +162,7 @@ rm -f "$SCRIPT_SRC"
 
 echo "==> [3/4] 本体バイナリを同梱中..."
 mkdir -p "$APP_PATH/Contents/Resources"
-cp "$OUT_DIR/$BIN_NAME" "$APP_PATH/Contents/Resources/$BIN_NAME"
+cp "$BIN_PATH" "$APP_PATH/Contents/Resources/$BIN_NAME"
 chmod +x "$APP_PATH/Contents/Resources/$BIN_NAME"
 
 echo "==> [4/4] 署名中 (ad-hoc)..."
