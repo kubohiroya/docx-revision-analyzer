@@ -532,3 +532,30 @@ submissions/`.
 
 **Lock template**: saves a copy of the opened document with Track Changes locked, through a save dialog (see
 [Locking with these tools](operations-guide.md#2-lock-tracking-optional)).
+
+**Watch for saves**: watches the opened document. For a local document (including one in a OneDrive sync folder) the
+app watches the file; for a OneDrive / SharePoint document opened from a URL it asks Microsoft Graph every minute or two
+(four times less often while the app is in the background) whether its content version (`cTag`) has changed, without
+ever opening a sign-in page for that. Each time Word saves it, the figures are redrawn and the records folder keeps:
+
+- every saved version (`snapshots.json` and `<name>-sNN.docx`, the same format as a `docx-revision-snapshot` archive),
+  so the history survives a later "Accept All"
+- the history of all comments in the document, including other people's: first seen, edited, resolved, deleted,
+  reappeared (`comments.jsonl`, one JSON object per line, append-only; a comment deleted from the document stays in
+  the record). The range of each comment is recorded by paragraph (`w14:paraId`), the quoted text with its context,
+  and the tracked changes it overlaps
+- the periods the document was watched and whether it changed while it was not (`watch.json`). When the app starts it
+  resumes watching and archives the changes made in the meantime as one version
+
+Nothing is written to the document while it is being watched. When the app detects that Word has closed the document
+(the `~$…` owner file Word creates next to it is gone and, on Windows, Word no longer holds the file), it adds — for a
+local document — a "preserved" reply (by `Docx Revision Analyzer`) to each newly recorded comment. Only the comment parts and the reply's
+range markers in the body (next to the parent comment's markers) are written; the text, tracked changes and existing
+comments are left alone, and the file is checked to be unchanged since it was last read. Resolving or deleting
+comments is up to you; the record keeps them. The Comments tab lists the record, and the last column of the flow marks
+paragraphs with comments (hover to read them; exported SVGs do not include comments).
+
+By default the records are kept in the app's data folder under `watch/`, one folder per document (changeable in
+Settings). They are not put next to the document, so they are not shared with co-authors through OneDrive or Teams.
+Watching is meant for keeping an eye on your own document, not for constantly monitoring other people's. No replies
+are written to documents opened from a URL (they are opened with read-only access).

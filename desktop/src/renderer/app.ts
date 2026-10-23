@@ -23,8 +23,12 @@ import {
   describeHistorySettingsProblem,
   describeMissingRevisions,
   DocxRevisionData,
+  extractComments,
   extractRevisionPositions,
   extractRevisions,
+  DocxComment,
+  flowParaKey,
+  isReceipt,
   finalDocumentText,
   FlowResult,
   highlightCategoryMap,
@@ -43,7 +47,8 @@ import {
   splitIntoSessions,
   t as libT,
 } from "../../../src/core";
-import type { AppLang, AppSettings, ExtensionListItem, MicrosoftStatus, OpenedFile, RecentUrl } from "../shared";
+import type { AppLang, AppSettings, ExtensionListItem, MicrosoftStatus, OpenedFile, RecentUrl, WatchStatus, WatchTarget, WatchUpdateMessage } from "../shared";
+import type { CommentState } from "../../../src/lib/docxComments";
 import { STRINGS, Strings } from "./strings";
 import { batchCloudFolder, batchLocalFolder, BatchContext } from "./batch";
 
@@ -58,6 +63,8 @@ declare global {
 }
 import {
   annotationsForExport,
+  AnnotationEntry,
+  APP_COMMENTS,
   bindFigureAnnotations,
   collectFigureAnnotations,
   FigureAnnotations,
@@ -77,7 +84,7 @@ import {
   showSendLog,
 } from "./extensions";
 
-type Tab = "chart" | "flow" | "highlights" | "settings";
+type Tab = "chart" | "flow" | "highlights" | "comments" | "settings";
 
 interface Analysis {
   data: DocxRevisionData;
@@ -94,6 +101,8 @@ interface Analysis {
   flowTargets: FigureTarget[];
   /** 拡張の図の注釈 (図 → 部分のキー → 注釈) */
   figureAnnotations: FigureAnnotations;
+  /** いまの文書のコメント (ツールが書いた返信を除く) */
+  comments: DocxComment[];
 }
 
 interface Internal {
@@ -116,6 +125,8 @@ let updatesAvailable = false;
 let extList: ExtensionListItem[] = [];
 /** 解析中に起きた拡張のエラー (案内に表示する) */
 let extErrors: string[] = [];
+/** 文書の監視の状態 */
+let watchStatus: WatchStatus | undefined;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -137,6 +148,7 @@ function applyLang(): void {
   setText("tab-chart", S.tabChart);
   setText("tab-flow", S.tabFlow);
   setText("tab-highlights", S.tabHighlights);
+  setText("tab-comments", S.tabComments);
   setText("tab-settings", S.tabSettings);
   setText("l-gap", S.gap);
   setText("l-from", S.from);
@@ -162,12 +174,19 @@ function applyLang(): void {
   setText("rules-choose", S.chooseRules);
   setText("rules-clear", S.clearRules);
   setText("s-ext", S.settingsExtensions);
+  setText("s-watch", S.settingsWatch);
+  setText("watch-records-label", S.watchRecordsLabel);
+  setText("watch-records-choose", S.watchRecordsChoose);
+  setText("watch-records-default", S.watchRecordsDefault);
+  setText("watch-records-open", S.openRecords);
+  setText("watch-records-note", S.watchRecordsNote);
   setText("s-updates", S.settingsUpdates);
   setText("l-updates", S.checkForUpdates);
   setText("s-about", S.settingsAbout);
   setText("about-text", S.aboutText);
   if (!file) setText("file-name", S.noFile);
   renderSettings();
+  renderWatch();
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +206,7 @@ function showTab(next: Tab): void {
   }
   const hasFile = !!analysis;
   $("welcome").hidden = hasFile || next === "settings";
-  for (const t of ["chart", "flow", "highlights", "settings"] as Tab[]) {
+  for (const t of ["chart", "flow", "highlights", "comments", "settings"] as Tab[]) {
     $(`pane-${t}`).hidden = t !== next || (t !== "settings" && !hasFile);
   }
   $("controls").hidden = !hasFile || next === "settings";
@@ -248,6 +267,8 @@ function writeControls(): void {
 async function analyze(): Promise<void> {
   if (!file) return;
   status(S.analyzing);
+  // 監視で描き直すときに、図の表示位置を保つ
+  const scroll = ["pane-chart", "pane-flow"].map((id) => [$(id).scrollLeft, $(id).scrollTop]);
   const a = settings.analysis;
   const bytes = file.bytes;
   const data = await extractRevisions(bytes);
@@ -268,6 +289,7 @@ async function analyze(): Promise<void> {
     chartTargets: [],
     flowTargets: [],
     figureAnnotations: { chart: new Map(), flow: new Map() },
+    comments: (await extractComments(bytes)).filter((c) => !isReceipt(c)),
   };
   const mtime = new Date(file.mtime);
   const fileName = file.name;
@@ -351,6 +373,7 @@ async function analyze(): Promise<void> {
     analysisResult,
     (msg) => extErrors.push(msg)
   );
+  addCommentMarks(result, model);
 
   // 文書の設定・変更履歴の有無の案内
   const missing = describeMissingRevisions(data);
@@ -373,7 +396,12 @@ async function analyze(): Promise<void> {
   bindFigureAnnotations($("pane-chart"), result.figureAnnotations.chart, result.chartTargets);
   bindFigureAnnotations($("pane-flow"), result.figureAnnotations.flow, result.flowTargets);
   renderHighlights();
+  renderComments();
   showTab(tab === "settings" ? "chart" : tab);
+  ["pane-chart", "pane-flow"].forEach((id, i) => {
+    $(id).scrollLeft = scroll[i][0];
+    $(id).scrollTop = scroll[i][1];
+  });
   status(
     `${file.name} — ${data.events.length} revisions, ${classification.highlights.length} highlights` +
       (classification.classifiers.length ? ` (${classification.classifiers.map((c) => `${c.id}@${c.version}`).join(", ")})` : "")
@@ -518,16 +546,243 @@ function locateInFlow(h: Highlight): void {
 }
 
 // ---------------------------------------------------------------------------
+// コメント
+// ---------------------------------------------------------------------------
+
+/** フローの最後の列 (いまの文書) で、コメントの付いた段落に印を付ける (マウスを重ねるとコメントを示す) */
+function addCommentMarks(a: Analysis, model: Awaited<ReturnType<typeof parseDocxLayout>>): void {
+  if (!a.flow || a.flow.sessions.length === 0) return;
+  const column = a.flow.sessions.length;
+  const byParaId = new Map(model.paras.filter((p) => p.paraId).map((p) => [p.paraId!, p.index]));
+  // 段落の識別子 (w14:paraId) が無い文書では、範囲の文字列 (の1行目) を含む段落を探す
+  const finalText = new Map(
+    model.paras
+      .filter((p) => p.segs.some((x) => !x.del) || !p.markDel)
+      .map((p) => [p.index, p.segs.map((x) => (x.kind === "text" && !x.del ? x.text : "")).join("")])
+  );
+  const findByQuote = (quote: string): number | undefined => {
+    const line = quote.split("\n").map((l) => l.trim()).find((l) => [...l].length >= 2);
+    if (!line) return undefined;
+    for (const [i, text] of finalText) if (text.includes(line)) return i;
+    return undefined;
+  };
+  for (const c of a.comments) {
+    const index = (c.anchor?.paraId ? byParaId.get(c.anchor.paraId) : undefined) ?? (c.anchor ? findByQuote(c.anchor.quote) : undefined);
+    if (index === undefined) continue;
+    const key = flowParaKey(column, index);
+    const text = `${c.author ?? ""}: ${c.text}`;
+    const entry: AnnotationEntry = {
+      extId: APP_COMMENTS,
+      extName: { en: S.fromComments, ja: S.fromComments },
+      spec: { target: key, tooltip: text },
+    };
+    const list = a.figureAnnotations.flow.get(key) ?? [];
+    list.push(entry);
+    a.figureAnnotations.flow.set(key, list);
+  }
+}
+
+function excerpt(s: string, max = 120): string {
+  const chars = [...s.replace(/\s+/g, " ").trim()];
+  return chars.length > max ? `${chars.slice(0, max).join("")}…` : chars.join("");
+}
+
+function commentDate(c: DocxComment): string {
+  const iso = c.dateUtc ?? c.date;
+  const d = iso ? new Date(iso) : undefined;
+  return d && !Number.isNaN(d.getTime()) ? fmtTime(d) : "";
+}
+
+/** 「コメント」タブ: 監視中は記録 (削除されたものを含む)、そうでなければいまの文書のコメント */
+function renderComments(): void {
+  const pane = $("pane-comments");
+  const a = analysis;
+  if (!a) {
+    pane.innerHTML = "";
+    return;
+  }
+  const watching = isWatchingCurrent();
+  const records: CommentState[] = watching ? watchStatus!.comments : [];
+  const rows = watching
+    ? records.map((r) => ({
+        seq: String(r.seq),
+        c: r.comment,
+        present: r.present,
+        receipt: r.receiptAt ? S.receiptWritten : r.present && watchStatus!.canWrite ? S.receiptPending : "",
+      }))
+    : a.comments.map((c) => ({ seq: "", c, present: true, receipt: "" }));
+  const intro = watching
+    ? `<p class="hint">${escapeHtml(watchStatus!.canWrite ? S.commentsIntro : S.commentsIntroCloud)}</p><p class="hint">${escapeHtml(
+        watchStatus!.canWrite
+          ? S.commentsSummary(records.length, watchStatus!.versions, watchStatus!.pendingReceipts)
+          : S.commentsSummaryCloud(records.length, watchStatus!.versions)
+      )} <button id="comments-open-records" class="link">${escapeHtml(S.openRecords)}</button></p>`
+    : `<p class="hint">${escapeHtml(S.commentsNotWatching)}</p>`;
+  if (rows.length === 0) {
+    pane.innerHTML = `${intro}<p class="hint">${escapeHtml(S.commentsEmpty)}</p>`;
+  } else {
+    const body = rows.map((r) => {
+      const state = !r.present ? S.commentRemoved : r.c.done ? S.commentResolved : S.commentPresent;
+      const reply = r.c.parentKey ? "↳ " : "";
+      return `<tr class="${r.present ? "" : "removed"}">
+        <td>${escapeHtml(r.seq)}</td>
+        <td class="state">${escapeHtml(state)}</td>
+        <td>${escapeHtml(r.c.author ?? "")}</td>
+        <td>${escapeHtml(commentDate(r.c))}</td>
+        <td>${escapeHtml(reply + excerpt(r.c.text))}</td>
+        <td class="quote">${escapeHtml(r.c.anchor?.quote ? `「${excerpt(r.c.anchor.quote, 60)}」` : "")}</td>
+        <td class="receipt">${escapeHtml(r.receipt)}</td>
+      </tr>`;
+    });
+    pane.innerHTML = `${intro}<table class="highlights comments"><thead><tr><th>${escapeHtml(S.colRecord)}</th><th>${escapeHtml(S.colState)}</th><th>${escapeHtml(
+      S.colAuthor
+    )}</th><th>${escapeHtml(S.colWhen)}</th><th>${escapeHtml(S.colComment)}</th><th>${escapeHtml(S.colRange)}</th><th>${escapeHtml(
+      S.colReceipt
+    )}</th></tr></thead><tbody>${body.join("")}</tbody></table>`;
+  }
+  const btn = pane.querySelector<HTMLButtonElement>("#comments-open-records");
+  if (btn) btn.onclick = () => void window.app.watch.openRecordsDir();
+}
+
+// ---------------------------------------------------------------------------
+// 文書の監視
+// ---------------------------------------------------------------------------
+
+function isWatchingCurrent(): boolean {
+  return !!watchStatus?.watching && !!file && watchStatus.path === file.path;
+}
+
+function fmtClock(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/** 監視する文書 (URL から開いた文書は、Graph に問い合わせるための driveId / itemId があるときだけ) */
+function watchTargetOf(f: OpenedFile | undefined): WatchTarget | undefined {
+  if (!f) return undefined;
+  if (!f.source) return { kind: "local", path: f.path };
+  const { driveId, itemId } = f.source;
+  return driveId && itemId ? { kind: "cloud", url: f.source.url, driveId, itemId, name: f.name, webUrl: f.source.webUrl } : undefined;
+}
+
+/** 監視のボタンと状態の表示、設定の記録の保管先 */
+function renderWatch(): void {
+  const btn = $<HTMLButtonElement>("watch");
+  btn.hidden = !watchTargetOf(file);
+  const on = isWatchingCurrent();
+  btn.textContent = on ? S.watchStop : S.watchStart;
+  btn.title = S.watchTitle(watchStatus?.dir ?? watchStatus?.recordsRoot ?? "");
+  const state = $("watch-state");
+  state.hidden = !on;
+  state.textContent = S.watchOn;
+  state.title = watchStatus?.dir ?? "";
+  setText("watch-records", watchStatus?.recordsRoot ?? "");
+  $<HTMLButtonElement>("watch-records-default").disabled = !settings?.watchRecordsDir;
+}
+
+function applyWatchMessage(msg: WatchUpdateMessage): void {
+  watchStatus = msg.status;
+  file = msg.file;
+}
+
+async function toggleWatch(): Promise<void> {
+  const target = watchTargetOf(file);
+  if (!target) return;
+  await runSafely(async () => {
+    if (isWatchingCurrent()) {
+      watchStatus = await window.app.watch.stop();
+      settings.watchTarget = undefined;
+      renderWatch();
+      renderComments();
+      return;
+    }
+    const msg = await window.app.watch.start(target);
+    settings.watchTarget = target;
+    applyWatchMessage(msg);
+    await analyze();
+    renderWatch();
+    status(S.watchStarted(msg.status.dir ?? msg.status.recordsRoot));
+    if (msg.gap) banner(S.watchGap);
+  });
+}
+
+function initWatch(): void {
+  $("watch").onclick = () => void toggleWatch();
+  (window as unknown as { __toggleWatch: () => Promise<void> }).__toggleWatch = toggleWatch;
+  window.app.watch.onUpdate((msg) => {
+    if (!file || msg.file.path !== file.path) return;
+    applyWatchMessage(msg);
+    void runSafely(async () => {
+      await analyze();
+      renderWatch();
+      status(S.watchUpdated(fmtClock(new Date()), msg.version));
+    });
+  });
+  window.app.watch.onReceipts((msg) => {
+    if (!file || msg.file.path !== file.path) return;
+    watchStatus = msg.status;
+    file = msg.file;
+    void runSafely(async () => {
+      await analyze();
+      renderWatch();
+      status(S.watchReceipts(msg.written));
+    });
+  });
+  window.app.watch.onError((m) => status(S.watchError(m)));
+  $("watch-records-choose").onclick = () =>
+    void runSafely(async () => {
+      watchStatus = await window.app.watch.chooseRecordsDir();
+      settings = await window.app.getSettings();
+      renderWatch();
+      renderComments();
+    });
+  $("watch-records-default").onclick = () =>
+    void runSafely(async () => {
+      watchStatus = await window.app.watch.chooseRecordsDir(true);
+      settings = await window.app.getSettings();
+      renderWatch();
+      renderComments();
+    });
+  $("watch-records-open").onclick = () => void window.app.watch.openRecordsDir();
+}
+
+/** 前回監視していた文書があれば、開いて監視を再開する */
+async function resumeWatch(): Promise<void> {
+  watchStatus = await window.app.watch.status();
+  renderWatch();
+  if (watchStatus.watching || !settings.watchTarget || file) return;
+  try {
+    const msg = await window.app.watch.start(settings.watchTarget);
+    if (file) return;
+    applyWatchMessage(msg);
+    await openFile(msg.file);
+    if (msg.gap) banner(S.watchGap);
+  } catch (err) {
+    // 文書が見つからないなど: 監視をやめる
+    watchStatus = await window.app.watch.stop();
+    settings.watchTarget = undefined;
+    status(S.watchError(err instanceof Error ? err.message : String(err)));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // ファイル
 // ---------------------------------------------------------------------------
 
 async function openFile(opened: OpenedFile | null): Promise<void> {
   if (!opened) return;
+  // 監視は開いている文書に結びつける: ほかの文書を開いたら監視をやめる
+  if (watchStatus?.watching && watchStatus.path !== opened.path) {
+    watchStatus = await window.app.watch.stop();
+    settings.watchTarget = undefined;
+    status(S.watchStoppedOther);
+  }
   file = opened;
   setText("file-name", opened.path);
   // 解析できない文書 (変更履歴の無いテンプレートなど) でもロックはかけられるよう、解析の前に出す
   $("lock-template").hidden = false;
   document.title = `${opened.name} — ${S.appTitle}`;
+  renderWatch();
   await runSafely(analyze);
 }
 
@@ -1071,8 +1326,10 @@ async function main(): Promise<void> {
     })
   );
 
+  initWatch();
   showTab("chart");
   appInternal.ready();
+  await resumeWatch();
 }
 
 void main();

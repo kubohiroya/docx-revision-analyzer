@@ -6,6 +6,7 @@
  * 文書や解析結果をネットワークへ送る経路は無い (main.ts で外部への通信を遮断している)。
  */
 
+import type { CommentEvent, CommentState } from "../../src/lib/docxComments";
 import type {
   AnalysisResult,
   CategorySpec,
@@ -47,6 +48,10 @@ export interface AppSettings {
   microsoft?: { clientId?: string; authority?: string };
   /** 最近 URL から開いた文書 (新しい順) */
   recentUrls?: RecentUrl[];
+  /** 監視している文書 (アプリを起動したら監視を再開する) */
+  watchTarget?: WatchTarget;
+  /** 監視の記録の保管先。undefined ならアプリのデータフォルダの watch/ */
+  watchRecordsDir?: string;
 }
 
 export interface RecentUrl {
@@ -112,8 +117,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export interface OpenedFile {
   /** ローカルのファイルのパス、または URL から開いた場合はその URL */
   path: string;
-  /** URL (OneDrive / SharePoint) から開いた場合 */
-  source?: { kind: "url"; url: string; webUrl?: string };
+  /** URL (OneDrive / SharePoint) から開いた場合。driveId / itemId は監視の問い合わせに使う */
+  source?: { kind: "url"; url: string; webUrl?: string; driveId?: string; itemId?: string };
   name: string;
   /** 最終更新日時 (ISO 8601) */
   mtime: string;
@@ -189,8 +194,71 @@ export interface ExtensionsApi {
   onUiRequest(cb: (req: ExtensionUiRequest) => Promise<unknown>): void;
 }
 
+/** 監視する文書: ローカルのファイル、または OneDrive / SharePoint の文書 (Graph に一定間隔で問い合わせる) */
+export type WatchTarget =
+  | { kind: "local"; path: string }
+  | { kind: "cloud"; url: string; driveId: string; itemId: string; name: string; webUrl?: string };
+
+/** 文書の監視の状態 */
+export interface WatchStatus {
+  /** 監視しているか */
+  watching: boolean;
+  /** 「保全済み」の返信を書き込めるか (OneDrive / SharePoint の文書には書き込まない) */
+  canWrite: boolean;
+  /** 監視している文書 (ファイルのパス、または URL) */
+  path?: string;
+  /** 記録の保管先 (この下に文書ごとのフォルダがある) */
+  recordsRoot: string;
+  /** この文書の記録のフォルダ */
+  dir?: string;
+  /** 保管した版の数 */
+  versions: number;
+  /** コメントの状態 (記録番号の順) */
+  comments: CommentState[];
+  /** 「保全済み」の返信の、書き込みを待っている数と書き込んだ数 */
+  pendingReceipts: number;
+  writtenReceipts: number;
+  /** 監視していない間に文書が変わっていたことの数 */
+  gaps: number;
+}
+
+/** 監視している文書が保存された (または監視を始めた) */
+export interface WatchUpdateMessage {
+  kind: "initial" | "saved" | "catchUp";
+  file: OpenedFile;
+  status: WatchStatus;
+  events: CommentEvent[];
+  /** 新しく保管した版の番号 */
+  version?: number;
+  /** 監視していない間に文書が変わっていた */
+  gap: boolean;
+}
+
+/** 文書が閉じられたので「保全済み」の返信を書き込んだ */
+export interface WatchReceiptsMessage {
+  file: OpenedFile;
+  status: WatchStatus;
+  written: number;
+  skipped: number;
+}
+
+export interface WatchApi {
+  /** 文書の監視を始める (ほかの文書の監視はやめる) */
+  start(target: WatchTarget): Promise<WatchUpdateMessage>;
+  stop(): Promise<WatchStatus>;
+  status(): Promise<WatchStatus>;
+  /** 記録の保管先を選ぶ (null なら既定に戻す)。キャンセルなら今の状態をそのまま返す */
+  chooseRecordsDir(reset?: boolean): Promise<WatchStatus>;
+  /** 記録のフォルダを開く */
+  openRecordsDir(): Promise<void>;
+  onUpdate(cb: (msg: WatchUpdateMessage) => void): void;
+  onReceipts(cb: (msg: WatchReceiptsMessage) => void): void;
+  onError(cb: (message: string) => void): void;
+}
+
 export interface AppApi {
   extensions: ExtensionsApi;
+  watch: WatchApi;
   /** ファイルを開くダイアログ。キャンセルなら null */
   openDocxDialog(): Promise<OpenedFile | null>;
   /** パスのファイルを読む (ドロップされたファイルなど) */

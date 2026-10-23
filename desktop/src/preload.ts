@@ -29,6 +29,22 @@ const api: AppApi = {
       });
     },
   },
+  watch: {
+    start: (p) => ipcRenderer.invoke("watch:start", p),
+    stop: () => ipcRenderer.invoke("watch:stop"),
+    status: () => ipcRenderer.invoke("watch:status"),
+    chooseRecordsDir: (reset) => ipcRenderer.invoke("watch:choose-records-dir", reset),
+    openRecordsDir: () => ipcRenderer.invoke("watch:open-records"),
+    onUpdate: (cb) => {
+      ipcRenderer.on("watch:update", (_e, msg) => cb(msg));
+    },
+    onReceipts: (cb) => {
+      ipcRenderer.on("watch:receipts", (_e, msg) => cb(msg));
+    },
+    onError: (cb) => {
+      ipcRenderer.on("watch:error", (_e, msg: string) => cb(msg));
+    },
+  },
   openDocxDialog: () => ipcRenderer.invoke("open-docx-dialog"),
   readDocx: (p) => ipcRenderer.invoke("read-docx", p),
   pathForFile: (file) => webUtils.getPathForFile(file),

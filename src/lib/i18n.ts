@@ -195,6 +195,8 @@ const en = {
   versionsOptFormat: "Output format: docx, txt, or both (docx,txt)",
   versionsOptOutDir: "Folder to write the versions to (default: <name>-versions next to the input)",
   versionsDone: (n: number, dir: string) => `Wrote ${n} version(s) to ${dir}`,
+  commentReceipt: (n: number, when: string) =>
+    `Collected and preserved (record #${n}, ${when}). The record keeps this comment even if it is resolved or deleted.`,
   versionsUndated: (n: number) =>
     `${n} tracked change(s) have no date; they are treated as made before the first dated change.`,
   errInterval: (name: string, value: string) =>
@@ -467,6 +469,7 @@ const ja: Catalog = {
   versionsOptFormat: "出力形式: docx、txt、または両方 (docx,txt)",
   versionsOptOutDir: "版を書き出すフォルダ (既定: 入力と同じフォルダの <名前>-versions)",
   versionsDone: (n, dir) => `${n}個の版を ${dir} に書き出しました`,
+  commentReceipt: (n, when) => `収集・保全しました (記録 #${n}、${when})。このコメントは解決済みにしても削除しても、記録に残ります。`,
   versionsUndated: (n) => `日時の無い変更が ${n} 件あります。最初の日時のある変更より前に行われたものとして扱いました。`,
   errInterval: (name, value) => `${name}: 間隔「${value}」を解釈できません (例: 30s, 10m, 2h, 1d。1秒以上)。`,
   errVersionFormat: (value) => `--format: 「${value}」は docx、txt、docx,txt のいずれでもありません。`,

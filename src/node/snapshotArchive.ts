@@ -83,9 +83,19 @@ export interface AddSnapshotResult {
 
 /** 文書を次の番号で保管する。直前の回と同じ内容 (SHA-256 が同じ) なら保管しない */
 export async function addSnapshot(archive: string, key: string, source: string, now = new Date()): Promise<AddSnapshotResult> {
+  const bytes = await fs.promises.readFile(source);
+  return addSnapshotBytes(archive, key, bytes, { source, sourceModified: fs.statSync(source).mtime, now });
+}
+
+/** 読み込み済みの文書 (バイト列) を次の番号で保管する。直前の回と同じ内容なら保管しない */
+export async function addSnapshotBytes(
+  archive: string,
+  key: string,
+  bytes: Uint8Array,
+  meta: { source: string; sourceModified: Date; now?: Date }
+): Promise<AddSnapshotResult> {
   const dir = keyDir(archive, key);
   await fs.promises.mkdir(dir, { recursive: true });
-  const bytes = await fs.promises.readFile(source);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const m = readManifest(dir) ?? { version: 1, key, snapshots: [] };
   const last = m.snapshots[m.snapshots.length - 1];
@@ -98,9 +108,9 @@ export async function addSnapshot(archive: string, key: string, source: string, 
   const entry: SnapshotEntry = {
     n,
     file,
-    source: path.resolve(source),
-    sourceModified: fs.statSync(source).mtime.toISOString(),
-    archivedAt: now.toISOString(),
+    source: path.resolve(meta.source),
+    sourceModified: meta.sourceModified.toISOString(),
+    archivedAt: (meta.now ?? new Date()).toISOString(),
     sha256,
   };
   m.snapshots.push(entry);

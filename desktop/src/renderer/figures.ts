@@ -16,6 +16,9 @@ export interface AnnotationEntry {
   spec: FigureAnnotationSpec;
 }
 
+/** アプリ自身が付ける注釈 (文書のコメント) の拡張 id の代わり */
+export const APP_COMMENTS = "app:comments";
+
 /** 図 → 部分のキー → 注釈 */
 export type FigureAnnotations = Record<"chart" | "flow", Map<string, AnnotationEntry[]>>;
 
@@ -50,7 +53,8 @@ export async function collectFigureAnnotations(
 
 /** 書き出す SVG に埋め込む注釈 (説明は tooltip、無ければポップアップの見出し) */
 export function annotationsForExport(map: Map<string, AnnotationEntry[]>, lang: AppLang): Map<string, ResolvedAnnotation> {
-  const list = [...map.values()].flat().map((e) => ({
+  // 文書のコメントは、アプリの中だけで示す (書き出す SVG には入れない)
+  const list = [...map.values()].flat().filter((e) => e.extId !== APP_COMMENTS).map((e) => ({
     target: e.spec.target,
     tooltip: e.spec.tooltip ?? e.spec.popup?.title,
     href: e.spec.href,
@@ -120,7 +124,7 @@ function fillPopup(entries: AnnotationEntry[], target?: FigureTarget): void {
     const sec = document.createElement("section");
     const from = document.createElement("p");
     from.className = "from";
-    from.textContent = S.fromExtension(loc(e.extName, lang()));
+    from.textContent = e.extId === APP_COMMENTS ? S.fromComments : S.fromExtension(loc(e.extName, lang()));
     sec.append(from);
     if (e.spec.popup?.title) {
       const h = document.createElement("h4");

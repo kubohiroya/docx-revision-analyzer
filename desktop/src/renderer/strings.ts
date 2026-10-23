@@ -207,6 +207,54 @@ const en = {
     "authors), so the history shown here can be incomplete or altered. Use it to reflect on your own writing.",
   version: (v: string) => `Version ${v}`,
   error: (msg: string) => `Error: ${msg}`,
+  tabComments: "Comments",
+  watchStart: "Watch for saves",
+  watchStop: "Stop watching",
+  watchOn: "Watching",
+  watchTitle: (dir: string) => `Each save redraws the figures, is archived, and its comments are recorded in ${dir}`,
+  watchUpdated: (time: string, version?: number) =>
+    `Saved at ${time}: figures redrawn${version ? ` (version ${version} archived)` : ""}`,
+  watchStarted: (dir: string) => `Watching this document. Records: ${dir}`,
+  watchGap:
+    "The document changed while it was not being watched. Those changes were archived together as one version.",
+  watchReceipts: (n: number) => `The document was closed: added a "preserved" reply to ${n} comment(s).`,
+  watchError: (msg: string) => `Watching: ${msg}`,
+  watchStoppedOther: "Stopped watching the previous document.",
+  commentsIntro:
+    "All comments in the document, including other people's, are recorded on this computer. When the document is " +
+    "closed in Word, a \"preserved\" reply is added to each newly recorded comment. Resolving or deleting comments is " +
+    "up to you; the record keeps them.",
+  commentsIntroCloud:
+    "All comments in the document, including other people's, are recorded on this computer. OneDrive / SharePoint " +
+    "is checked every minute or two for a new version. No replies are written to documents opened from a URL.",
+  commentsNotWatching:
+    "The comments in the document as it is now. Watch the document to keep a record of them, even after they are " +
+    "resolved or deleted.",
+  commentsEmpty: "No comments.",
+  commentsSummary: (n: number, versions: number, pending: number) =>
+    `${n} comment(s) recorded, ${versions} version(s) archived, ${pending} reply(ies) waiting for the document to be closed.`,
+  commentsSummaryCloud: (n: number, versions: number) => `${n} comment(s) recorded, ${versions} version(s) archived.`,
+  colRecord: "#",
+  colState: "State",
+  colAuthor: "Author",
+  colComment: "Comment",
+  colRange: "Text commented on",
+  colReceipt: "Reply",
+  commentPresent: "In the document",
+  commentResolved: "Resolved",
+  commentRemoved: "Deleted (kept in the record)",
+  receiptWritten: "Preserved",
+  receiptPending: "When closed",
+  openRecords: "Open the records folder",
+  fromComments: "Comment in the document",
+  settingsWatch: "Watching documents",
+  watchRecordsLabel: "Records are kept in:",
+  watchRecordsChoose: "Change…",
+  watchRecordsDefault: "Use the default",
+  watchRecordsNote:
+    "Each watched document gets its own folder with every saved version (the same format as docx-revision-snapshot), " +
+    "a log of its comments (comments.jsonl) and the replies written. Records are not put next to the document, so " +
+    "they are not shared through OneDrive or Teams.",
 };
 
 export type Strings = typeof en;
@@ -410,6 +458,49 @@ const ja: Strings = {
     "自分の執筆を振り返るために使ってください。",
   version: (v) => `バージョン ${v}`,
   error: (msg) => `エラー: ${msg}`,
+  tabComments: "コメント",
+  watchStart: "保存を監視",
+  watchStop: "監視をやめる",
+  watchOn: "監視中",
+  watchTitle: (dir) => `保存のたびに図を描き直し、版を保管して、コメントを記録します (記録の保管先: ${dir})`,
+  watchUpdated: (time, version) => `${time} の保存を検知して図を描き直しました${version ? ` (版 ${version} を保管)` : ""}`,
+  watchStarted: (dir) => `この文書を監視しています。記録の保管先: ${dir}`,
+  watchGap: "監視していない間に文書が変わっていました。その間の変更は、まとめて1つの版として保管しました。",
+  watchReceipts: (n) => `文書が閉じられたので、${n} 件のコメントに「保全済み」の返信を書き込みました。`,
+  watchError: (msg) => `監視: ${msg}`,
+  watchStoppedOther: "前の文書の監視をやめました。",
+  commentsIntro:
+    "文書のコメントは、他人のものも含めてすべてこのコンピュータの記録に残します。Word で文書を閉じると、" +
+    "新しく記録したコメントに「保全済み」の返信を書き込みます。解決済みにする・削除するのはご自身で行ってください。" +
+    "その後も記録には残ります。",
+  commentsIntroCloud:
+    "文書のコメントは、他人のものも含めてすべてこのコンピュータの記録に残します。OneDrive / SharePoint には1〜2分ごとに" +
+    "新しい版があるかを問い合わせます。URL から開いた文書には返信を書き込みません。",
+  commentsNotWatching: "いまの文書にあるコメントです。文書を監視すると、解決済みにしたり削除したりした後も記録に残せます。",
+  commentsEmpty: "コメントはありません。",
+  commentsSummary: (n, versions, pending) =>
+    `記録したコメント ${n} 件、保管した版 ${versions} 個、文書が閉じられるのを待っている返信 ${pending} 件。`,
+  commentsSummaryCloud: (n, versions) => `記録したコメント ${n} 件、保管した版 ${versions} 個。`,
+  colRecord: "#",
+  colState: "状態",
+  colAuthor: "作成者",
+  colComment: "コメント",
+  colRange: "範囲",
+  colReceipt: "返信",
+  commentPresent: "文書にあり",
+  commentResolved: "解決済み",
+  commentRemoved: "削除済み (記録に残っています)",
+  receiptWritten: "保全済み",
+  receiptPending: "閉じたときに返信",
+  openRecords: "記録のフォルダを開く",
+  fromComments: "文書のコメント",
+  settingsWatch: "文書の監視",
+  watchRecordsLabel: "記録の保管先:",
+  watchRecordsChoose: "変更…",
+  watchRecordsDefault: "既定に戻す",
+  watchRecordsNote:
+    "監視する文書ごとにフォルダを作り、保存ごとの版 (docx-revision-snapshot と同じ形式)、コメントの記録 (comments.jsonl)、" +
+    "書き込んだ返信を残します。記録は文書の隣には置かないので、OneDrive や Teams で共有されることはありません。",
 };
 
 export const STRINGS: Record<AppLang, Strings> = { en, ja };

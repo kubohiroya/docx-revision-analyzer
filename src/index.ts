@@ -14,3 +14,4 @@ export * from "./node/files";
 export * from "./node/historyFile";
 export * from "./node/lockFile";
 export * from "./node/snapshotArchive";
+export * from "./node/docWatcher";

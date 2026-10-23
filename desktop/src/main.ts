@@ -23,6 +23,7 @@ import { EXT_SCHEME, ExtensionManager } from "./extensions";
 import { NetMediator } from "./sendLog";
 import { isSourceLink, registerBatchIpc, rememberSource } from "./batchMain";
 import { openFileInBrowser } from "./openInBrowser";
+import { registerWatchIpc, stopWatching } from "./watchMain";
 import type { AnalysisResult, ClassifierContext, FigureContext } from "./extension-api";
 
 // 拡張のページ (dra-ext://<id>/) を、ES モジュールを読み込める安全なオリジンとして扱う
@@ -175,7 +176,13 @@ function registerIpc(): void {
       rememberUrl({ url, name: f.name, driveId: f.driveId, itemId: f.itemId, openedAt: new Date().toISOString() });
       const webUrl = f.webUrl ?? url;
       rememberSource(webUrl);
-      const file: OpenedFile = { path: url, name: f.name, mtime: f.mtime, bytes: f.bytes, source: { kind: "url", url, webUrl } };
+      const file: OpenedFile = {
+        path: url,
+        name: f.name,
+        mtime: f.mtime,
+        bytes: f.bytes,
+        source: { kind: "url", url, webUrl, driveId: f.driveId, itemId: f.itemId },
+      };
       return { file };
     } catch (err) {
       const code = err instanceof MicrosoftError ? err.code : "network";
@@ -320,7 +327,16 @@ async function runSmokeCapture(summary: { ok: boolean; message: string }): Promi
     if (${click}) el.dispatchEvent(new MouseEvent("click", o));
     return true;
   })()`;
-  for (const tab of ["chart", "flow", "highlights", "locate", "hover", "click", "settings", "url"]) {
+  // 監視: 監視を始め、文書を次の版で置き換えて (保存の代わり)、描き直しと返信の書き込みを待つ
+  const next = process.env.DRA_SMOKE_WATCH_NEXT;
+  if (next) {
+    await mainWindow.webContents.executeJavaScript("window.__toggleWatch()");
+    await new Promise((r) => setTimeout(r, 1000));
+    // URL から開いた文書 (DRA_GRAPH_MOCK) なら、その代わりのファイルを置き換える
+    fs.copyFileSync(next, path.resolve(process.env.DRA_SMOKE_URL ? process.env.DRA_GRAPH_MOCK! : smokeFile));
+    await new Promise((r) => setTimeout(r, Number(process.env.DRA_SMOKE_WATCH_WAIT_MS ?? 8000)));
+  }
+  for (const tab of ["chart", "flow", "highlights", "comments", "locate", "hover", "click", "settings", "url"]) {
     // locate: ハイライトの一覧の最初の行の「フロー」を押し、図の中の位置が示されることを確かめる
     const js =
       tab === "locate"
@@ -337,6 +353,7 @@ async function runSmokeCapture(summary: { ok: boolean; message: string }): Promi
     fs.writeFileSync(file, img.toPNG());
     console.log(`smoke: wrote ${file}`);
   }
+  stopWatching();
   app.exit(summary.ok ? 0 : 1);
 }
 
@@ -452,6 +469,13 @@ app.whenReady().then(() => {
     () => microsoft,
     (e) => rememberUrl({ ...e, openedAt: new Date().toISOString() })
   );
+  registerWatchIpc({
+    window: () => mainWindow,
+    microsoft: () => microsoft,
+    loadSettings,
+    saveSettings,
+    lang: () => loadSettings().lang ?? systemLang(),
+  });
   pendingOpenPath ??= pathFromArgv(process.argv);
   mediator = new NetMediator({
     dir: path.join(app.getPath("userData"), "extensions"),
@@ -481,7 +505,10 @@ app.whenReady().then(() => {
   });
 });
 
-app.on("before-quit", () => extensions?.stopAll());
+app.on("before-quit", () => {
+  extensions?.stopAll();
+  stopWatching();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin" || smokeFile) app.quit();

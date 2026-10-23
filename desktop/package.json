@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "npm run build && electron .",
     "smoke": "npm run build && node smoke.mjs",
+    "smoke:watch": "npm run build && node smoke-watch.mjs",
     "dist": "npm run build && electron-builder --config electron-builder.config.cjs --publish never"
   },
   "devDependencies": {

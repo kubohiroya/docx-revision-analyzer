@@ -22,6 +22,7 @@ export * from "./lib/tamperEvidence";
 export * from "./lib/trackLock";
 export * from "./lib/snapshots";
 export * from "./lib/versions";
+export * from "./lib/docxComments";
 export * from "./lib/figureTargets";
 export * from "./lib/flow";
 export { layoutDocument, paraPropsAt, sectionAt, hasRenderedBreaks } from "./lib/pageLayout";
