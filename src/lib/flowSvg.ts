@@ -43,7 +43,8 @@ export interface FlowSvgOptions {
   categories?: CategoryRegistry;
   /**
    * 列を <g data-column="k"> で囲み (k = 0 は区間1の開始時点、k は区間 k の終了時点)、段落の要素に
-   * data-para (段落の番号) を付ける (アプリで該当箇所を探すため)
+   * data-para (段落の番号) を付ける (アプリで該当箇所を探すため)。ページは <g data-page="j"> で囲み、
+   * ページの枠に class="dra-page" を付ける (ページを選んで強調・拡大するため)
    */
   annotate?: boolean;
   /**
@@ -164,7 +165,10 @@ function renderPage(
   const f = (n: number) => n.toFixed(1);
   const px = (b: Box) => ({ x: x + b.x * k, y: y + b.y * k, w: b.w * k, h: b.h * k });
   const vertical = !!page.vertical;
-  parts.push(`<rect x="${x}" y="${y}" width="${f(page.width * k)}" height="${f(page.height * k)}" fill="#ffffff" stroke="#b8b8b8"/>`);
+  // アプリで使う図 (annotate) では、ページの枠に印を付ける (ページを選んで強調・拡大するため)
+  parts.push(
+    `<rect${annotate ? ` class="dra-page"` : ""} x="${x}" y="${y}" width="${f(page.width * k)}" height="${f(page.height * k)}" fill="#ffffff" stroke="#b8b8b8"/>`
+  );
 
   // 表のセルの枠・段の境界線
   for (const it of page.items) {
@@ -558,8 +562,10 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
     };
     if (opts.annotate) parts.push(`<g data-column="${k}">`);
     let pageTop = stackTop;
-    for (const page of pages) {
+    for (const [j, page] of pages.entries()) {
+      if (opts.annotate) parts.push(`<g data-page="${j}">`);
       parts.push(renderPage(page, tintOf, x, pageTop, scale, { ...opts, column: k }));
+      if (opts.annotate) parts.push(`</g>`);
       pageTop += page.height * scale + PAGE_GAP;
     }
     if (opts.annotate) parts.push(`</g>`);

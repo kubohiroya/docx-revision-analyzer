@@ -522,6 +522,17 @@ Anything other than Japanese falls back to English. The macOS drag-and-drop apps
 access. It can also open a .docx from a OneDrive / SharePoint link (after signing in to Microsoft); the document is
 only downloaded for analysis. Installers aren't published yet.
 
+**Moving around the figures.** Drag the chart or the flow to move it; Ctrl / ⌘ + wheel (or a trackpad pinch) zooms
+around the pointer, while the wheel alone scrolls as usual. The buttons at the top right show the zoom and switch to
+"Fit" (the whole figure) or "100%". Each figure keeps its zoom when it is redrawn (for example after changing a
+setting). The minimap at the bottom left shows the whole figure and the visible area: click or drag in it to move the
+view, double-click to show everything, drag its inner edge to resize it, or hover over it and press an arrow key to
+move it to another corner (its size and corner are remembered). In the flow, clicking a page highlights it with a
+thick border and shows it enlarged on the right (clicking an annotated part also shows its popup). ↑ ↓ move to the
+previous / next page in the same column, ← → to the same page in the previous / next column; click outside the pages
+or press Esc to close. Drag the splitter between the two panes to change their widths. The highlight and the minimap
+are not part of exported SVGs / PNGs.
+
 **Folders (batch).** Drop a folder on the app (or its icon) to create a chart (`<name>.svg`) and a flow
 (`<name>-flow.svg`) next to every `.docx` in it, including subfolders. Paste a SharePoint / OneDrive *folder* link in
 "Open from URL…" — for example the folder where Microsoft Teams collects assignment submissions — and choose (or
