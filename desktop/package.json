@@ -1,7 +1,7 @@
 {
   "name": "docx-revision-analyzer-desktop",
   "productName": "Docx Revision Analyzer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Desktop app for docx-revision-analyzer: open a .docx and look back on how it was written.",
   "license": "MIT",
