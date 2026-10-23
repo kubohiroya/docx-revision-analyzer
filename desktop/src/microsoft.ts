@@ -186,8 +186,11 @@ export class MicrosoftClient {
     await fs.promises.rm(this.cacheFile, { force: true });
   }
 
-  /** アクセストークン。保存したトークンで足りなければ、ブラウザでサインインする */
-  private async token(): Promise<string> {
+  /**
+   * アクセストークン。保存したトークンで足りなければ、ブラウザでサインインする
+   * (interactive が false なら、サインインせずに signInCancelled のエラーにする。監視の問い合わせ用)
+   */
+  private async token(interactive = true): Promise<string> {
     const pca = await this.app();
     const account = (await pca.getTokenCache().getAllAccounts())[0];
     if (account) {
@@ -197,6 +200,7 @@ export class MicrosoftClient {
         // 期限切れ・権限の追加などは、サインインし直す
       }
     }
+    if (!interactive) throw new MicrosoftError("Sign-in is required", "signInCancelled");
     try {
       const r = await pca.acquireTokenInteractive({
         scopes: GRAPH_SCOPES,
@@ -225,8 +229,21 @@ export class MicrosoftClient {
     return res;
   }
 
-  /** URL (または前回開いたときの driveId / itemId) の docx を読み込む */
-  async open(target: { url: string } | { driveId: string; itemId: string }): Promise<CloudFile> {
+  /**
+   * 文書の中身の版を表す値 (Graph の cTag。中身が変わると変わる)。監視の問い合わせに使う。
+   * サインインが必要になっても、ブラウザは開かずにエラーにする
+   */
+  async contentTag(target: { driveId: string; itemId: string }): Promise<string> {
+    if (this.mockFile) return String((await fs.promises.stat(this.mockFile)).mtimeMs);
+    const token = await this.token(false);
+    const meta = (await (
+      await this.graph(`/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(target.itemId)}?$select=id,cTag,eTag,lastModifiedDateTime`, token)
+    ).json()) as { cTag?: string; eTag?: string; lastModifiedDateTime?: string };
+    return meta.cTag ?? meta.eTag ?? meta.lastModifiedDateTime ?? "";
+  }
+
+  /** URL (または前回開いたときの driveId / itemId) の docx を読み込む。interactive が false ならサインインしない */
+  async open(target: { url: string } | { driveId: string; itemId: string }, interactive = true): Promise<CloudFile> {
     if (process.env.DRA_GRAPH_MOCK_DIR && "driveId" in target && target.driveId === "mock-dir") {
       const p = path.join(process.env.DRA_GRAPH_MOCK_DIR, target.itemId);
       const stat = await fs.promises.stat(p);
@@ -238,7 +255,7 @@ export class MicrosoftClient {
       return { name: path.basename(this.mockFile), mtime: stat.mtime.toISOString(), bytes: new Uint8Array(bytes), driveId: "mock", itemId: "mock" };
     }
     if ("url" in target && !isMicrosoftFileUrl(target.url)) throw new MicrosoftError(target.url, "badUrl");
-    const token = await this.token();
+    const token = await this.token(interactive);
     const select = "$select=id,name,size,lastModifiedDateTime,webUrl,parentReference,file,folder";
     const meta = (await (
       "url" in target

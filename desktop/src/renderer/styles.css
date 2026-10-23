@@ -529,3 +529,26 @@ details.advanced summary {
   background: var(--panel);
   min-height: 28px;
 }
+
+/* 文書の監視 */
+.watch-state {
+  flex: none;
+  color: #1a7f37;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.watch-state::before {
+  content: "●";
+  margin-right: 4px;
+}
+table.comments td.quote {
+  color: var(--muted);
+  max-width: 280px;
+}
+table.comments tr.removed td {
+  color: var(--muted);
+}
+table.comments td.state,
+table.comments td.receipt {
+  white-space: nowrap;
+}

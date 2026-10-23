@@ -15,12 +15,15 @@
         <button id="open" class="primary"></button>
         <button id="open-url"></button>
         <span id="file-name" class="file-name"></span>
+        <button id="watch" hidden></button>
+        <span id="watch-state" class="watch-state" hidden></span>
         <button id="lock-template" hidden></button>
       </div>
       <nav class="tabs" role="tablist">
         <button role="tab" data-tab="chart" id="tab-chart"></button>
         <button role="tab" data-tab="flow" id="tab-flow"></button>
         <button role="tab" data-tab="highlights" id="tab-highlights"></button>
+        <button role="tab" data-tab="comments" id="tab-comments"></button>
         <button role="tab" data-tab="settings" id="tab-settings"></button>
       </nav>
     </header>
@@ -64,6 +67,7 @@
       <section id="pane-chart" class="pane figure" hidden></section>
       <section id="pane-flow" class="pane figure" hidden></section>
       <section id="pane-highlights" class="pane" hidden></section>
+      <section id="pane-comments" class="pane" hidden></section>
       <section id="pane-settings" class="pane settings" hidden>
         <h2 id="s-lang"></h2>
         <select id="lang">
@@ -88,6 +92,14 @@
           <p id="ms-client-help" class="hint"></p>
           <div class="row"><input id="ms-client-id" class="mono wide-input" spellcheck="false" /><button id="ms-client-save"></button></div>
         </details>
+        <h2 id="s-watch"></h2>
+        <p><span id="watch-records-label"></span> <span id="watch-records" class="mono"></span></p>
+        <div class="row">
+          <button id="watch-records-choose"></button>
+          <button id="watch-records-default"></button>
+          <button id="watch-records-open"></button>
+        </div>
+        <p id="watch-records-note" class="hint"></p>
         <h2 id="s-updates"></h2>
         <label class="check-row"><input id="updates" type="checkbox" /> <span id="l-updates"></span></label>
         <p id="updates-note" class="hint"></p>
