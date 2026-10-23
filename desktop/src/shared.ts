@@ -52,6 +52,8 @@ export interface AppSettings {
   watchTarget?: WatchTarget;
   /** 監視の記録の保管先。undefined ならアプリのデータフォルダの watch/ */
   watchRecordsDir?: string;
+  /** 保存時のページ (PDF) の設定 */
+  pages?: PagesSettings;
   /** 図のプレビューの設定 (ミニマップの大きさと位置、flow の分割画面の左の幅) */
   viewer?: Partial<Record<"chart" | "flow", { minimap?: { width: number; corner: "tl" | "tr" | "bl" | "br" }; split?: number }>>;
 }
@@ -196,6 +198,68 @@ export interface ExtensionsApi {
   onUiRequest(cb: (req: ExtensionUiRequest) => Promise<unknown>): void;
 }
 
+/** 保存時のページ (PDF) の画像の解像度: 低 (96 dpi) / 中 (150 dpi) / 高 (そのまま) */
+export type ImageQuality = "low" | "medium" | "high";
+
+export interface PagesSettings {
+  /** 保存時のページを作るか (既定は作る。作る手段 (LibreOffice / OneDrive) が無ければ何もしない) */
+  enabled?: boolean;
+  /** LibreOffice の soffice のパス (既定の場所に無いとき) */
+  libreOfficePath?: string;
+  imageQuality?: ImageQuality;
+  /** 埋め込みフォント: OS のフォントで代用する (取り除く。横書きだけの文書) / 埋め込んだまま */
+  fonts?: "substitute" | "embed";
+}
+
+/** LibreOffice が見つからないときの、保存時のページの失敗の理由 (画面では案内に置き換える) */
+export const NO_LIBREOFFICE = "LibreOffice was not found";
+/** 監視していない文書が、開いた後に変わっていたときの失敗の理由 (画面では案内に置き換える) */
+export const DOC_CHANGED = "The document has changed since it was opened";
+
+export interface PagesStatus {
+  enabled: boolean;
+  /** 見つかった LibreOffice の soffice */
+  libreOffice?: string;
+  imageQuality: ImageQuality;
+  fonts: "substitute" | "embed";
+}
+
+/** 保存時のページを作る文書: 開いている文書のパス (または URL)。OneDrive の文書は driveId / itemId も */
+export interface PagesTarget {
+  path: string;
+  cloud?: { driveId: string; itemId: string };
+  /** 開いている文書の内容の SHA-256 と更新日時 (監視していない文書の PDF を、文書を読み直さずに探す) */
+  sha256?: string;
+  mtime?: string;
+}
+
+/** 版 (監視している文書は保存ごとの版、そうでなければ今の文書 = 0) の保存時のページの状態 */
+export interface SavedVersion {
+  n: number;
+  /** 保存した日時 (ファイルの更新日時、ISO 8601) */
+  savedAt: string;
+  state: "none" | "pending" | "done" | "failed";
+  pageCount?: number;
+  error?: string;
+  source?: "libreoffice" | "graph";
+  /** 埋め込みフォントを取り除いたか */
+  fontsStripped?: boolean;
+  bytes?: number;
+}
+
+export interface PagesApi {
+  status(): Promise<PagesStatus>;
+  list(target: PagesTarget): Promise<SavedVersion[]>;
+  /** 版の保存時のページを作る (作成中・作成済みならそのまま) */
+  request(target: PagesTarget, n: number): Promise<SavedVersion | undefined>;
+  /** 版の保存時のページ (0 から) を、maxWidth × maxHeight (画素) に収まる画像にする */
+  render(target: PagesTarget, n: number, page: number, maxWidth: number, maxHeight: number): Promise<{ dataUrl: string; pageCount: number }>;
+  /** LibreOffice の場所を選ぶ (reset なら既定の場所を探す) */
+  chooseLibreOffice(reset?: boolean): Promise<PagesStatus>;
+  /** 保存時のページが作られた・失敗したとき (対象の文書のパス) */
+  onChanged(cb: (path: string) => void): void;
+}
+
 /** 監視する文書: ローカルのファイル、または OneDrive / SharePoint の文書 (Graph に一定間隔で問い合わせる) */
 export type WatchTarget =
   | { kind: "local"; path: string }
@@ -261,6 +325,7 @@ export interface WatchApi {
 export interface AppApi {
   extensions: ExtensionsApi;
   watch: WatchApi;
+  pages: PagesApi;
   /** ファイルを開くダイアログ。キャンセルなら null */
   openDocxDialog(): Promise<OpenedFile | null>;
   /** パスのファイルを読む (ドロップされたファイルなど) */

@@ -322,10 +322,64 @@ body.dragover .drop {
   display: flex;
 }
 .page-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 10px;
   border-bottom: 1px solid #e3e6ea;
   color: #4a4f57;
   font-size: 12px;
+}
+.page-detail-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 模式図 / 保存時のページ (右の画面は図と同じく白地なので、色は固定) */
+.page-detail-modes {
+  display: flex;
+  flex: none;
+}
+.page-detail-modes button {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: #4a4f57;
+  background: #ffffff;
+  border: 1px solid #c4c9d0;
+  border-radius: 0;
+}
+.page-detail-modes button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.page-detail-modes button:last-child {
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+}
+.page-detail-modes button[aria-pressed="true"] {
+  color: #ffffff;
+  background: #1f5fbf;
+  border-color: #1f5fbf;
+}
+.page-detail-message {
+  max-width: 32em;
+  color: #4a4f57;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+}
+.page-detail-message button {
+  color: #1d2026;
+  background: #ffffff;
+  border-color: #c4c9d0;
+}
+.page-detail-image {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  max-height: 100%;
+  box-shadow: 0 0 0 1px #d9dde3;
 }
 .page-detail-body {
   flex: 1;
@@ -414,6 +468,11 @@ body.dragover .drop {
 .row {
   display: flex;
   gap: 8px;
+}
+/* 設定の「名前: 選択肢」の行 */
+.field-row {
+  align-items: center;
+  margin-top: 10px;
 }
 .check-row {
   display: flex;

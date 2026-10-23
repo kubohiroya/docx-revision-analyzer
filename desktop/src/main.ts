@@ -24,10 +24,16 @@ import { NetMediator } from "./sendLog";
 import { isSourceLink, registerBatchIpc, rememberSource } from "./batchMain";
 import { openFileInBrowser } from "./openInBrowser";
 import { registerWatchIpc, stopWatching } from "./watchMain";
+import { disposePages, registerPagesIpc } from "./pages/pagesMain";
+import { PDF_SCHEME } from "./pages/pdfHost";
 import type { AnalysisResult, ClassifierContext, FigureContext } from "./extension-api";
 
 // 拡張のページ (dra-ext://<id>/) を、ES モジュールを読み込める安全なオリジンとして扱う
-protocol.registerSchemesAsPrivileged([{ scheme: EXT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+// 保存時のページを描く pdf.js のページ (dra-pdf://) も同じ扱い (pages/pdfHost.ts)
+protocol.registerSchemesAsPrivileged([
+  { scheme: EXT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: PDF_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
 
 const smokeFile = process.env.DRA_SMOKE_FILE ?? process.env.DRA_SMOKE_URL ?? process.env.DRA_SMOKE_START ?? process.env.DRA_SMOKE_BATCH;
 // テスト用: 設定・拡張のデータの置き場所を変える (利用者のデータに触れないため)
@@ -384,6 +390,46 @@ const SMOKE_INTERACTION_JS = `(async () => {
   return out;
 })()`;
 
+/**
+ * スモークテスト: 保存時のページ (DRA_SMOKE_SAVED)。最後の列の最初のページを「保存時のページ」で開き、
+ * 変換 (LibreOffice) と pdf.js での描画を待つ。ページが2つ以上あれば ↓ で次のページに進むことも確かめる
+ */
+const SMOKE_SAVED_JS = `(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const q = (s) => document.querySelector("#pane-flow " + s);
+  const image = async (previous) => {
+    for (let i = 0; i < 240; i++) {
+      const img = q(".page-detail-image");
+      if (img && img !== previous) {
+        if (!img.complete) await new Promise((r) => img.addEventListener("load", r, { once: true }));
+        return img;
+      }
+      await wait(250);
+    }
+    return undefined;
+  };
+  try {
+  for (const d of document.querySelectorAll("dialog[open]")) d.close();
+  window.__showTab("flow");
+  window.__viewer.zoom("flow", 0.5);
+  const last = document.querySelectorAll("#pane-flow .viewport [data-column]").length - 1;
+  window.__viewer.selectFlowPage(last, 0);
+  window.__viewer.detailMode("saved");
+  const first = await image();
+  const out = { image: !!first && first.naturalWidth > 0, title: q(".page-detail-title")?.textContent ?? "", message: q(".page-detail-message")?.textContent ?? "" };
+  const count = Number(new RegExp("(?:of|/) ([0-9]+)(?: ページ)?$").exec(out.title)?.[1] ?? 1);
+  if (first && count > 1) {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    const second = await image(first);
+    out.nextPage = !!second && q(".page-detail-title")?.textContent !== out.title;
+    out.title = q(".page-detail-title")?.textContent ?? "";
+  }
+  return out;
+  } catch (err) {
+    return { image: false, title: "", message: String(err && err.stack || err) };
+  }
+})()`;
+
 /** スモークテスト: 各タブを表示して PNG に保存し、終了する */
 async function runSmokeCapture(result: { ok: boolean; message: string }): Promise<void> {
   let summary = result;
@@ -439,6 +485,22 @@ async function runSmokeCapture(result: { ok: boolean; message: string }): Promis
     const file = path.join(out, `smoke-${tab}.png`);
     fs.writeFileSync(file, img.toPNG());
     console.log(`smoke: wrote ${file}`);
+  }
+  if (process.env.DRA_SMOKE_SAVED) {
+    const saved = (await mainWindow.webContents.executeJavaScript(SMOKE_SAVED_JS)) as { image: boolean; nextPage?: boolean; title: string; message: string };
+    const ok = saved.image && saved.nextPage !== false;
+    console.log(`smoke: saved pages ${ok ? "ok" : "FAILED"}: ${saved.title}${saved.message ? ` / ${saved.message}` : ""}`);
+    if (!ok) summary = { ok: false, message: `saved pages: ${saved.message || "no image"}` };
+    await new Promise((r) => setTimeout(r, 300));
+    const file = path.join(out, "smoke-saved.png");
+    fs.writeFileSync(file, (await mainWindow.webContents.capturePage()).toPNG());
+    console.log(`smoke: wrote ${file}`);
+    // 設定の「保存時のページ」の欄
+    await mainWindow.webContents.executeJavaScript(`window.__showTab("settings"); document.getElementById("s-pages").scrollIntoView()`);
+    await new Promise((r) => setTimeout(r, 300));
+    const settingsFile = path.join(out, "smoke-settings-pages.png");
+    fs.writeFileSync(settingsFile, (await mainWindow.webContents.capturePage()).toPNG());
+    console.log(`smoke: wrote ${settingsFile}`);
   }
   stopWatching();
   app.exit(summary.ok ? 0 : 1);
@@ -563,6 +625,7 @@ app.whenReady().then(() => {
     saveSettings,
     lang: () => loadSettings().lang ?? systemLang(),
   });
+  registerPagesIpc({ window: () => mainWindow, loadSettings, saveSettings, microsoft: () => microsoft });
   pendingOpenPath ??= pathFromArgv(process.argv);
   mediator = new NetMediator({
     dir: path.join(app.getPath("userData"), "extensions"),
@@ -595,6 +658,7 @@ app.whenReady().then(() => {
 app.on("before-quit", () => {
   extensions?.stopAll();
   stopWatching();
+  disposePages();
 });
 
 app.on("window-all-closed", () => {

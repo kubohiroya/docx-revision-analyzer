@@ -60,4 +60,12 @@ await esbuild.build({
 for (const f of ["index.html", "styles.css"]) {
   fs.copyFileSync(path.join(dir, "src/renderer", f), path.join(out, "renderer", f));
 }
+// 保存時のページを描く pdf.js (pages/pdfHost.ts の非表示のウィンドウ)。必要なファイルだけを写す
+const pdfHost = path.join(out, "pdf-host");
+fs.mkdirSync(path.join(pdfHost, "cmaps"), { recursive: true });
+for (const f of ["index.html", "host.mjs"]) fs.copyFileSync(path.join(dir, "src/pdf-host", f), path.join(pdfHost, f));
+const pdfjs = path.join(dir, "node_modules/pdfjs-dist");
+for (const f of ["pdf.min.mjs", "pdf.worker.min.mjs"]) fs.copyFileSync(path.join(pdfjs, "build", f), path.join(pdfHost, f));
+// 日本語の CID から文字を引く CMap (ToUnicode の無い PDF のため)
+for (const f of ["Adobe-Japan1-UCS2.bcmap"]) fs.copyFileSync(path.join(pdfjs, "cmaps", f), path.join(pdfHost, "cmaps", f));
 console.log(`built ${path.relative(process.cwd(), out)}`);

@@ -572,3 +572,28 @@ By default the records are kept in the app's data folder under `watch/`, one fol
 Settings). They are not put next to the document, so they are not shared with co-authors through OneDrive or Teams.
 Watching is meant for keeping an eye on your own document, not for constantly monitoring other people's. No replies
 are written to documents opened from a URL (they are opened with read-only access).
+
+**Saved pages**: the buttons at the top of the flow's right pane switch between "Schematic" (the page as this app draws
+it) and "Saved pages": the real pages, as a PDF, of the version saved at that column's point in time — the last
+version saved after the column's last change and before the next one. ↑ ↓ move through the pages of that version, ← →
+to the previous / next column. While a document is watched, every saved version can have its pages; for a document that
+isn't watched, only the last column has them (the document as it is now). The pages of the latest version are made when
+Word closes the document or after the idle gap; those of any other version when you open them in the right pane.
+
+- The latest version of a document on OneDrive / SharePoint is converted by OneDrive (Microsoft Graph, `?format=pdf`,
+  the layout of Word for the web), where the document already is. Other versions, and documents on this computer, are
+  converted on this computer by [LibreOffice](https://www.libreoffice.org/), which is not included with the app; install
+  it yourself (Settings → Saved pages shows whether it was found and lets you choose where it is). LibreOffice runs one
+  document at a time, at low priority, in a profile of its own, and is stopped after 60 seconds. On macOS the app tells
+  it where the system fonts are and to use Hiragino for MS Mincho / Yu Mincho and MS Gothic / Yu Gothic / Meiryo.
+  Revision marks are turned off for the conversion, so the pages show the text after the changes, as in Word's "Simple
+  Markup" view. Line and page breaks from LibreOffice can differ a little from Word's.
+- To keep the files small, images are reduced to 150 dpi (Settings: 96 dpi, or as in the document). For documents
+  without vertical text, the embedded fonts are removed and the pages are shown with this computer's fonts: the line and
+  page breaks stay as saved and only the shapes of the characters change (a font this computer doesn't have is replaced
+  by a mincho or gothic font). Documents with vertical text keep their fonts, because the vertical forms of punctuation
+  and small kana can't be recovered from the system fonts. Settings → Saved pages can keep the fonts of every document.
+  Settings apply to pages made from then on.
+- The PDFs of a watched document are kept in its records folder (`pages.json` and `<name>-sNN.pdf`, next to the
+  versions). For documents that aren't watched, the last 10 are kept in the app's data folder (`pages/cache/`). The
+  pages are drawn with pdf.js in a hidden window that cannot reach the network.
