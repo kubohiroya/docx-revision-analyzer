@@ -42,8 +42,20 @@ Notes:
 
 1. Bump `desktop/package.json` `version` (e.g. `0.2.0`) and merge it to `main`.
 2. Tag and push: `git tag desktop-v0.2.0 && git push origin desktop-v0.2.0`.
-3. The workflow builds both platforms and attaches the artifacts and `latest*.yml` to a **draft** release.
-   Check it (download, open on a clean machine), write the notes, and publish it.
+3. The workflow builds both platforms (each job only builds: `--publish never`), then one `release` job creates a
+   single **draft** release for the tag and attaches every artifact and the `latest*.yml` files (their file names
+   rewritten to absolute download URLs of this release by `desktop/scripts/update-feed.mjs`).
+   Check it (download, open on a clean machine), write the notes, and publish it. **Untick "Set as the latest
+   release"**: the repository's latest release should stay the library's `vX.Y.Z`.
+4. Publishing it runs `.github/workflows/desktop-update-feed.yml`, which copies its `latest*.yml` into the
+   **`desktop-latest`** pre-release (created the first time). That is where installed apps look for updates.
+
+1. `desktop/package.json` の `version` を上げて `main` に入れる。
+2. タグ `desktop-vX.Y.Z` を push する。
+3. ワークフローが両方の OS の配布物を作り (各 OS のジョブは作るだけ)、最後のジョブがそのタグの**下書き**のリリースを
+   1つ作って、配布物と `latest*.yml` (配布物の名前をこのリリースの絶対 URL に書き換えたもの) を添付する。中身を確かめ、
+   リリースノートを書いて公開する。**「Set as the latest release」は外す** (リポジトリの Latest はライブラリの `vX.Y.Z` のまま)。
+4. 公開すると `desktop-update-feed.yml` が、その `latest*.yml` を自動更新の参照先のプレリリース **`desktop-latest`** に置く。
 
 Running the workflow manually (Actions → Desktop release → Run workflow) builds without publishing and keeps the
 artifacts on the run, which is useful for testing signing.
@@ -54,13 +66,21 @@ Library releases (npm) are separate and keep using plain `vX.Y.Z` tags.
 
 - Off by default. Users turn it on in Settings ("Check GitHub Releases for a new version at startup").
   既定では無効。利用者が設定で有効にしたときだけ確認する。
-- `electron-updater` in the main process checks this repository's published GitHub Releases
-  (`latest-mac.yml` / `latest.yml`), downloads the update, and installs it on quit. It sends no document or
-  analysis data; the app's own window remains blocked from the network.
+- `electron-updater` in the main process reads `latest-mac.yml` / `latest.yml` from the **`desktop-latest`**
+  pre-release (`https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-latest/…`, the
+  `generic` provider in `electron-builder.config.cjs`), downloads the update from the `desktop-vX.Y.Z` release those
+  files point to, and installs it on quit. It sends no document or analysis data; the app's own window remains
+  blocked from the network.
+- Why not the `github` provider: it reads the repository's **latest** release, which is the library's `vX.Y.Z`
+  (no `latest*.yml` there), so updates would never be found. A pre-release is never the latest release, so
+  `desktop-latest` keeps the two apart.
+- Artifact names contain no spaces (`artifactName` in the config): GitHub replaces spaces with dots on upload, which
+  would no longer match the names in `latest*.yml`.
 - Verification: the download's SHA-512 must match the release's `latest*.yml`; on macOS, Squirrel.Mac also
   requires the update to be signed with the same Developer ID as the running app (so auto-update only works for
   signed builds); on Windows, with `WIN_PUBLISHER_NAME` set, the installer's signature must be from that publisher.
-- Only published (non-draft) releases are offered. Drafts and pre-releases are ignored.
+- Only published releases are offered: `desktop-latest` is updated when a `desktop-v*` release is published, not
+  while it is a draft. To re-point it (e.g. roll back), run "Desktop update feed" manually with a published tag.
 
 ## Opening files from OneDrive / SharePoint / OneDrive・SharePoint から開く
 

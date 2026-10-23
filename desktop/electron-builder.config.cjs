@@ -27,7 +27,11 @@ module.exports = {
   // 依存はすべて dist/main.js にバンドル済み。electron-updater だけは実行時に node_modules から読む
   asar: true,
   fileAssociations: [{ ext: "docx", name: "Word Document", role: "Viewer", rank: "Alternate" }],
-  publish: [{ provider: "github", owner: "kubohiroya", repo: "docx-revision-analyzer", releaseType: "draft" }],
+  // 自動更新は、デスクトップ版専用の固定の場所 (プレリリース desktop-latest) に置いた latest*.yml を読む。
+  // github の参照先はリポジトリの「Latest」のリリースを見るため、ライブラリのリリース (vX.Y.Z) と取り違える。
+  // GitHub Releases への添付と desktop-latest の更新は、ワークフロー (desktop-release.yml / desktop-update-feed.yml) が行う
+  publish: [{ provider: "generic", url: "https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-latest" }],
+  // 配布物の名前に空白を入れない (GitHub は添付するときに空白を "." に置き換え、latest*.yml の名前とずれるため)
   mac: {
     target: [
       { target: "dmg", arch: ["universal"] },
@@ -35,6 +39,7 @@ module.exports = {
       { target: "zip", arch: ["universal"] },
     ],
     category: "public.app-category.productivity",
+    artifactName: "Docx-Revision-Analyzer-${version}-${arch}-mac.${ext}",
     hardenedRuntime: true,
     gatekeeperAssess: false,
     entitlements: "build/entitlements.mac.plist",
@@ -43,13 +48,19 @@ module.exports = {
     identity: macSigned ? undefined : null,
     notarize,
   },
-  dmg: { sign: false },
+  dmg: { sign: false, artifactName: "Docx-Revision-Analyzer-${version}-${arch}.${ext}" },
   win: {
     target: [{ target: "nsis", arch: ["x64", "arm64"] }, { target: "zip", arch: ["x64", "arm64"] }],
+    artifactName: "Docx-Revision-Analyzer-${version}-${arch}-win.${ext}",
     // 署名した場合、自動更新でインストーラの発行者名を検証する
     ...(env.WIN_PUBLISHER_NAME ? { publisherName: [env.WIN_PUBLISHER_NAME] } : {}),
     verifyUpdateCodeSignature: !!env.WIN_PUBLISHER_NAME,
   },
-  nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true },
-  linux: { target: ["AppImage"], category: "Office" },
+  nsis: {
+    oneClick: false,
+    perMachine: false,
+    allowToChangeInstallationDirectory: true,
+    artifactName: "Docx-Revision-Analyzer-Setup-${version}.${ext}",
+  },
+  linux: { target: ["AppImage"], category: "Office", artifactName: "Docx-Revision-Analyzer-${version}-${arch}.${ext}" },
 };
