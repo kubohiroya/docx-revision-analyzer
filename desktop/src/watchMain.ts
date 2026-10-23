@@ -16,6 +16,7 @@ import * as path from "path";
 import { DocWatcher, WatchSource, WatchUpdate } from "../../src/node/docWatcher";
 import { setLang, t } from "../../src/lib/i18n";
 import type { MicrosoftClient } from "./microsoft";
+import { rememberSource } from "./batchMain";
 import type { AppLang, AppSettings, OpenedFile, WatchStatus, WatchTarget, WatchUpdateMessage } from "./shared";
 
 let watcher: DocWatcher | undefined;
@@ -138,6 +139,8 @@ export function registerWatchIpc(d: WatchDeps): void {
     if (wt.kind === "cloud") {
       const ms = d.microsoft();
       if (!ms?.configured()) throw new Error("OneDrive / SharePoint is not configured");
+      // 元の文書へのリンク (図の見出し・コメントの印) を、確認なしで開いてよいものとして覚える (起動時に監視を再開したときも)
+      rememberSource(wt.webUrl ?? wt.url);
       source = cloudSource(ms, wt, () => !!d.window()?.isFocused());
     }
     const w = new DocWatcher({

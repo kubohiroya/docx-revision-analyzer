@@ -87,7 +87,8 @@ const replies = async (file) =>
   fs.writeFileSync(mock, await withComments(["Cite a source."]));
   const userData = path.join(tmp, "user-data-cloud");
   const r = spawnSync(electron, [dir], {
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "inherit"],
+    encoding: "utf-8",
     env: {
       ...process.env,
       DRA_SMOKE_URL: "https://contoso.sharepoint.com/sites/class/Shared%20Documents/cloud.docx",
@@ -99,7 +100,10 @@ const replies = async (file) =>
     },
     timeout: 180000,
   });
+  process.stdout.write(r.stdout ?? "");
   check("cloud: app exited normally", r.status === 0, String(r.status));
+  // スモークテストの click の手順は、最初の注釈 (コメントの印) をクリックする: 元の文書の該当箇所を開く
+  check("cloud: comment mark opens the source document", /smoke: would open https:\/\/contoso\.sharepoint\.com\//.test(r.stdout ?? ""));
   const { folders, manifest, events, info } = readRecords(userData);
   check("cloud: records folder keyed by the URL", folders.length === 1 && /^https:/.test(info.path ?? ""), JSON.stringify(folders));
   check("cloud: new version picked up by polling", manifest.snapshots.length === 2, String(manifest.snapshots.length));
