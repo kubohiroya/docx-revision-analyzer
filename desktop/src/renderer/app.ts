@@ -47,11 +47,26 @@ import {
   splitIntoSessions,
   t as libT,
 } from "../../../src/core";
-import type { AppLang, AppSettings, ExtensionListItem, MicrosoftStatus, OpenedFile, RecentUrl, WatchStatus, WatchTarget, WatchUpdateMessage } from "../shared";
+import {
+  DOC_CHANGED,
+  NO_LIBREOFFICE,
+  type AppLang,
+  type AppSettings,
+  type ExtensionListItem,
+  type MicrosoftStatus,
+  type OpenedFile,
+  type PagesStatus,
+  type PagesTarget,
+  type RecentUrl,
+  type SavedVersion,
+  type WatchStatus,
+  type WatchTarget,
+  type WatchUpdateMessage,
+} from "../shared";
 import type { CommentState } from "../../../src/lib/docxComments";
 import { STRINGS, Strings } from "./strings";
 import { batchCloudFolder, batchLocalFolder, BatchContext } from "./batch";
-import { FigureKind, FigureViewer } from "./viewer";
+import { FigureKind, FigureViewer, type SavedPageInfo } from "./viewer";
 
 declare global {
   interface Window {
@@ -133,6 +148,10 @@ let chartViewer: FigureViewer;
 let flowViewer: FigureViewer;
 /** 最後に描いた文書 (同じ文書の描き直しなら、倍率・表示位置・強調したページを保つ) */
 let renderedPath: string | undefined;
+/** 保存時のページ (#59): 開いている文書 (内容の SHA-256 付き) と版ごとの状態、作る手段 (LibreOffice) */
+let pagesTarget: { file: OpenedFile; target: PagesTarget } | undefined;
+let savedVersions: SavedVersion[] = [];
+let pagesStatus: PagesStatus | undefined;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -186,6 +205,19 @@ function applyLang(): void {
   setText("watch-records-default", S.watchRecordsDefault);
   setText("watch-records-open", S.openRecords);
   setText("watch-records-note", S.watchRecordsNote);
+  setText("s-pages", S.settingsPages);
+  setText("l-pages-enabled", S.pagesEnable);
+  setText("pages-lo-label", S.pagesLibreOfficeLabel);
+  setText("pages-lo-choose", S.pagesLibreOfficeChoose);
+  setText("pages-lo-default", S.pagesLibreOfficeDefault);
+  setText("l-pages-quality", S.pagesQuality);
+  setText("o-q-low", S.qualityLow);
+  setText("o-q-medium", S.qualityMedium);
+  setText("o-q-high", S.qualityHigh);
+  setText("l-pages-fonts", S.pagesFonts);
+  setText("o-f-substitute", S.fontsSubstitute);
+  setText("o-f-embed", S.fontsEmbed);
+  setText("pages-note", S.pagesNote);
   setText("s-updates", S.settingsUpdates);
   setText("l-updates", S.checkForUpdates);
   setText("s-about", S.settingsAbout);
@@ -409,6 +441,7 @@ async function analyze(): Promise<void> {
   );
   bindFigureAnnotations(chartViewer.viewport, result.figureAnnotations.chart, result.chartTargets);
   bindFigureAnnotations(flowViewer.viewport, result.figureAnnotations.flow, result.flowTargets);
+  void refreshSavedPages();
   renderHighlights();
   renderComments();
   showTab(tab === "settings" ? "chart" : tab);
@@ -722,6 +755,76 @@ async function toggleWatch(): Promise<void> {
   });
 }
 
+/**
+ * 保存時のページを作る文書 (URL から開いた文書は、driveId / itemId があるときだけ OneDrive で PDF にできる)。
+ * 内容の SHA-256 を添える (監視していない文書の PDF を、メインプロセスが文書を読み直さずに探せるように)
+ */
+async function pagesTargetOf(f: OpenedFile): Promise<PagesTarget> {
+  if (pagesTarget?.file === f) return pagesTarget.target;
+  const { driveId, itemId } = f.source ?? {};
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", f.bytes as Uint8Array<ArrayBuffer>));
+  const target: PagesTarget = {
+    path: f.path,
+    cloud: driveId && itemId ? { driveId, itemId } : undefined,
+    sha256: [...digest].map((b) => b.toString(16).padStart(2, "0")).join(""),
+    mtime: f.mtime,
+  };
+  pagesTarget = { file: f, target };
+  return target;
+}
+
+/** いま表示している文書の、保存時のページを作る対象 (まだ調べていなければ undefined) */
+function currentPagesTarget(): PagesTarget | undefined {
+  return file && pagesTarget?.file === file ? pagesTarget.target : undefined;
+}
+
+/** 文書の変更の日時と、ファイルの保存の日時のずれを見込む幅 */
+const SAVE_SLACK_MS = 2 * 60_000;
+
+/**
+ * flow の列の時点で保存した版 (#59)。列 0 は最初の区間の直前、列 k は区間 k の終わり。
+ * その時点の前の最後の変更から次の変更までの間に保存した版のうち、最後のもの。
+ * 後に変更が無い列 (ふつうは最後の列) は、最新の版 (監視していない文書は、いまの文書)
+ */
+function savedVersionOf(column: number): SavedVersion | undefined {
+  const sessions = analysis?.flow?.sessions;
+  if (!analysis || !sessions?.length || column < 0 || column > sessions.length || savedVersions.length === 0) return undefined;
+  const at = column === 0 ? sessions[0].start.getTime() - 1 : sessions[column - 1].end.getTime();
+  let before = -Infinity;
+  let after = Infinity;
+  for (const e of analysis.data.events) {
+    const x = e.date.getTime();
+    if (x <= at) before = Math.max(before, x);
+    else after = Math.min(after, x);
+  }
+  if (after === Infinity) return savedVersions[savedVersions.length - 1];
+  let found: SavedVersion | undefined;
+  for (const v of savedVersions) {
+    const x = Date.parse(v.savedAt);
+    if (x >= before - SAVE_SLACK_MS && x < after) found = v;
+  }
+  return found;
+}
+
+function savedPageInfo(column: number): SavedPageInfo | undefined {
+  const v = savedVersionOf(column);
+  if (!v) return undefined;
+  const time = new Date(v.savedAt).toLocaleString(lang === "ja" ? "ja-JP" : "en-US", { dateStyle: "short", timeStyle: "short" });
+  const label = S.savedLabel(time, v.n || undefined);
+  if (pagesStatus && !pagesStatus.enabled) return { label, state: "off" };
+  const error = v.error === NO_LIBREOFFICE ? S.savedNoLibreOffice : v.error === DOC_CHANGED ? S.savedDocChanged : v.error;
+  return { label, state: v.state, pageCount: v.pageCount, error };
+}
+
+/** 開いている文書の版ごとの保存時のページの状態を読み直し、右の画面に反映する */
+async function refreshSavedPages(): Promise<void> {
+  const f = file;
+  const list = f ? await window.app.pages.list(await pagesTargetOf(f)) : [];
+  if (f !== file) return;
+  savedVersions = list;
+  flowViewer.refreshSaved();
+}
+
 /** 図のプレビューを作る (設定のミニマップの大きさ・位置と分割画面の幅を使う) */
 function initViewers(): void {
   const hooks = (kind: FigureKind) => ({
@@ -736,12 +839,29 @@ function initViewers(): void {
     onDetail: (body: HTMLElement) => {
       if (analysis) bindFigureAnnotations(body, analysis.figureAnnotations.flow, analysis.flowTargets);
     },
+    saved:
+      kind === "flow"
+        ? {
+            info: savedPageInfo,
+            request: (k: number) => {
+              const v = savedVersionOf(k);
+              const t = currentPagesTarget();
+              if (v && t) void window.app.pages.request(t, v.n).catch((err) => status(S.error(String(err))));
+            },
+            render: (k: number, page: number, w: number, h: number) => {
+              const v = savedVersionOf(k);
+              const t = currentPagesTarget();
+              return v && t ? window.app.pages.render(t, v.n, page, w, h) : Promise.reject(new Error(S.savedNone));
+            },
+          }
+        : undefined,
   });
   chartViewer = new FigureViewer($("pane-chart"), "chart", hooks("chart"));
   flowViewer = new FigureViewer($("pane-flow"), "flow", hooks("flow"));
   (window as unknown as { __viewer: unknown }).__viewer = {
     zoom: (kind: FigureKind, z: number) => (kind === "chart" ? chartViewer : flowViewer).setZoom(z),
     selectFlowPage: (column: number, page: number) => flowViewer.selectPage(column, page),
+    detailMode: (mode: "schematic" | "saved") => flowViewer.setDetailMode(mode),
     state: (kind: FigureKind) => (kind === "chart" ? chartViewer : flowViewer).state(),
   };
 }
@@ -818,6 +938,7 @@ async function openFile(opened: OpenedFile | null): Promise<void> {
     status(S.watchStoppedOther);
   }
   file = opened;
+  savedVersions = [];
   setText("file-name", opened.path);
   // 解析できない文書 (変更履歴の無いテンプレートなど) でもロックはかけられるよう、解析の前に出す
   $("lock-template").hidden = false;
@@ -1168,7 +1289,45 @@ function renderSettings(): void {
   setText("updates-note", updatesAvailable ? S.updatesNote : `${S.updatesNote} ${S.updatesDevBuild}`);
   renderExtensions();
   renderMicrosoftSettings();
+  renderPagesSettings();
   renderRecentWelcome();
+}
+
+/** 設定: 保存時のページ */
+function renderPagesSettings(): void {
+  const p = pagesStatus;
+  $<HTMLInputElement>("pages-enabled").checked = p?.enabled ?? true;
+  setText("pages-lo", p?.libreOffice ?? S.pagesLibreOfficeNotFound);
+  $("pages-lo").classList.toggle("error", !p?.libreOffice);
+  $<HTMLButtonElement>("pages-lo-default").disabled = !settings.pages?.libreOfficePath;
+  $<HTMLSelectElement>("pages-quality").value = p?.imageQuality ?? "medium";
+  $<HTMLSelectElement>("pages-fonts").value = p?.fonts ?? "substitute";
+}
+
+function initPages(): void {
+  window.app.pages.onChanged((p) => {
+    if (file && p === file.path) void refreshSavedPages();
+  });
+  const update = (change: NonNullable<AppSettings["pages"]>) =>
+    void runSafely(async () => {
+      settings.pages = { ...(settings.pages ?? {}), ...change };
+      await persist();
+      pagesStatus = await window.app.pages.status();
+      renderPagesSettings();
+      flowViewer.refreshSaved();
+    });
+  $("pages-enabled").onchange = () => update({ enabled: $<HTMLInputElement>("pages-enabled").checked });
+  $("pages-quality").onchange = () => update({ imageQuality: $<HTMLSelectElement>("pages-quality").value as PagesStatus["imageQuality"] });
+  $("pages-fonts").onchange = () => update({ fonts: $<HTMLSelectElement>("pages-fonts").value as PagesStatus["fonts"] });
+  const choose = (reset: boolean) =>
+    void runSafely(async () => {
+      pagesStatus = await window.app.pages.chooseLibreOffice(reset);
+      // メインプロセスが設定を書き換えたので読み直す (古い設定で上書きしない)
+      settings = await window.app.getSettings();
+      renderPagesSettings();
+    });
+  $("pages-lo-choose").onclick = () => choose(false);
+  $("pages-lo-default").onclick = () => choose(true);
 }
 
 function renderExtensions(): void {
@@ -1254,6 +1413,7 @@ async function main(): Promise<void> {
   initExtensionUi({ lang: () => lang, strings: () => S, onPanelsChanged: () => renderHighlights() });
   extList = await window.app.extensions.list();
   updatesAvailable = await window.app.updatesAvailable();
+  pagesStatus = await window.app.pages.status();
   lang = settings.lang ?? (await window.app.systemLang());
   await loadRules();
   initViewers();
@@ -1368,6 +1528,7 @@ async function main(): Promise<void> {
   );
 
   initWatch();
+  initPages();
   showTab("chart");
   appInternal.ready();
   await resumeWatch();

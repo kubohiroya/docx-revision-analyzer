@@ -21,6 +21,17 @@ import type { AppLang, AppSettings, OpenedFile, WatchStatus, WatchTarget, WatchU
 
 let watcher: DocWatcher | undefined;
 let target: WatchTarget | undefined;
+/** 新しい版を保管したとき・監視を始めたときに呼ぶ (保存時のページの作成の予定を立てるため) */
+let versionListener: (() => void) | undefined;
+
+/** 監視している文書と、その読み取り元 */
+export function currentWatch(): { watcher: DocWatcher; target: WatchTarget } | undefined {
+  return watcher?.archive && target ? { watcher, target } : undefined;
+}
+
+export function onWatchVersion(cb: () => void): void {
+  versionListener = cb;
+}
 
 interface WatchDeps {
   window: () => BrowserWindow | undefined;
@@ -151,7 +162,10 @@ export function registerWatchIpc(d: WatchDeps): void {
         setLang(d.lang());
         return t("commentReceipt", seq, fmtWhen(at));
       },
-      onUpdate: (u) => send("watch:update", message(wt, u)),
+      onUpdate: (u) => {
+        send("watch:update", message(wt, u));
+        if (u.version) versionListener?.();
+      },
       onReceipts: async (r) => {
         try {
           const bytes = new Uint8Array(await fs.promises.readFile(r.path));
@@ -172,6 +186,7 @@ export function registerWatchIpc(d: WatchDeps): void {
     target = wt.kind === "local" ? { kind: "local", path: path.resolve(wt.path) } : wt;
     s.watchTarget = target;
     d.saveSettings(s);
+    versionListener?.();
     return message(target, first);
   }
 

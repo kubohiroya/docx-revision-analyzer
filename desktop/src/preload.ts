@@ -45,6 +45,16 @@ const api: AppApi = {
       ipcRenderer.on("watch:error", (_e, msg: string) => cb(msg));
     },
   },
+  pages: {
+    status: () => ipcRenderer.invoke("pages:status"),
+    list: (t) => ipcRenderer.invoke("pages:list", t),
+    request: (t, n) => ipcRenderer.invoke("pages:request", t, n),
+    render: (t, n, page, w, h) => ipcRenderer.invoke("pages:render", t, n, page, w, h),
+    chooseLibreOffice: (reset) => ipcRenderer.invoke("pages:choose-libreoffice", reset),
+    onChanged: (cb) => {
+      ipcRenderer.on("pages:changed", (_e, p: string) => cb(p));
+    },
+  },
   openDocxDialog: () => ipcRenderer.invoke("open-docx-dialog"),
   readDocx: (p) => ipcRenderer.invoke("read-docx", p),
   pathForFile: (file) => webUtils.getPathForFile(file),

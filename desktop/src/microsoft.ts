@@ -242,6 +242,19 @@ export class MicrosoftClient {
     return meta.cTag ?? meta.eTag ?? meta.lastModifiedDateTime ?? "";
   }
 
+  /**
+   * 文書を PDF に変換したもの (Graph の format=pdf。Word for the web と同じ割り付け)。文書はもともと OneDrive にあるので、
+   * 新たに送るものは無い。サインインが必要になっても、ブラウザは開かずにエラーにする
+   */
+  async contentPdf(target: { driveId: string; itemId: string }): Promise<Uint8Array> {
+    if (this.mockFile) throw new MicrosoftError("PDF conversion is not available with DRA_GRAPH_MOCK", "notFound");
+    const token = await this.token(false);
+    const res = await this.graph(`/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(target.itemId)}/content?format=pdf`, token);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.byteLength > MAX_BYTES) throw new MicrosoftError("pdf", "tooLarge");
+    return bytes;
+  }
+
   /** URL (または前回開いたときの driveId / itemId) の docx を読み込む。interactive が false ならサインインしない */
   async open(target: { url: string } | { driveId: string; itemId: string }, interactive = true): Promise<CloudFile> {
     if (process.env.DRA_GRAPH_MOCK_DIR && "driveId" in target && target.driveId === "mock-dir") {

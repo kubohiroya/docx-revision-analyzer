@@ -27,6 +27,10 @@ its text are never sent anywhere (the app blocks all network access).
   テンプレートにロックを施す: 変更履歴をロックしたものを保存 (`--lock` と同じ)
 - In a folder batch, figures with traces of tampering get a warning and a `-tampered` name. /
   フォルダの一括処理で、改ざんの痕跡がある図には警告を付け、名前に `-tampered` を付ける
+- Saved pages: the flow's right pane can show the real pages (PDF) of the version saved at each column — converted by
+  OneDrive or by your own LibreOffice (not bundled), with images reduced and, for horizontal-only documents, the
+  embedded fonts replaced by the system's ([usage](../docs/usage.md#desktop-app-preview)). / 保存時のページ: フローの
+  右の画面に、各列の時点で保存した版の実際のページ (PDF) を表示する (OneDrive か、ご自身で入れた LibreOffice で作る)
 
 ## Development / 開発
 
@@ -36,7 +40,10 @@ cd desktop
 npm install            # Electron
 npm start              # build and launch
 npm run typecheck
+npm test               # saved pages: font removal, LibreOffice options (and a real conversion if LibreOffice is installed)
 npm run smoke          # launch hidden, open fixtures/flow-demo.docx, save screenshots of each tab to smoke-out/
+                       # (DRA_SMOKE_SAVED=1 also shows a saved page; needs LibreOffice)
+npm run smoke:watch    # watching: versions, comment records, replies (and saved pages if LibreOffice is installed)
 ```
 
 If Electron's binary wasn't downloaded (install scripts disabled), run `node node_modules/electron/install.js`.
@@ -47,5 +54,8 @@ If Electron's binary wasn't downloaded (install scripts disabled), run `node nod
   blocking network access and navigation.
 - `src/preload.ts` — exposes `window.app` (`src/shared.ts`) to the sandboxed renderer.
 - `src/renderer/` — UI. Analysis and drawing use the library core (`../src/core.ts`, no file system).
+- `src/pages/` — saved pages (issue #59): conversion (Graph / LibreOffice), font removal (pdf-lib), storage and
+  scheduling; `src/pdf-host/` — the hidden window that draws PDF pages with pdf.js (`dra-pdf://`, no network). pdf.js
+  (about 1.7 MB with one CMap) and pdf-lib are bundled; LibreOffice is not.
 
 Packaging, signing, notarization, releases and auto-update: see [DISTRIBUTION.md](DISTRIBUTION.md).

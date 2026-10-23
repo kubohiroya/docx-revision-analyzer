@@ -218,6 +218,22 @@ const en = {
     "With the pointer here, the arrow keys move the minimap to another corner.",
   pageDetail: (column: string, page: number) => `${column} — page ${page}`,
   pageDetailHint: "↑ ↓: previous / next page   ← →: the same page in the previous / next column   Esc: close",
+  detailSchematic: "Schematic",
+  detailSaved: "Saved pages",
+  savedPageHint: "↑ ↓: previous / next page of the saved version   ← →: the previous / next column   Esc: close",
+  savedLabel: (time: string, version?: number) => (version ? `version ${version}, saved ${time}` : `saved ${time}`),
+  savedPageDetail: (column: string, page?: number, count?: number, label?: string) =>
+    [column, label, page ? `page ${page}${count ? ` of ${count}` : ""}` : ""].filter(Boolean).join(" — "),
+  savedNone:
+    "No saved version for this column. Pages can be made for the versions saved while the document is watched, " +
+    "and for the document as it is now.",
+  savedOff: "Saved pages are turned off in Settings.",
+  savedCreating: "Making the pages of this version…",
+  savedFailed: (msg: string) => `Couldn't make the pages: ${msg}`,
+  savedRetry: "Try again",
+  savedNoLibreOffice:
+    "LibreOffice is needed to make these pages. Install it from libreoffice.org, or set where it is in Settings.",
+  savedDocChanged: "The document has changed since it was opened. Open it again to make its pages.",
   splitterTitle: "Drag to change the width",
   watchStart: "Watch for saves",
   watchStop: "Stop watching",
@@ -266,6 +282,27 @@ const en = {
     "Each watched document gets its own folder with every saved version (the same format as docx-revision-snapshot), " +
     "a log of its comments (comments.jsonl) and the replies written. Records are not put next to the document, so " +
     "they are not shared through OneDrive or Teams.",
+  settingsPages: "Saved pages",
+  pagesEnable: "Make the pages of saved versions (PDF) to show in the right pane of the flow",
+  pagesLibreOfficeLabel: "LibreOffice:",
+  pagesLibreOfficeNotFound: "not found",
+  pagesLibreOfficeChoose: "Choose…",
+  pagesLibreOfficeDefault: "Find automatically",
+  pagesQuality: "Images",
+  qualityLow: "Low (96 dpi, smallest)",
+  qualityMedium: "Medium (150 dpi)",
+  qualityHigh: "As in the document",
+  pagesFonts: "Fonts",
+  fontsSubstitute: "Use this computer's fonts (much smaller files)",
+  fontsEmbed: "Keep the document's fonts (exact shapes, larger files)",
+  pagesNote:
+    "The latest version of a document on OneDrive / SharePoint is converted by OneDrive, where the document already " +
+    "is. Other versions, and documents on this computer, are converted on this computer by LibreOffice, which is not " +
+    "included with this app (install it from libreoffice.org). Pages are made when the document is closed or has not " +
+    "been edited for the idle gap, or when you open them. With this computer's fonts, the line and page breaks stay " +
+    "as saved and only the shapes of the characters change; documents with vertical text keep their fonts. The " +
+    "settings apply to pages made from now on. Pages of watched documents are kept with their records; for other " +
+    "documents, the last 10 are kept.",
 };
 
 export type Strings = typeof en;
@@ -480,6 +517,19 @@ const ja: Strings = {
     "マウスを重ねてカーソルキーを押すと、ミニマップをほかの隅へ移します。",
   pageDetail: (column, page) => `${column} — ${page}ページ目`,
   pageDetailHint: "↑ ↓: 前後のページ   ← →: 前後の列の同じページ   Esc: 閉じる",
+  detailSchematic: "模式図",
+  detailSaved: "保存時のページ",
+  savedPageHint: "↑ ↓: 保存した版の前後のページ   ← →: 前後の列   Esc: 閉じる",
+  savedLabel: (time, version) => (version ? `版 ${version} (${time} に保存)` : `${time} に保存`),
+  savedPageDetail: (column, page, count, label) =>
+    [column, label, page ? `${page}${count ? ` / ${count}` : ""} ページ` : ""].filter(Boolean).join(" — "),
+  savedNone: "この列の時点で保存した版がありません。ページを作れるのは、監視している間に保存した版と、いまの文書です。",
+  savedOff: "保存時のページは、設定で作らないことになっています。",
+  savedCreating: "この版のページを作っています…",
+  savedFailed: (msg) => `ページを作れませんでした: ${msg}`,
+  savedRetry: "やり直す",
+  savedNoLibreOffice: "このページを作るには LibreOffice が必要です。libreoffice.org から入れるか、設定で場所を指定してください。",
+  savedDocChanged: "文書は開いた後に変わっています。開き直してからページを作ってください。",
   splitterTitle: "ドラッグで幅を変更",
   watchStart: "保存を監視",
   watchStop: "監視をやめる",
@@ -523,6 +573,26 @@ const ja: Strings = {
   watchRecordsNote:
     "監視する文書ごとにフォルダを作り、保存ごとの版 (docx-revision-snapshot と同じ形式)、コメントの記録 (comments.jsonl)、" +
     "書き込んだ返信を残します。記録は文書の隣には置かないので、OneDrive や Teams で共有されることはありません。",
+  settingsPages: "保存時のページ",
+  pagesEnable: "保存した版のページ (PDF) を作り、フローの右の画面に表示する",
+  pagesLibreOfficeLabel: "LibreOffice:",
+  pagesLibreOfficeNotFound: "見つかりません",
+  pagesLibreOfficeChoose: "選ぶ…",
+  pagesLibreOfficeDefault: "自動で探す",
+  pagesQuality: "画像",
+  qualityLow: "低 (96 dpi、最も小さい)",
+  qualityMedium: "中 (150 dpi)",
+  qualityHigh: "文書のまま",
+  pagesFonts: "フォント",
+  fontsSubstitute: "このコンピュータのフォントで表示する (ファイルがずっと小さくなる)",
+  fontsEmbed: "文書のフォントを埋め込んだまま (字の形が正確、ファイルが大きい)",
+  pagesNote:
+    "OneDrive / SharePoint の文書の最新の版は、文書のある OneDrive で PDF にします。それ以外の版と、このコンピュータの文書は、" +
+    "LibreOffice でこのコンピュータの中で PDF にします。LibreOffice はこのアプリに含まれていないので、libreoffice.org から" +
+    "入れてください。ページは、文書が閉じられたとき・無編集期間が過ぎたとき、または右の画面で開いたときに作ります。" +
+    "このコンピュータのフォントで表示しても、改行・改ページの位置は保存時のままで、字の形だけが変わります。縦書きのある文書は" +
+    "フォントを残します。設定はこれから作るページに使います。監視している文書のページは記録と一緒に残し、それ以外の文書は" +
+    "最近の 10 個だけを残します。",
 };
 
 export const STRINGS: Record<AppLang, Strings> = { en, ja };

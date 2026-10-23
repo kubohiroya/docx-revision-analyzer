@@ -6,6 +6,8 @@
  *    枠のドラッグで大きさの変更、マウスを重ねてカーソルキーで四隅へ移動 (#55)
  *  - flow: ページをクリックして強調し、右の画面に大きく表示する (スプリッターで幅を変えられる)。
  *    カーソルキーで強調するページを動かし、ページ以外のクリックか Esc で解除する (#56)
+ *  - flow の右の画面は「模式図 / 保存時のページ」を切り替えられる。保存時のページは、その列の時点で保存した版の PDF を
+ *    メインプロセスが画像にしたもの (#59)。↑ ↓ は保存時のページの中で動く
  *
  * 拡大縮小は SVG の表示の大きさ (width / height) を変えて行う (ベクターのまま描き直すのでぼやけない)。表示枠は
  * ふつうのスクロールの領域なので、scrollIntoView や注釈のポップアップの位置はそのまま働く。
@@ -28,6 +30,16 @@ export interface ViewerPrefs {
   split?: number;
 }
 
+/** 列の時点で保存した版の、保存時のページの状態 */
+export interface SavedPageInfo {
+  /** 版の説明 (保存した日時) */
+  label: string;
+  /** off: 設定で作らないことにしている */
+  state: "none" | "pending" | "done" | "failed" | "off";
+  pageCount?: number;
+  error?: string;
+}
+
 export interface ViewerHooks {
   strings: () => Strings;
   prefs: () => ViewerPrefs;
@@ -36,6 +48,15 @@ export interface ViewerHooks {
   columnTitle?: (column: number) => string;
   /** flow: 右の画面に表示したページ (図の複製) に、注釈などを結びつける */
   onDetail?: (body: HTMLElement) => void;
+  /** flow: 保存時のページ (無ければ「模式図」だけ) */
+  saved?: {
+    /** 列の時点で保存した版 (無ければ undefined) */
+    info(column: number): SavedPageInfo | undefined;
+    /** 保存時のページを作る */
+    request(column: number): void;
+    /** 保存時のページ (0 から) を maxWidth × maxHeight (画素) に収まる画像にする */
+    render(column: number, page: number, maxWidth: number, maxHeight: number): Promise<{ dataUrl: string; pageCount: number }>;
+  };
 }
 
 const MIN_ZOOM = 0.05;
@@ -93,7 +114,15 @@ export class FigureViewer {
   private readonly splitter?: HTMLDivElement;
   private readonly detail?: HTMLDivElement;
   private readonly detailHead?: HTMLDivElement;
+  private readonly detailTitle?: HTMLSpanElement;
+  private readonly modeButtons?: { schematic: HTMLButtonElement; saved: HTMLButtonElement };
   private readonly detailBody?: HTMLDivElement;
+  /** 右の画面: 模式図 / 保存時のページ */
+  private detailMode: "schematic" | "saved" = "schematic";
+  private savedPage = 0;
+  private savedPageCount?: number;
+  private savedRequest = 0;
+  private savedResize?: number;
   private svg?: SVGSVGElement;
   private natural = { w: 0, h: 0 };
   private zoomValue = 1;
@@ -133,11 +162,27 @@ export class FigureViewer {
       this.splitter.title = S.splitterTitle;
       this.detail = div("page-detail");
       this.detailHead = div("page-detail-head");
+      this.detailTitle = document.createElement("span");
+      this.detailTitle.className = "page-detail-title";
+      const modes = div("page-detail-modes");
+      this.modeButtons = {
+        schematic: button(S.detailSchematic, S.detailSchematic, () => this.setDetailMode("schematic")),
+        saved: button(S.detailSaved, S.detailSaved, () => this.setDetailMode("saved")),
+      };
+      modes.append(this.modeButtons.schematic, this.modeButtons.saved);
+      modes.hidden = !hooks.saved;
+      this.detailHead.append(this.detailTitle, modes);
       this.detailBody = div("page-detail-body");
       this.detail.append(this.detailHead, this.detailBody);
       host.append(this.splitter, this.detail);
       this.initSplitter();
-      new ResizeObserver(() => this.fitDetail()).observe(this.detailBody);
+      new ResizeObserver(() => {
+        if (this.detailMode === "schematic") this.fitDetail();
+        else {
+          window.clearTimeout(this.savedResize);
+          this.savedResize = window.setTimeout(() => this.renderSaved(), 150);
+        }
+      }).observe(this.detailBody);
     }
     this.initPanZoom();
     this.applyStrings();
@@ -157,6 +202,10 @@ export class FigureViewer {
     this.minimap.el.title = S.minimapHint;
     if (this.splitter) this.splitter.title = S.splitterTitle;
     if (this.detailHead) this.detailHead.title = S.pageDetailHint;
+    if (this.modeButtons) {
+      this.modeButtons.schematic.textContent = this.modeButtons.schematic.title = S.detailSchematic;
+      this.modeButtons.saved.textContent = S.detailSaved;
+    }
     this.refreshDetail();
   }
 
@@ -202,7 +251,7 @@ export class FigureViewer {
         if (this.visible) this.fit(true);
         else this.pendingFit = true;
       }
-      if (selected) this.selectPage(selected.column, selected.page, false);
+      if (selected) this.selectPage(selected.column, selected.page, false, true);
     }
     this.minimap.setImage(svg);
     this.updateLabel();
@@ -370,18 +419,103 @@ export class FigureViewer {
     this.selectPage(Number(col.dataset.column), Number((g as SVGGElement).dataset.page), scroll);
   }
 
-  selectPage(column: number, page: number, scroll = true): void {
+  /** keepSavedPage: 保存時のページは今のページのまま (← → で列だけを変えたとき) */
+  selectPage(column: number, page: number, scroll = true, keepSavedPage = false): void {
     if (this.kind !== "flow" || !this.detail) return;
     const g = this.pageElement(column, page);
     if (!g) return;
     for (const el of this.viewport.querySelectorAll(".dra-page-selected")) el.classList.remove("dra-page-selected");
     g.classList.add("dra-page-selected");
+    if (this.selected?.column !== column) this.savedPageCount = undefined;
+    if (!keepSavedPage) this.savedPage = page;
     this.selected = { column, page };
     const split = clamp(this.hooks.prefs().split ?? 0.6, 0.2, 0.85);
     this.host.style.setProperty("--split", `${split * 100}%`);
     this.host.classList.add("split");
-    this.renderDetail(g, column, page);
+    if (this.detailMode === "saved") this.renderSaved();
+    else this.renderDetail(g, column, page);
     if (scroll) g.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  /** 右の画面の表示を切り替える */
+  setDetailMode(mode: "schematic" | "saved"): void {
+    this.detailMode = mode;
+    if (mode === "saved") this.renderSaved();
+    else this.refreshDetail();
+  }
+
+  /** 保存時のページの状態が変わったとき (作成が終わったなど) */
+  refreshSaved(): void {
+    if (!this.selected) return;
+    if (this.detailMode === "saved") this.renderSaved();
+    else this.updateModeButtons(this.selected.column);
+  }
+
+  private updateModeButtons(column: number): void {
+    if (!this.modeButtons) return;
+    const S = this.hooks.strings();
+    const info = this.hooks.saved?.info(column);
+    this.modeButtons.schematic.setAttribute("aria-pressed", String(this.detailMode === "schematic"));
+    this.modeButtons.saved.setAttribute("aria-pressed", String(this.detailMode === "saved"));
+    this.modeButtons.saved.title = info ? `${S.detailSaved} (${info.label})` : S.savedNone;
+  }
+
+  /** 右の画面に、保存時のページを表示する (無ければ・作成中ならその案内) */
+  private renderSaved(): void {
+    const body = this.detailBody;
+    const sel = this.selected;
+    if (!body || !this.detailTitle || !sel || !this.hooks.saved) return;
+    const S = this.hooks.strings();
+    const column = sel.column;
+    const info = this.hooks.saved.info(column);
+    this.updateModeButtons(column);
+    const title = this.hooks.columnTitle?.(column) ?? "";
+    const message = (text: string, action?: { label: string; run: () => void }) => {
+      this.detailTitle!.textContent = S.savedPageDetail(title, undefined, undefined, info?.label);
+      const p = document.createElement("p");
+      p.className = "page-detail-message";
+      p.textContent = text;
+      if (action) p.append(" ", button(action.label, action.label, action.run));
+      body.replaceChildren(p);
+    };
+    if (!info) return message(S.savedNone);
+    if (info.state === "off") return message(S.savedOff);
+    if (info.state === "none") {
+      this.hooks.saved.request(column);
+      return message(S.savedCreating);
+    }
+    if (info.state === "pending") return message(S.savedCreating);
+    if (info.state === "failed") return message(S.savedFailed(info.error ?? ""), { label: S.savedRetry, run: () => this.hooks.saved?.request(column) });
+    const cs = getComputedStyle(body);
+    const bw = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const bh = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    if (bw <= 0 || bh <= 0) return;
+    if (info.pageCount !== undefined) this.savedPage = clamp(this.savedPage, 0, Math.max(0, info.pageCount - 1));
+    const dpr = window.devicePixelRatio || 1;
+    const req = ++this.savedRequest;
+    const page = this.savedPage;
+    this.detailTitle.textContent = S.savedPageDetail(title, page + 1, info.pageCount, info.label);
+    if (this.detailHead) this.detailHead.title = S.savedPageHint;
+    void this.hooks.saved
+      .render(column, page, bw * dpr, bh * dpr)
+      .then((r) => {
+        // 古い依頼の結果は捨てる (ページを続けて送ったときなど)
+        if (req !== this.savedRequest || this.detailMode !== "saved" || this.selected?.column !== column) return;
+        this.savedPageCount = r.pageCount;
+        const img = document.createElement("img");
+        img.className = "page-detail-image";
+        img.alt = S.savedPageDetail(title, page + 1, r.pageCount, info.label);
+        img.onload = () => {
+          img.style.width = `${img.naturalWidth / dpr}px`;
+          img.style.height = `${img.naturalHeight / dpr}px`;
+        };
+        img.src = r.dataUrl;
+        this.detailTitle!.textContent = S.savedPageDetail(title, page + 1, r.pageCount, info.label);
+        body.replaceChildren(img);
+      })
+      .catch((err) => {
+        if (req === this.savedRequest) message(S.savedFailed(err instanceof Error ? err.message : String(err)));
+      });
   }
 
   clearSelection(): void {
@@ -390,7 +524,7 @@ export class FigureViewer {
     this.selected = undefined;
     this.host.classList.remove("split");
     this.detailBody?.replaceChildren();
-    if (this.detailHead) this.detailHead.textContent = "";
+    if (this.detailTitle) this.detailTitle.textContent = "";
   }
 
   get selectedPage(): { column: number; page: number } | undefined {
@@ -412,6 +546,7 @@ export class FigureViewer {
   /** 強調中のページを描き直す (図の要素の印が変わったとき) */
   refreshDetail(): void {
     if (!this.selected) return;
+    if (this.detailMode === "saved") return this.renderSaved();
     const g = this.pageElement(this.selected.column, this.selected.page);
     if (g) this.renderDetail(g, this.selected.column, this.selected.page);
   }
@@ -445,8 +580,9 @@ export class FigureViewer {
     clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
     for (const el of clone.querySelectorAll(".dra-page-selected")) el.classList.remove("dra-page-selected");
     const S = this.hooks.strings();
-    this.detailHead.textContent = S.pageDetail(this.hooks.columnTitle?.(column) ?? "", page + 1);
+    if (this.detailTitle) this.detailTitle.textContent = S.pageDetail(this.hooks.columnTitle?.(column) ?? "", page + 1);
     this.detailHead.title = S.pageDetailHint;
+    this.updateModeButtons(column);
     this.detailBody.replaceChildren(clone);
     this.fitDetail();
     this.hooks.onDetail?.(this.detailBody);
@@ -497,6 +633,17 @@ export class FigureViewer {
     // ミニマップの上にマウスがあるときのカーソルキーは、ミニマップの位置の切り替えに使う
     if (this.minimap.hovered) return;
     const { column, page } = this.selected;
+    // 保存時のページを表示しているときの ↑ ↓ は、保存時のページの中で動く
+    if (this.detailMode === "saved" && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      e.preventDefault();
+      const count = this.savedPageCount ?? this.hooks.saved?.info(column)?.pageCount ?? 1;
+      const nextPage = clamp(this.savedPage + (e.key === "ArrowUp" ? -1 : 1), 0, Math.max(0, count - 1));
+      if (nextPage !== this.savedPage) {
+        this.savedPage = nextPage;
+        this.renderSaved();
+      }
+      return;
+    }
     let next: { column: number; page: number } | undefined;
     switch (e.key) {
       case "ArrowUp":
@@ -518,7 +665,7 @@ export class FigureViewer {
         return;
     }
     e.preventDefault();
-    if (next && next.page >= 0) this.selectPage(next.column, next.page);
+    if (next && next.page >= 0) this.selectPage(next.column, next.page, true, this.detailMode === "saved");
   }
 }
 
