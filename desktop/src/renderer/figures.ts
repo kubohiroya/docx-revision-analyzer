@@ -97,7 +97,10 @@ function originOf(url: string): string {
 }
 
 function openLink(e: AnnotationEntry): void {
-  if (e.spec.href) void window.app.extensions.openLink(e.extId, e.spec.href);
+  if (!e.spec.href) return;
+  // 文書のコメントのリンクは元の文書 (アプリが得た URL) だけなので、拡張の確認を通さずに開く
+  if (e.extId === APP_COMMENTS) void window.app.openSourceLink(e.spec.href);
+  else void window.app.extensions.openLink(e.extId, e.spec.href);
 }
 
 function fillPopup(entries: AnnotationEntry[], target?: FigureTarget): void {
@@ -174,7 +177,8 @@ export function bindFigureAnnotations(pane: HTMLElement, map: Map<string, Annota
     const entries = map.get(el.dataset.target!);
     if (!entries) continue;
     el.classList.add("dra-annotated");
-    const links = entries.filter((e) => e.spec.href);
+    // 同じリンク (元の文書の同じ箇所など) は1つとみなす
+    const links = entries.filter((e, i) => e.spec.href && entries.findIndex((x) => x.spec.href === e.spec.href) === i);
     el.setAttribute("aria-label", entries.map((e) => loc(e.spec.tooltip ?? e.spec.popup?.title, uiContext().lang())).join(" / ") || S.figureAnnotated);
     el.addEventListener("mouseenter", (ev) => {
       if (pinned) return;

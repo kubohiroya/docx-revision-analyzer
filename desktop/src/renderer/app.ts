@@ -561,10 +561,14 @@ function locateInFlow(h: Highlight): void {
 // コメント
 // ---------------------------------------------------------------------------
 
-/** フローの最後の列 (いまの文書) で、コメントの付いた段落に印を付ける (マウスを重ねるとコメントを示す) */
+/**
+ * フローの最後の列 (いまの文書) で、コメントの付いた段落に印を付ける (マウスを重ねるとコメントを示す)。
+ * OneDrive / SharePoint の文書なら、クリックで元の文書の該当箇所 (段落を含む見出し・ブックマーク) を Word for the web で開く
+ */
 function addCommentMarks(a: Analysis, model: Awaited<ReturnType<typeof parseDocxLayout>>): void {
   if (!a.flow || a.flow.sessions.length === 0) return;
   const column = a.flow.sessions.length;
+  const docLinkOf = new Map(a.flowTargets.filter((t) => t.docLink).map((t) => [t.key, t.docLink!]));
   const byParaId = new Map(model.paras.filter((p) => p.paraId).map((p) => [p.paraId!, p.index]));
   // 段落の識別子 (w14:paraId) が無い文書では、範囲の文字列 (の1行目) を含む段落を探す
   const finalText = new Map(
@@ -586,7 +590,7 @@ function addCommentMarks(a: Analysis, model: Awaited<ReturnType<typeof parseDocx
     const entry: AnnotationEntry = {
       extId: APP_COMMENTS,
       extName: { en: S.fromComments, ja: S.fromComments },
-      spec: { target: key, tooltip: text },
+      spec: { target: key, tooltip: text, href: docLinkOf.get(key) },
     };
     const list = a.figureAnnotations.flow.get(key) ?? [];
     list.push(entry);

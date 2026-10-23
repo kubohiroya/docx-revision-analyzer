@@ -564,7 +564,9 @@ local document — a "preserved" reply (by `Docx Revision Analyzer`) to each new
 range markers in the body (next to the parent comment's markers) are written; the text, tracked changes and existing
 comments are left alone, and the file is checked to be unchanged since it was last read. Resolving or deleting
 comments is up to you; the record keeps them. The Comments tab lists the record, and the last column of the flow marks
-paragraphs with comments (hover to read them; exported SVGs do not include comments).
+paragraphs with comments (hover to read them; exported SVGs do not include comments). For a OneDrive / SharePoint
+document, clicking a mark opens the document in Word for the web at that place (the heading or bookmark containing the
+paragraph, or the start).
 
 By default the records are kept in the app's data folder under `watch/`, one folder per document (changeable in
 Settings). They are not put next to the document, so they are not shared with co-authors through OneDrive or Teams.
