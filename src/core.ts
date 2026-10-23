@@ -24,6 +24,8 @@ export * from "./lib/snapshots";
 export * from "./lib/versions";
 export * from "./lib/figureTargets";
 export * from "./lib/flow";
+export { layoutDocument, paraPropsAt, sectionAt, hasRenderedBreaks } from "./lib/pageLayout";
+export type { LayoutOptions, LayoutResult } from "./lib/pageLayout";
 export * from "./lib/flowSvg";
 export * from "./lib/suspicionScore";
 export * from "./lib/filenames";
