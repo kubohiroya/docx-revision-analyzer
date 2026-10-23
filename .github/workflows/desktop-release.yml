@@ -1,5 +1,9 @@
-# デスクトップアプリの配布物を作り、GitHub Releases に下書きとして公開する。
-#  - タグ desktop-v* を push すると、macOS (dmg / zip) と Windows (インストーラ / zip) を作って下書きのリリースに添付する
+# デスクトップアプリの配布物を作り、GitHub Releases に下書きとして添付する。
+#  - タグ desktop-v* を push すると、macOS (dmg / zip) と Windows (インストーラ / zip) を作り、そのタグの下書きのリリースを
+#    1つだけ作って配布物をまとめて添付する (OS ごとのジョブは配布物を作るだけで、公開はしない。2つのジョブが別々に
+#    下書きを作ったり、electron-builder の既定のタグ名 vX.Y.Z (ライブラリのリリースと同じ形) を使ったりしないため)
+#  - 自動更新の情報 (latest*.yml) の配布物の名前は、そのリリースのダウンロード用の絶対 URL に書き換えておく。
+#    下書きを公開すると、desktop-update-feed.yml が自動更新の参照先 (プレリリース desktop-latest) にこれを置く
 #  - 手動実行 (workflow_dispatch) では公開せず、配布物を Actions の成果物として残す
 # 署名・公証は Secrets があるときだけ行う (無ければ署名なし)。必要な Secrets は desktop/DISTRIBUTION.md を参照。
 name: Desktop release
@@ -53,7 +57,6 @@ jobs:
         shell: bash
         working-directory: desktop
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS: Developer ID Application の証明書 (.p12 を base64) と公証
           CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
@@ -65,10 +68,8 @@ jobs:
           WIN_PUBLISHER_NAME: ${{ vars.WIN_PUBLISHER_NAME }}
           # 証明書が無いときに、キーチェーンの証明書を探しに行かない
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CSC_LINK != '' && 'true' || 'false' }}
-        run: |
-          publish=never
-          [[ "$GITHUB_REF" == refs/tags/desktop-v* ]] && publish=always
-          npx electron-builder --config electron-builder.config.cjs --publish "$publish"
+        # 配布物を作るだけ (GitHub Releases への添付は release のジョブがまとめて行う)
+        run: npx electron-builder --config electron-builder.config.cjs --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.os }}
@@ -76,5 +77,44 @@ jobs:
             release/desktop/*/*.dmg
             release/desktop/*/*.zip
             release/desktop/*/*.exe
-            release/desktop/*/*.yml
-          if-no-files-found: warn
+            release/desktop/*/*.blockmap
+            release/desktop/*/latest*.yml
+          if-no-files-found: error
+
+  release:
+    # タグ desktop-v* のときだけ: 下書きのリリースを1つ作り、すべての配布物を添付する
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: artifacts
+          merge-multiple: true
+      - name: Collect the files
+        shell: bash
+        run: |
+          mkdir dist-release
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.blockmap' -o -name 'latest*.yml' \) \
+            -exec cp {} dist-release/ \;
+          # 自動更新の情報の配布物の名前を、このリリースのダウンロード用の絶対 URL にする
+          node desktop/scripts/update-feed.mjs "$GITHUB_REF_NAME" dist-release/latest*.yml --repo "$GITHUB_REPOSITORY"
+          ls -l dist-release
+      - name: Create the draft release (or add to the existing draft)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          version="${tag#desktop-v}"
+          if state=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
+            # 公開済みのリリースは書き換えない
+            [ "$state" = "true" ] || { echo "release $tag is already published"; exit 1; }
+            gh release upload "$tag" dist-release/* --clobber
+          else
+            gh release create "$tag" dist-release/* --draft --verify-tag \
+              --title "Docx Revision Analyzer $version (desktop preview)" \
+              --notes "Desktop app $version. Write the release notes, check the files, then publish (do not set it as the latest release)."
+          fi

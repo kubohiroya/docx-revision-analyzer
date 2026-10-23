@@ -1,0 +1,48 @@
+# デスクトップアプリの自動更新の参照先を更新する。
+#  - デスクトップアプリのリリース (タグ desktop-v*) を公開すると、その latest*.yml を、自動更新の参照先である
+#    プレリリース desktop-latest に置く (無ければ作る)。アプリは electron-builder.config.cjs の publish (generic) で
+#    https://github.com/<repo>/releases/download/desktop-latest/latest*.yml を読む
+#  - desktop-latest はプレリリースなので、リポジトリの「Latest」のリリース (ライブラリの vX.Y.Z) には影響しない。
+#    配布物そのものは latest*.yml の絶対 URL で、各版のリリース (desktop-vX.Y.Z) から落とす
+#  - 手動実行 (workflow_dispatch) では、指定したタグ (公開済みのもの) でやり直す
+name: Desktop update feed
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published desktop release tag (desktop-vX.Y.Z)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  feed:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (startsWith(github.event.release.tag_name, 'desktop-v') && !github.event.release.prerelease)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put latest*.yml into desktop-latest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          [[ "$TAG" == desktop-v* ]] || { echo "not a desktop release: $TAG"; exit 1; }
+          [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = "false" ] || { echo "$TAG is not published"; exit 1; }
+          mkdir feed
+          gh release download "$TAG" --pattern 'latest*.yml' --dir feed
+          # 下書きの時点で書き換えてあるはずだが、念のため (書き換え済みならそのまま)
+          node desktop/scripts/update-feed.mjs "$TAG" feed/latest*.yml --repo "$GITHUB_REPOSITORY"
+          if ! gh release view desktop-latest >/dev/null 2>&1; then
+            gh release create desktop-latest --prerelease --latest=false --target "$GITHUB_SHA" \
+              --title "Desktop app update feed" \
+              --notes "Update information for the desktop app's auto-update (latest*.yml). Not a release; the files point to the desktop-vX.Y.Z releases."
+          fi
+          gh release upload desktop-latest feed/latest*.yml --clobber
+          gh release view desktop-latest --json assets --jq '.assets[].name'
