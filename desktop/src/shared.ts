@@ -52,6 +52,8 @@ export interface AppSettings {
   watchTarget?: WatchTarget;
   /** 監視の記録の保管先。undefined ならアプリのデータフォルダの watch/ */
   watchRecordsDir?: string;
+  /** 図のプレビューの設定 (ミニマップの大きさと位置、flow の分割画面の左の幅) */
+  viewer?: Partial<Record<"chart" | "flow", { minimap?: { width: number; corner: "tl" | "tr" | "bl" | "br" }; split?: number }>>;
 }
 
 export interface RecentUrl {

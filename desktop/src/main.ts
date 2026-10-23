@@ -307,8 +307,86 @@ async function captureStart(name = "smoke-start.png"): Promise<void> {
   app.exit(0);
 }
 
+/** スモークテスト: 図のプレビューの操作を合成したイベントで行い、結果 (検査の名前 → 合格か) を返す */
+const SMOKE_INTERACTION_JS = `(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const v = window.__viewer;
+  const out = {};
+  window.__showTab("flow");
+  await wait(200);
+  const vp = document.querySelector("#pane-flow .viewport");
+  const box = vp.getBoundingClientRect();
+  const cx = box.left + box.width / 2, cy = box.top + box.height / 2;
+  v.zoom("flow", 2);
+  const z0 = v.state("flow").zoom;
+  vp.dispatchEvent(new WheelEvent("wheel", { deltaY: -200, ctrlKey: true, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
+  out.wheelZoomIn = v.state("flow").zoom > z0;
+  vp.dispatchEvent(new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }));
+  out.plainWheelKeepsZoom = Math.abs(v.state("flow").zoom - z0 * Math.exp(0.3)) < 0.01;
+  const s0 = v.state("flow");
+  const p = (type, x, y) => new PointerEvent(type, { pointerId: 7, button: 0, buttons: 1, clientX: x, clientY: y, bubbles: true, cancelable: true });
+  vp.dispatchEvent(p("pointerdown", cx, cy));
+  vp.dispatchEvent(p("pointermove", cx - 60, cy - 40));
+  vp.dispatchEvent(p("pointermove", cx - 120, cy - 80));
+  vp.dispatchEvent(p("pointerup", cx - 120, cy - 80));
+  const s1 = v.state("flow");
+  out.dragPans = Math.abs(s1.left - s0.left - 120) <= 1 && Math.abs(s1.top - s0.top - 80) <= 1;
+  v.zoom("flow", 0.5);
+  await wait(50);
+  const frame = vp.querySelector('[data-column="1"] > g[data-page="0"] rect.dra-page');
+  frame.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  await wait(50);
+  out.clickSelectsPage = JSON.stringify(v.state("flow").selected) === JSON.stringify({ column: 1, page: 0 }) && v.state("flow").split;
+  out.detailShown = !!document.querySelector("#pane-flow .page-detail-body svg");
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  out.arrowRightNextColumn = v.state("flow").selected?.column === 2;
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  const down = v.state("flow").selected;
+  out.arrowDownStaysInRange = down?.column === 2 && down.page >= 0;
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  out.escapeClears = !v.state("flow").selected && !v.state("flow").split;
+  const mm = document.querySelector("#pane-flow .minimap");
+  mm.dispatchEvent(new MouseEvent("mouseenter"));
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  out.minimapCorner = v.state("flow").corner === "tr";
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+  mm.dispatchEvent(new MouseEvent("mouseleave"));
+  out.minimapCornerBack = v.state("flow").corner === "bl";
+  v.zoom("flow", 3);
+  const mr = mm.getBoundingClientRect();
+  mm.dispatchEvent(p("pointerdown", mr.left + mr.width * 0.75, mr.top + mr.height * 0.5));
+  mm.dispatchEvent(p("pointerup", mr.left + mr.width * 0.75, mr.top + mr.height * 0.5));
+  const st = v.state("flow");
+  out.minimapClickMoves = st.left > 0;
+  mm.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+  const fit = v.state("flow");
+  out.minimapDoubleClickFits = fit.zoom < 3 && fit.left === 0 && fit.top === 0;
+  // ミニマップの内側の辺 (左下にあるときは右の辺) をドラッグして大きくする
+  const w0 = mm.getBoundingClientRect().width;
+  const er = mm.getBoundingClientRect();
+  mm.dispatchEvent(p("pointerdown", er.right - 2, er.top + er.height / 2));
+  mm.dispatchEvent(p("pointermove", er.right + 58, er.top + er.height / 2));
+  mm.dispatchEvent(p("pointerup", er.right + 58, er.top + er.height / 2));
+  out.minimapResize = mm.getBoundingClientRect().width > w0 + 20;
+  // スプリッターで左右の幅を変える
+  v.selectFlowPage(1, 0);
+  await wait(50);
+  const left = document.querySelector("#pane-flow .figure-left");
+  const sp = document.querySelector("#pane-flow .splitter");
+  const l0 = left.getBoundingClientRect().width;
+  const sr = sp.getBoundingClientRect();
+  sp.dispatchEvent(p("pointerdown", sr.left + 4, sr.top + 100));
+  sp.dispatchEvent(p("pointermove", sr.left - 196, sr.top + 100));
+  sp.dispatchEvent(p("pointerup", sr.left - 196, sr.top + 100));
+  out.splitterResize = left.getBoundingClientRect().width < l0 - 150;
+  return out;
+})()`;
+
 /** スモークテスト: 各タブを表示して PNG に保存し、終了する */
-async function runSmokeCapture(summary: { ok: boolean; message: string }): Promise<void> {
+async function runSmokeCapture(result: { ok: boolean; message: string }): Promise<void> {
+  let summary = result;
   if (!smokeFile || !mainWindow) return;
   const out = smokeOut ?? process.cwd();
   fs.mkdirSync(out, { recursive: true });
@@ -336,7 +414,12 @@ async function runSmokeCapture(summary: { ok: boolean; message: string }): Promi
     fs.copyFileSync(next, path.resolve(process.env.DRA_SMOKE_URL ? process.env.DRA_GRAPH_MOCK! : smokeFile));
     await new Promise((r) => setTimeout(r, Number(process.env.DRA_SMOKE_WATCH_WAIT_MS ?? 8000)));
   }
-  for (const tab of ["chart", "flow", "highlights", "comments", "locate", "hover", "click", "settings", "url"]) {
+  // プレビューの操作 (ドラッグ・ホイール・ページの指定・カーソルキー・ミニマップ) を合成したイベントで確かめる
+  const interaction = await mainWindow.webContents.executeJavaScript(SMOKE_INTERACTION_JS);
+  const failedChecks = Object.entries(interaction as Record<string, boolean>).filter(([, ok]) => !ok).map(([k]) => k);
+  console.log(`smoke: interaction ${failedChecks.length ? `FAILED: ${failedChecks.join(", ")}` : "ok"}`);
+  if (failedChecks.length) summary = { ok: false, message: `interaction: ${failedChecks.join(", ")}` };
+  for (const tab of ["chart", "flow", "zoom", "highlights", "comments", "locate", "hover", "click", "split", "settings", "url"]) {
     // locate: ハイライトの一覧の最初の行の「フロー」を押し、図の中の位置が示されることを確かめる
     const js =
       tab === "locate"
@@ -345,7 +428,11 @@ async function runSmokeCapture(summary: { ok: boolean; message: string }): Promi
           ? hoverJs(tab === "click")
         : tab === "url"
           ? `window.__showTab("chart"); window.__showUrlDialog()`
-          : `window.__showTab(${JSON.stringify(tab)})`;
+          : tab === "zoom"
+            ? `window.__showTab("flow"); window.__viewer.zoom("flow", 2)`
+            : tab === "split"
+              ? `window.__showTab("flow"); window.__viewer.zoom("flow", 0.5); window.__viewer.selectFlowPage(1, 0)`
+              : `window.__showTab(${JSON.stringify(tab)})`;
     await mainWindow.webContents.executeJavaScript(js);
     await new Promise((r) => setTimeout(r, 400));
     const img = await mainWindow.webContents.capturePage();

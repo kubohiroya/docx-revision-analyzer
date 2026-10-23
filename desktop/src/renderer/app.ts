@@ -51,6 +51,7 @@ import type { AppLang, AppSettings, ExtensionListItem, MicrosoftStatus, OpenedFi
 import type { CommentState } from "../../../src/lib/docxComments";
 import { STRINGS, Strings } from "./strings";
 import { batchCloudFolder, batchLocalFolder, BatchContext } from "./batch";
+import { FigureKind, FigureViewer } from "./viewer";
 
 declare global {
   interface Window {
@@ -127,6 +128,11 @@ let extList: ExtensionListItem[] = [];
 let extErrors: string[] = [];
 /** 文書の監視の状態 */
 let watchStatus: WatchStatus | undefined;
+/** 図のプレビュー (移動・拡大縮小・ミニマップ・flow のページの強調) */
+let chartViewer: FigureViewer;
+let flowViewer: FigureViewer;
+/** 最後に描いた文書 (同じ文書の描き直しなら、倍率・表示位置・強調したページを保つ) */
+let renderedPath: string | undefined;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -187,6 +193,8 @@ function applyLang(): void {
   if (!file) setText("file-name", S.noFile);
   renderSettings();
   renderWatch();
+  chartViewer?.applyStrings();
+  flowViewer?.applyStrings();
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +221,8 @@ function showTab(next: Tab): void {
   for (const el of document.querySelectorAll<HTMLElement>(".chart-only")) el.hidden = next !== "chart";
   for (const el of document.querySelectorAll<HTMLElement>(".flow-only")) el.hidden = next !== "flow";
   for (const el of document.querySelectorAll<HTMLElement>(".figure-only")) el.hidden = next !== "chart" && next !== "flow";
+  if (next === "chart") chartViewer?.shown();
+  if (next === "flow") flowViewer?.shown();
 }
 
 (window as unknown as { __showTab: (t: Tab) => void }).__showTab = showTab;
@@ -267,8 +277,6 @@ function writeControls(): void {
 async function analyze(): Promise<void> {
   if (!file) return;
   status(S.analyzing);
-  // 監視で描き直すときに、図の表示位置を保つ
-  const scroll = ["pane-chart", "pane-flow"].map((id) => [$(id).scrollLeft, $(id).scrollTop]);
   const a = settings.analysis;
   const bytes = file.bytes;
   const data = await extractRevisions(bytes);
@@ -391,17 +399,19 @@ async function analyze(): Promise<void> {
     banner(undefined);
   }
 
-  $("pane-chart").innerHTML = result.chartSvg ?? "";
-  $("pane-flow").innerHTML = result.flowSvg ?? (data.events.length > 0 ? `<p class="hint">${escapeHtml(libT("noRevisionsInRange"))}</p>` : "");
-  bindFigureAnnotations($("pane-chart"), result.figureAnnotations.chart, result.chartTargets);
-  bindFigureAnnotations($("pane-flow"), result.figureAnnotations.flow, result.flowTargets);
+  const sameDocument = renderedPath === file.path;
+  renderedPath = file.path;
+  chartViewer.setContent(result.chartSvg, "", sameDocument);
+  flowViewer.setContent(
+    result.flowSvg,
+    data.events.length > 0 ? `<p class="hint">${escapeHtml(libT("noRevisionsInRange"))}</p>` : "",
+    sameDocument
+  );
+  bindFigureAnnotations(chartViewer.viewport, result.figureAnnotations.chart, result.chartTargets);
+  bindFigureAnnotations(flowViewer.viewport, result.figureAnnotations.flow, result.flowTargets);
   renderHighlights();
   renderComments();
   showTab(tab === "settings" ? "chart" : tab);
-  ["pane-chart", "pane-flow"].forEach((id, i) => {
-    $(id).scrollLeft = scroll[i][0];
-    $(id).scrollTop = scroll[i][1];
-  });
   status(
     `${file.name} — ${data.events.length} revisions, ${classification.highlights.length} highlights` +
       (classification.classifiers.length ? ` (${classification.classifiers.map((c) => `${c.id}@${c.version}`).join(", ")})` : "")
@@ -519,7 +529,7 @@ function locateInChart(h: Highlight): void {
   showTab("chart");
   clearFocus();
   const t = h.timeRange.start.getTime();
-  const bars = [...$("pane-chart").querySelectorAll<SVGElement>("[data-start]")].filter((el) => {
+  const bars = [...chartViewer.viewport.querySelectorAll<SVGElement>("[data-start]")].filter((el) => {
     const s = Date.parse(el.dataset.start!);
     const e = Date.parse(el.dataset.end!);
     return s <= t && t < e;
@@ -539,9 +549,11 @@ function locateInFlow(h: Highlight): void {
   if (k < 0) return;
   const ids = new Set(h.eventIds);
   const paras = new Set(a.positioned.filter((e) => e.type === "ins" && ids.has(e.id)).flatMap((e) => e.paraModelIndices));
-  const column = $("pane-flow").querySelector(`[data-column="${k + 1}"]`);
+  const column = flowViewer.viewport.querySelector(`[data-column="${k + 1}"]`);
   const els = [...(column?.querySelectorAll<SVGElement>("[data-para]") ?? [])].filter((el) => paras.has(Number(el.dataset.para)));
   for (const el of els) el.classList.add("dra-focus");
+  // その段落のページを強調し、右の画面に大きく表示する
+  if (els[0]) flowViewer.selectPageOf(els[0], false);
   els[0]?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
 }
 
@@ -704,6 +716,30 @@ async function toggleWatch(): Promise<void> {
     status(S.watchStarted(msg.status.dir ?? msg.status.recordsRoot));
     if (msg.gap) banner(S.watchGap);
   });
+}
+
+/** 図のプレビューを作る (設定のミニマップの大きさ・位置と分割画面の幅を使う) */
+function initViewers(): void {
+  const hooks = (kind: FigureKind) => ({
+    strings: () => S,
+    prefs: () => settings.viewer?.[kind] ?? {},
+    savePrefs: (p: NonNullable<NonNullable<AppSettings["viewer"]>["chart"]>) => {
+      settings.viewer = { ...(settings.viewer ?? {}), [kind]: p };
+      void persist();
+    },
+    columnTitle: (k: number) => (k === 0 ? libT("flowColumnStart") : libT("flowColumnEnd", k)),
+    // 右の画面のページ (図の複製) でも、注釈のポップアップを出す
+    onDetail: (body: HTMLElement) => {
+      if (analysis) bindFigureAnnotations(body, analysis.figureAnnotations.flow, analysis.flowTargets);
+    },
+  });
+  chartViewer = new FigureViewer($("pane-chart"), "chart", hooks("chart"));
+  flowViewer = new FigureViewer($("pane-flow"), "flow", hooks("flow"));
+  (window as unknown as { __viewer: unknown }).__viewer = {
+    zoom: (kind: FigureKind, z: number) => (kind === "chart" ? chartViewer : flowViewer).setZoom(z),
+    selectFlowPage: (column: number, page: number) => flowViewer.selectPage(column, page),
+    state: (kind: FigureKind) => (kind === "chart" ? chartViewer : flowViewer).state(),
+  };
 }
 
 function initWatch(): void {
@@ -1216,6 +1252,7 @@ async function main(): Promise<void> {
   updatesAvailable = await window.app.updatesAvailable();
   lang = settings.lang ?? (await window.app.systemLang());
   await loadRules();
+  initViewers();
   applyLang();
   writeControls();
   setText("about-version", S.version(await window.app.version()));
