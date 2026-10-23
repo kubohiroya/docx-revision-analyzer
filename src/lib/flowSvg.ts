@@ -16,6 +16,7 @@
  */
 
 import { FlowResult, FlowSession, PageLayout, ParaHeat, SlopeUnit } from "./flow";
+import type { PageItem } from "./pageLayout";
 import { esc, formatGapHours, renderNote, TitleLink, titleMarkup } from "./svgChart";
 import { estimateLabelWidth, t } from "./i18n";
 import { Category, CategoryRegistry, patternOverlay, renderPatternDefs } from "./categories";
@@ -86,13 +87,11 @@ function fill(rgb: string, intensity: number): string {
   return `rgba(${rgb},${(0.15 + 0.75 * intensity).toFixed(3)})`;
 }
 
-interface PageGeom {
-  width: number;
-  height: number;
-  textX: number;
-  textY: number;
-  textWidth: number;
-  lineHeight: number;
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 /** 段落の塗り方: 主の色で段落全体、副の色を左余白の細い帯で。deletedNext なら右余白に赤い印 */
@@ -107,12 +106,53 @@ interface Tint {
   nextMark?: string;
 }
 
+/** 段落の行・図 (浮動配置の図は除く) を、つながった矩形ごとにまとめる (段組みでは段ごとの矩形になる) */
+function paraBoxes(page: PageLayout): Map<number, Box[]> {
+  const out = new Map<number, Box[]>();
+  const TOL = 30;
+  for (const it of page.items) {
+    if (!("paraIndex" in it) || (it.type === "figure" && it.float)) continue;
+    const list = out.get(it.paraIndex) ?? [];
+    out.set(it.paraIndex, list);
+    const last = list[list.length - 1];
+    const touches =
+      last &&
+      it.x < last.x + last.w + TOL &&
+      it.x + it.w > last.x - TOL &&
+      it.y < last.y + last.h + TOL &&
+      it.y + it.h > last.y - TOL;
+    if (!touches) {
+      list.push({ x: it.x, y: it.y, w: it.w, h: it.h });
+      continue;
+    }
+    const x = Math.min(last.x, it.x);
+    const y = Math.min(last.y, it.y);
+    last.w = Math.max(last.x + last.w, it.x + it.w) - x;
+    last.h = Math.max(last.y + last.h, it.y + it.h) - y;
+    last.x = x;
+    last.y = y;
+  }
+  return out;
+}
+
+/** 行の棒 (行の長さ fill を、配置に合わせて置く)。縦書きのページでは縦の棒 */
+function lineBar(it: { x: number; y: number; w: number; h: number; fill: number }, vertical: boolean, thick: number, align = "left"): Box {
+  const along = vertical ? it.h : it.w;
+  const across = vertical ? it.w : it.h;
+  const len = Math.max(1, along * it.fill);
+  const off = align === "center" ? (along - len) / 2 : align === "right" ? along - len : 0;
+  const th = Math.max(0.6, across * thick);
+  return vertical
+    ? { x: it.x + (across - th) / 2, y: it.y + off, w: th, h: len }
+    : { x: it.x + off, y: it.y + (across - th) / 2, w: len, h: th };
+}
+
 function renderPage(
   page: PageLayout,
   tintOf: (paraIndex: number) => Tint | undefined,
   x: number,
   y: number,
-  g: PageGeom,
+  k: number,
   deco: DecorateOptions & { column: number } = { column: 0 }
 ): string {
   const parts: string[] = [];
@@ -121,103 +161,122 @@ function renderPage(
   // 注釈を付けるときは、段落全体を覆う透明な矩形を最後に重ね、マウス操作を受けるようにする (細い行の上でなくても反応する)
   const decorated = annotate || !!deco.annotations?.size;
   const hits: string[] = [];
-  parts.push(
-    `<rect x="${x}" y="${y}" width="${g.width}" height="${g.height.toFixed(1)}" fill="#ffffff" stroke="#b8b8b8"/>`
-  );
+  const f = (n: number) => n.toFixed(1);
+  const px = (b: Box) => ({ x: x + b.x * k, y: y + b.y * k, w: b.w * k, h: b.h * k });
+  const vertical = !!page.vertical;
+  parts.push(`<rect x="${x}" y="${y}" width="${f(page.width * k)}" height="${f(page.height * k)}" fill="#ffffff" stroke="#b8b8b8"/>`);
+
+  // 表のセルの枠・段の境界線
+  for (const it of page.items) {
+    if (it.type !== "cell") continue;
+    const b = px(it);
+    parts.push(`<rect x="${f(b.x)}" y="${f(b.y)}" width="${f(b.w)}" height="${f(b.h)}" fill="none" stroke="#c9ced6" stroke-width="0.5"/>`);
+  }
+  for (const r of page.rules ?? []) {
+    parts.push(
+      `<line x1="${f(x + r.x1 * k)}" y1="${f(y + r.y1 * k)}" x2="${f(x + r.x2 * k)}" y2="${f(y + r.y2 * k)}" stroke="#b8b8b8" stroke-width="0.5"/>`
+    );
+  }
 
   // 段落ごとの塗り (このページに載っている範囲)
-  for (const [paraIndex, r] of paraRanges([page])) {
-    const top = y + g.textY + r.top * g.lineHeight;
-    const height = (r.bottom - r.top) * g.lineHeight;
-    if (decorated) {
-      hits.push(
-        decorateElement(
-          `<rect x="${(x + g.textX - 2).toFixed(1)}" y="${top.toFixed(1)}" width="${(g.textWidth + 4).toFixed(1)}" height="${height.toFixed(1)}" fill="transparent"/>`,
-          flowParaKey(deco.column, paraIndex),
-          deco
-        )
-      );
-    }
+  for (const [paraIndex, boxes] of paraBoxes(page)) {
     const t = tintOf(paraIndex);
-    if (!t) continue;
-    if (t.main && t.mainV) {
-      parts.push(
-        `<rect x="${(x + g.textX - 2).toFixed(1)}" y="${top.toFixed(1)}" width="${(g.textWidth + 4).toFixed(1)}" height="${height.toFixed(1)}" fill="${fill(t.main, t.mainV)}"${dataPara(paraIndex)}/>` +
-          (t.mainCat
-            ? patternOverlay(t.mainCat, (x + g.textX - 2).toFixed(1), top.toFixed(1), (g.textWidth + 4).toFixed(1), height.toFixed(1))
-            : "")
-      );
-    }
-    if (t.sub && t.subV) {
-      parts.push(
-        `<rect x="${(x + g.textX - 7).toFixed(1)}" y="${top.toFixed(1)}" width="4" height="${height.toFixed(1)}" fill="${fill(t.sub, t.subV)}"/>`
-      );
-    }
-    if (t.nextMark) {
-      parts.push(
-        `<rect x="${(x + g.textX + g.textWidth + 3).toFixed(1)}" y="${top.toFixed(1)}" width="4" height="${height.toFixed(1)}" fill="rgb(${t.nextMark})"/>`
-      );
+    for (const box of boxes) {
+      const b = px(box);
+      const rx = f(b.x - 2);
+      const rw = f(b.w + 4);
+      if (decorated) {
+        hits.push(
+          decorateElement(
+            `<rect x="${rx}" y="${f(b.y)}" width="${rw}" height="${f(b.h)}" fill="transparent"/>`,
+            flowParaKey(deco.column, paraIndex),
+            deco
+          )
+        );
+      }
+      if (!t) continue;
+      if (t.main && t.mainV) {
+        parts.push(
+          `<rect x="${rx}" y="${f(b.y)}" width="${rw}" height="${f(b.h)}" fill="${fill(t.main, t.mainV)}"${dataPara(paraIndex)}/>` +
+            (t.mainCat ? patternOverlay(t.mainCat, rx, f(b.y), rw, f(b.h)) : "")
+        );
+      }
+      if (t.sub && t.subV) {
+        parts.push(`<rect x="${f(b.x - 7)}" y="${f(b.y)}" width="4" height="${f(b.h)}" fill="${fill(t.sub, t.subV)}"/>`);
+      }
+      if (t.nextMark) {
+        parts.push(`<rect x="${f(b.x + b.w + 3)}" y="${f(b.y)}" width="4" height="${f(b.h)}" fill="rgb(${t.nextMark})"/>`);
+      }
     }
   }
 
-  // 本文の行・図
-  for (const it of page.items) {
-    const top = y + g.textY + it.y * g.lineHeight;
-    const h = it.h * g.lineHeight;
+  // 本文の行・図・脚注
+  for (const it of page.items as PageItem[]) {
+    if (it.type === "cell") continue;
     if (it.type === "figure") {
-      const fx = x + g.textX + g.textWidth * 0.15;
-      const fw = g.textWidth * 0.7;
-      const fy = top + h * 0.05;
-      const fh = h * 0.9;
+      const b = px(it);
+      const fx = b.x + b.w * 0.02;
+      const fy = b.y + b.h * 0.02;
+      const fw = b.w * 0.96;
+      const fh = b.h * 0.96;
+      const dash = it.float ? ` stroke-dasharray="2,1.5"` : "";
       parts.push(
-        `<rect x="${fx.toFixed(1)}" y="${fy.toFixed(1)}" width="${fw.toFixed(1)}" height="${fh.toFixed(1)}" fill="#eceff3" stroke="#9aa3ad" stroke-width="0.6"/>`,
-        `<path d="M${fx.toFixed(1)},${fy.toFixed(1)} L${(fx + fw).toFixed(1)},${(fy + fh).toFixed(1)} M${(fx + fw).toFixed(1)},${fy.toFixed(1)} L${fx.toFixed(1)},${(fy + fh).toFixed(1)}" stroke="#c4cad1" stroke-width="0.6"/>`
+        `<rect x="${f(fx)}" y="${f(fy)}" width="${f(fw)}" height="${f(fh)}" fill="#eceff3" stroke="#9aa3ad" stroke-width="0.6"${dash}/>`,
+        `<path d="M${f(fx)},${f(fy)} L${f(fx + fw)},${f(fy + fh)} M${f(fx + fw)},${f(fy)} L${f(fx)},${f(fy + fh)}" stroke="#c4cad1" stroke-width="0.6"/>`
       );
       continue;
     }
-    if (it.widthFrac <= 0) continue;
-    const barH = it.style === "heading" ? h * 0.6 : h * 0.45;
+    if (it.fill <= 0) continue;
+    if (it.type === "note" || it.type === "repeat") {
+      const b = px(lineBar(it, vertical, 0.4));
+      parts.push(`<rect x="${f(b.x)}" y="${f(b.y)}" width="${f(Math.max(1, b.w))}" height="${f(Math.max(0.6, b.h))}" fill="#c3c7cd"/>`);
+      continue;
+    }
+    const b = px(lineBar(it, vertical, it.style === "heading" ? 0.6 : 0.45, it.align));
     const color = it.style === "heading" ? "#4a4f57" : it.style === "table" ? "#8ea0b8" : "#a3a8b0";
     parts.push(
-      `<rect x="${(x + g.textX).toFixed(1)}" y="${(top + (h - barH) / 2).toFixed(1)}" width="${Math.max(1, g.textWidth * it.widthFrac).toFixed(1)}" height="${Math.max(0.6, barH).toFixed(2)}" fill="${color}"${dataPara(it.paraIndex)}/>`
+      `<rect x="${f(b.x)}" y="${f(b.y)}" width="${f(Math.max(vertical ? 0.6 : 1, b.w))}" height="${f(Math.max(vertical ? 1 : 0.6, b.h))}" fill="${color}"${dataPara(it.paraIndex)}/>`
     );
   }
   parts.push(...hits);
   return parts.join("\n");
 }
 
-/** 段落ごとの縦の範囲 (行単位)。pages を縦に積んだ通しの位置ではなく、各ページ内の位置 */
-function paraRanges(pages: PageLayout[]): Map<number, { top: number; bottom: number }> {
-  const ranges = new Map<number, { top: number; bottom: number }>();
-  for (const page of pages) {
-    for (const it of page.items) {
-      const r = ranges.get(it.paraIndex);
-      if (!r) ranges.set(it.paraIndex, { top: it.y, bottom: it.y + it.h });
-      else {
-        r.top = Math.min(r.top, it.y);
-        r.bottom = Math.max(r.bottom, it.y + it.h);
-      }
-    }
-  }
-  return ranges;
+/** ページ列の高さ (px) */
+function stackHeight(pages: PageLayout[], k: number): number {
+  return pages.reduce((n, p) => n + p.height * k, 0) + Math.max(0, pages.length - 1) * PAGE_GAP;
 }
 
-/** 縦に積んだページ列の中での、段落ごとの絶対位置 (px) */
-function stackPositions(pages: PageLayout[], top: number, g: PageGeom): Map<number, { top: number; bottom: number }> {
-  const pos = new Map<number, { top: number; bottom: number }>();
-  pages.forEach((page, j) => {
-    const pageTop = top + j * (g.height + PAGE_GAP) + g.textY;
-    for (const it of page.items) {
-      const t = pageTop + it.y * g.lineHeight;
-      const b = pageTop + (it.y + it.h) * g.lineHeight;
-      const r = pos.get(it.paraIndex);
-      if (!r) pos.set(it.paraIndex, { top: t, bottom: b });
-      else {
-        r.top = Math.min(r.top, t);
-        r.bottom = Math.max(r.bottom, b);
+/**
+ * 縦に積んだページ列の中での、段落ごとの縦の範囲 (px)。帯の端に使う。
+ * 段組みで段をまたぐ段落は、矩形の高さを足した長さにする (ページの高さいっぱいに広がらないように)。
+ * 縦書きのページでは、右端からの位置をページの高さに写す
+ */
+function stackPositions(pages: PageLayout[], top: number, k: number): Map<number, { top: number; bottom: number }> {
+  const spans = new Map<number, { top: number; bottom: number }[]>();
+  let pageTop = top;
+  for (const page of pages) {
+    for (const [i, boxes] of paraBoxes(page)) {
+      const list = spans.get(i) ?? [];
+      spans.set(i, list);
+      for (const b of boxes) {
+        const [t, h] = page.vertical
+          ? [((page.width - (b.x + b.w)) / page.width) * page.height, (b.w / page.width) * page.height]
+          : [b.y, b.h];
+        list.push({ top: pageTop + t * k, bottom: pageTop + (t + h) * k });
       }
     }
-  });
+    pageTop += page.height * k + PAGE_GAP;
+  }
+  const pos = new Map<number, { top: number; bottom: number }>();
+  for (const [i, list] of spans) {
+    if (list.length === 0) continue;
+    const first = list[0];
+    const last = list[list.length - 1];
+    const bottom =
+      last.top >= first.bottom - 0.5 ? last.bottom : first.top + list.reduce((n, s) => n + (s.bottom - s.top), 0);
+    pos.set(i, { top: first.top, bottom: Math.max(bottom, first.bottom) });
+  }
   return pos;
 }
 
@@ -263,14 +322,14 @@ function renderSlopes(
   lx: number,
   rx: number,
   stackTop: number,
-  g: PageGeom,
+  k: number,
   reg: CategoryRegistry,
   sessionIndex = 0,
   deco: DecorateOptions = {}
 ): string {
   const BLUE = reg.rgb(reg.byRole("moved"));
-  const left = stackPositions(s.startPages, stackTop, g);
-  const right = stackPositions(s.endPages, stackTop, g);
+  const left = stackPositions(s.startPages, stackTop, k);
+  const right = stackPositions(s.endPages, stackTop, k);
   const mx = (lx + rx) / 2;
   const f = (n: number) => n.toFixed(1);
   // 帯の端を滑らかにつなぐ3次ベジェ曲線 (x0,y0) → (x1,y1)
@@ -422,27 +481,17 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
   const font =
     opts.fontFamily ??
     "'Noto Sans CJK JP', 'Noto Sans JP', 'Yu Gothic', 'Hiragino Sans', Meiryo, 'Helvetica Neue', Arial, sans-serif";
-  const g0 = result.geometry;
   const pageWidth = opts.pageWidth ?? 150;
   const slopeWidth = opts.slopeWidth ?? 72;
-  const scale = pageWidth / g0.pageWidthTwips;
-  const geom: PageGeom = {
-    width: pageWidth,
-    height: g0.pageHeightTwips * scale,
-    textX: g0.marginLeftTwips * scale,
-    textY: g0.marginTopTwips * scale,
-    textWidth: (g0.pageWidthTwips - g0.marginLeftTwips - g0.marginRightTwips) * scale,
-    // 1ページの行数 (補正後) でページの本文領域を割り、行がページからはみ出さないようにする
-    lineHeight:
-      ((g0.pageHeightTwips - g0.marginTopTwips - g0.marginBottomTwips) * scale) / result.linesPerPage,
-  };
 
   // 列: [区間1の開始時点, 区間1の終了時点, 区間2の終了時点, ...]
   const columns: PageLayout[][] = [sessions[0].startPages, ...sessions.map((s) => s.endPages)];
+  // 縮尺 (px / twip): 最も幅の広いページを pageWidth に合わせる (横向きのページが混ざっても列からはみ出さない)
+  const maxPageWidth = Math.max(1, ...columns.flatMap((c) => c.map((p) => p.width)));
+  const scale = pageWidth / maxPageWidth;
   const columnX = (k: number) => MARGIN + k * (pageWidth + slopeWidth);
-  const maxPages = Math.max(...columns.map((c) => c.length));
   const stackTop = HEADER_HEIGHT + STACK_LABEL_HEIGHT;
-  const columnsHeight = maxPages * geom.height + (maxPages - 1) * PAGE_GAP;
+  const columnsHeight = Math.max(...columns.map((c) => stackHeight(c, scale)));
   const captionY = stackTop + columnsHeight + 20;
   const reg = opts.categories ?? new CategoryRegistry();
   const legend = renderLegend(MARGIN, 58, font, reg);
@@ -508,14 +557,16 @@ export function renderFlowSvg(result: FlowResult, opts: FlowSvgOptions = {}): st
       return t.main || t.nextMark ? t : undefined;
     };
     if (opts.annotate) parts.push(`<g data-column="${k}">`);
-    pages.forEach((page, j) => {
-      parts.push(renderPage(page, tintOf, x, stackTop + j * (geom.height + PAGE_GAP), geom, { ...opts, column: k }));
-    });
+    let pageTop = stackTop;
+    for (const page of pages) {
+      parts.push(renderPage(page, tintOf, x, pageTop, scale, { ...opts, column: k }));
+      pageTop += page.height * scale + PAGE_GAP;
+    }
     if (opts.annotate) parts.push(`</g>`);
   });
 
   sessions.forEach((s, i) => {
-    parts.push(renderSlopes(s, columnX(i) + pageWidth, columnX(i + 1), stackTop, geom, reg, i, opts));
+    parts.push(renderSlopes(s, columnX(i) + pageWidth, columnX(i + 1), stackTop, scale, reg, i, opts));
     parts.push(
       renderCaption(s, i, columnX(i) + pageWidth / 2, captionY, pageWidth + slopeWidth, font, reg, opts)
     );

@@ -194,9 +194,20 @@ insertion + deletion).
 
 ### Limitations
 
-- Pages are a schematic, not Word's actual layout. Characters per line come from the page width and font size, lines
-  per page from the line pitch, calibrated so the final state matches the page count Word saved (`docProps/app.xml`).
-  Page breaks for earlier sessions reuse that calibration and are approximate.
+- Pages are a schematic, not Word's actual layout. These are reproduced from the document's settings:
+  - per-section page size, margins and document grid, columns (two columns, a one-column title over two-column text
+    with a continuous section break, column breaks), and vertical text
+  - paragraph spacing, line spacing, indents, alignment and font size; pagination rules (keep with next, keep lines
+    together, widow/orphan control); footnotes
+  - table column widths and row heights; figure sizes and text wrapping around floating figures
+  - for earlier sessions, the paragraph formatting and section settings in effect at that time (formatting changes
+    recorded in the tracked changes)
+
+  How many characters fit on a line (line-breaking rules, character spacing, English word wrap) and the height of a
+  line depend on font metrics, so they are approximate. For the final state, the page breaks Word recorded when it
+  last saved (`w:lastRenderedPageBreak`) are used as hints; documents without them are calibrated so the final state
+  matches the page count Word saved (`docProps/app.xml`). Page breaks for earlier sessions have no such hints and are
+  approximate.
 - Word keeps no record when you delete text you inserted yourself, so text written and deleted within a session is
   not counted.
 - Word often records timestamps to the minute, so typing more than `--bulk-chars` characters within one minute can

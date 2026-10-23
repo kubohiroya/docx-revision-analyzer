@@ -25,6 +25,7 @@
 
 import { RevisionEvent } from "./docxRevisions";
 import { DocxLayoutModel, Para, RevRef, Seg, PageGeometry } from "./docxLayout";
+import { hasRenderedBreaks, layoutDocument, LayoutResult, PageLayout, visibleAt } from "./pageLayout";
 import { splitIntoSessions } from "./sessions";
 import { DEFAULT_BULK_CHARS, matchesCorpus, normalizeForMatch as normalize } from "./insertionKinds";
 
@@ -65,14 +66,7 @@ export interface ParaHeat {
   movedOutChars: number;
 }
 
-/** ページ内の描画要素。y / h は「本文の行」単位 */
-export type PageItem =
-  | { type: "line"; paraIndex: number; y: number; h: number; widthFrac: number; style: Para["kind"] }
-  | { type: "figure"; paraIndex: number; y: number; h: number };
-
-export interface PageLayout {
-  items: PageItem[];
-}
+export type { PageItem, PageLayout } from "./pageLayout";
 
 /**
  * 開始時点から終了時点への、段落・図表単位の変化。
@@ -137,146 +131,16 @@ export interface FlowSession {
 }
 
 export interface FlowResult {
+  /** 最後のセクションの用紙・余白 (後方互換のため。ページごとの大きさは PageLayout にある) */
   geometry: PageGeometry;
-  linesPerPage: number;
+  /** 総ページ数を Word の記録に合わせるために使った、行の高さの倍率 */
+  lineScale: number;
   sessions: FlowSession[];
 }
 
 // ---------------------------------------------------------------------------
 // 時刻 T における表示状態
 // ---------------------------------------------------------------------------
-
-/** 日時の無い挿入は「最初から存在」、日時の無い削除は「最初から削除済み」とみなす */
-function visibleAt(ins: RevRef | undefined, del: RevRef | undefined, t: number): boolean {
-  const inserted = !ins || !ins.date || ins.date.getTime() <= t;
-  const deleted = !!del && (!del.date || del.date.getTime() <= t);
-  return inserted && !deleted;
-}
-
-function paraExistsAt(p: Para, visibleSegs: Seg[], t: number): boolean {
-  return visibleSegs.length > 0 || visibleAt(p.markIns, p.markDel, t);
-}
-
-// ---------------------------------------------------------------------------
-// 模式的なページ割り付け
-// ---------------------------------------------------------------------------
-
-/** 見出しの文字の大きさ (本文比) */
-function headingScale(level: number | undefined): number {
-  if (level === undefined) return 1;
-  return level === 0 ? 1.6 : level === 1 ? 1.35 : 1.15;
-}
-
-type Block =
-  | { type: "text"; lines: number[] } // 各行の幅 (0〜1)
-  | { type: "figure"; h: number }
-  | { type: "pageBreak" };
-
-/** 表示されている断片を、行・図・改ページの列に変換する */
-function toBlocks(segs: Seg[], charsPerLine: number, lineHeightTwips: number): Block[] {
-  const blocks: Block[] = [];
-  let width = 0;
-  let hasText = false;
-  const flushText = (force: boolean) => {
-    if (!hasText && !force) return;
-    const lines: number[] = [];
-    let rest = width;
-    do {
-      lines.push(Math.min(1, rest / charsPerLine));
-      rest -= charsPerLine;
-    } while (rest > 0);
-    blocks.push({ type: "text", lines });
-    width = 0;
-    hasText = false;
-  };
-  for (const s of segs) {
-    if (s.kind === "text") {
-      width += s.width;
-      hasText = true;
-    } else if (s.kind === "lineBreak") {
-      flushText(true);
-    } else if (s.kind === "pageBreak") {
-      flushText(false);
-      blocks.push({ type: "pageBreak" });
-    } else if (s.kind === "figure") {
-      flushText(false);
-      blocks.push({ type: "figure", h: s.heightTwips / lineHeightTwips });
-    }
-  }
-  // 空段落も1行分の高さを占める
-  if (hasText || blocks.length === 0) flushText(true);
-  return blocks;
-}
-
-class PageCursor {
-  pages: PageLayout[] = [{ items: [] }];
-  y = 0;
-  constructor(private readonly linesPerPage: number) {}
-  get page(): PageLayout {
-    return this.pages[this.pages.length - 1];
-  }
-  newPage(): void {
-    this.pages.push({ items: [] });
-    this.y = 0;
-  }
-  /** 高さ h の要素を置く位置を確保する (入りきらなければ改ページ) */
-  reserve(h: number): number {
-    if (this.y > 0 && this.y + h > this.linesPerPage) this.newPage();
-    const y = this.y;
-    this.y += h;
-    return y;
-  }
-}
-
-function layoutAt(
-  model: DocxLayoutModel,
-  t: number,
-  charsPerLine: number,
-  linesPerPage: number
-): { pages: PageLayout[]; visibleChars: Map<number, number> } {
-  const cursor = new PageCursor(linesPerPage);
-  const visibleChars = new Map<number, number>();
-  const lh = model.geometry.lineHeightTwips;
-
-  for (const p of model.paras) {
-    const segs = p.segs.filter((s) => visibleAt(s.ins, s.del, t));
-    if (!paraExistsAt(p, segs, t)) continue;
-    visibleChars.set(
-      p.index,
-      segs.reduce((n, s) => n + (s.kind === "text" ? s.chars : 0), 0)
-    );
-
-    if (p.pageBreakBefore && cursor.y > 0) cursor.newPage();
-    const scale = headingScale(p.headingLevel);
-    if (p.kind === "heading" && cursor.y > 0) cursor.y += 0.5; // 見出し前の空き
-
-    for (const b of toBlocks(segs, charsPerLine / scale, lh)) {
-      if (b.type === "pageBreak") {
-        cursor.newPage();
-      } else if (b.type === "figure") {
-        const h = Math.min(linesPerPage, Math.max(1, b.h));
-        const y = cursor.reserve(h);
-        cursor.page.items.push({ type: "figure", paraIndex: p.index, y, h });
-      } else {
-        for (const w of b.lines) {
-          const y = cursor.reserve(scale);
-          cursor.page.items.push({
-            type: "line",
-            paraIndex: p.index,
-            y,
-            h: scale,
-            widthFrac: w,
-            style: p.kind,
-          });
-        }
-      }
-    }
-    if (p.sectionBreakAfter) cursor.newPage();
-  }
-  // 末尾の空ページ (最後の段落の直後の改ページ等) は除く
-  const pages = cursor.pages.filter((pg, i) => i === 0 || pg.items.length > 0);
-  return { pages, visibleChars };
-}
 
 // ---------------------------------------------------------------------------
 // 区間分けと編集の集計
@@ -632,25 +496,35 @@ function toUnitLinks(model: DocxLayoutModel, paraLinks: SessionHeat["paraLinks"]
   return [...links.values()];
 }
 
-export function buildFlow(model: DocxLayoutModel, opts: FlowOptions): FlowResult {
-  const g = model.geometry;
-  const textWidth = g.pageWidthTwips - g.marginLeftTwips - g.marginRightTwips;
-  const textHeight = g.pageHeightTwips - g.marginTopTwips - g.marginBottomTwips;
-  const charsPerLine = Math.max(10, Math.floor(textWidth / (g.fontSizePt * 20)));
-  let linesPerPage = Math.max(5, Math.floor(textHeight / g.lineHeightTwips));
-
-  // Word が保存時に数えたページ数に、最終状態の見積もりページ数が合うよう1ページの行数を補正する
-  // (段落間隔・フォント・禁則処理などを模式図では再現しないため)。
-  // 補正は 0.5〜2 倍の範囲に限り、明らかに合わない値に引っ張られないようにする。
-  if (model.savedPageCount) {
-    for (let i = 0; i < 3; i++) {
-      const estimated = layoutAt(model, Infinity, charsPerLine, linesPerPage).pages.length;
-      if (estimated === model.savedPageCount) break;
-      const base = Math.max(5, Math.floor(textHeight / g.lineHeightTwips));
-      const next = Math.round(linesPerPage * (estimated / model.savedPageCount));
-      linesPerPage = Math.min(base * 2, Math.max(Math.ceil(base / 2), next));
-    }
+/**
+ * 最終状態の総ページ数が Word の記録 (docProps/app.xml のページ数) に合うよう、行の高さの倍率を決める。
+ * Word が保存時の改ページ位置 (w:lastRenderedPageBreak) を残している文書では、それを手がかりにするので補正しない。
+ * 倍率は 0.8〜1.25 の範囲に限り、明らかに合わない値に引っ張られないようにする
+ */
+function calibrateLineScale(model: DocxLayoutModel): number {
+  const target = model.savedPageCount;
+  if (!target || hasRenderedBreaks(model)) return 1;
+  const count = (s: number) => layoutDocument(model, Infinity, { final: true, lineScale: s }).pages.length;
+  const n = count(1);
+  if (n === target) return 1;
+  // ページ数は倍率に対して増える方向に変わる。境目を二分法で探す
+  let lo = n > target ? 0.8 : 1;
+  let hi = n > target ? 1 : 1.25;
+  if (n > target && count(lo) > target) return lo;
+  if (n < target && count(hi) < target) return hi;
+  for (let i = 0; i < 7; i++) {
+    const mid = (lo + hi) / 2;
+    if (count(mid) > target) hi = mid;
+    else lo = mid;
   }
+  return n > target ? lo : count(lo) === target ? lo : hi;
+}
+
+export function buildFlow(model: DocxLayoutModel, opts: FlowOptions): FlowResult {
+  const lineScale = calibrateLineScale(model);
+  // 最後の変更以降は Word が保存した状態なので、改ページ位置の手がかりを使う
+  const lastDate = Math.max(-Infinity, ...collectRevisions(model).map((r) => r.rev.date!.getTime()));
+  const layoutAt = (t: number): LayoutResult => layoutDocument(model, t, { final: t >= lastDate, lineScale });
 
   const from = opts.from?.getTime() ?? -Infinity;
   const to = opts.to?.getTime() ?? Infinity;
@@ -671,8 +545,8 @@ export function buildFlow(model: DocxLayoutModel, opts: FlowOptions): FlowResult
     const start = s.events[0].date.getTime();
     const end = s.events[s.events.length - 1].date.getTime();
     // 開始時点は区間の最初の変更の直前 (同じ時刻の変更は区間に含まれるため 1ms 前)
-    const before = layoutAt(model, start - 1, charsPerLine, linesPerPage);
-    const after = layoutAt(model, end, charsPerLine, linesPerPage);
+    const before = layoutAt(start - 1);
+    const after = layoutAt(end);
     const h = computeHeat(model, start, end, after.visibleChars, opts.bulkChars, reloc, opts.highlightOf);
     return {
       start: new Date(start),
@@ -691,5 +565,5 @@ export function buildFlow(model: DocxLayoutModel, opts: FlowOptions): FlowResult
     };
   });
 
-  return { geometry: g, linesPerPage, sessions };
+  return { geometry: model.geometry, lineScale, sessions };
 }

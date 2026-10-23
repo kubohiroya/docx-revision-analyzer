@@ -198,7 +198,7 @@ export function flowTargets(result: FlowResult): FigureTarget[] {
     const seen = new Set<number>();
     for (const page of pages) {
       for (const it of page.items) {
-        if (seen.has(it.paraIndex)) continue;
+        if (!("paraIndex" in it) || seen.has(it.paraIndex)) continue;
         seen.add(it.paraIndex);
         out.push({
           key: flowParaKey(k, it.paraIndex),
