@@ -4,7 +4,7 @@ English | [日本語](./installation.ja.md) · [Back to the README](../README.md
 
 How to get and set up the npm package, the standalone CLI and the drag-and-drop apps. To build from source, see the [developer guide](development.md).
 
-Get the unified CLI **v2.0.0** as a standalone executable from [GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0). npm publication is separate. For source builds, see the [developer guide](development.md).
+The unified CLI **v2.0.0** is available from [npm](https://www.npmjs.com/package/docx-revision-analyzer/v/2.0.0) (Node.js 18+) or as a standalone executable from [GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0) (no Node.js needed).
 
 **Contents**
 
@@ -17,13 +17,22 @@ Get the unified CLI **v2.0.0** as a standalone executable from [GitHub Releases]
 
 ## From npm (Node.js 18+)
 
-The published npm v1.2.0 uses the separate commands. npm publication of this release is separate; use the standalone binaries below for the unified CLI.
+Install v2.0.0 globally, or run the same command to upgrade an existing installation:
 
 ```bash
-npm install -g docx-revision-analyzer@1.2.0
+npm install -g docx-revision-analyzer@2.0.0
+docx-revision-analyzer --version
 ```
 
-That legacy package provides commands such as `docx-revision-chart`. See the [migration table](#migrating-from-the-separate-commands) when moving to v2.0.0.
+The version command should print `2.0.0`. This package provides one command, `docx-revision-analyzer`, with five subcommands: `chart`, `flow`, `score`, `snapshot` and `versions`.
+
+```bash
+docx-revision-analyzer --help
+docx-revision-analyzer flow --help
+docx-revision-analyzer flow report.docx
+```
+
+When upgrading from v1.x, replace the old command names in your scripts and shortcuts using the [migration table](#migrating-from-the-separate-commands).
 
 ## Standalone CLI (no Node.js needed)
 

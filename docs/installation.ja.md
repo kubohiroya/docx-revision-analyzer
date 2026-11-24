@@ -4,7 +4,7 @@
 
 npm パッケージ・単体実行ファイル・ドラッグ&ドロップ版の入手と準備の方法です。ソースからのビルドは[開発者向けガイド](development.ja.md)を参照してください。
 
-統合 CLI **v2.0.0** は [GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0) の単体バイナリを使ってください。npm 版の公開は別途行います。ソースからのビルドは[開発ガイド](development.ja.md)を参照してください。
+統合 CLI **v2.0.0** は [npm](https://www.npmjs.com/package/docx-revision-analyzer/v/2.0.0) (Node.js 18 以降が必要)、または [GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0) の単体バイナリ (Node.js 不要) から入手できます。
 
 **目次**
 
@@ -17,13 +17,22 @@ npm パッケージ・単体実行ファイル・ドラッグ&ドロップ版の
 
 ## npm から (Node.js 18 以降)
 
-npm の公開済み v1.2.0 は旧コマンド方式です。このリリースの npm 公開は別途行うため、統合 CLI は下の単体バイナリを使ってください。
+次のコマンドで v2.0.0 をグローバルにインストールします。既存の npm 版も同じコマンドで更新できます。
 
 ```bash
-npm install -g docx-revision-analyzer@1.2.0
+npm install -g docx-revision-analyzer@2.0.0
+docx-revision-analyzer --version
 ```
 
-この旧版では `docx-revision-chart` などの個別コマンドを使います。v2.0.0 に移る場合は[移行表](#旧コマンドからの移行)を参照してください。
+バージョン表示が `2.0.0` であることを確認してください。公開コマンドは `docx-revision-analyzer` の1つで、`chart`・`flow`・`score`・`snapshot`・`versions` の5サブコマンドを使えます。
+
+```bash
+docx-revision-analyzer --help
+docx-revision-analyzer flow --help
+docx-revision-analyzer flow 報告書.docx
+```
+
+v1.x から更新する場合は、[移行表](#旧コマンドからの移行)に従ってスクリプトやショートカット内の旧コマンド名を置き換えてください。
 
 ## 単体バイナリ (Node.js 不要)
 
