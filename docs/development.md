@@ -48,7 +48,8 @@ release/
 │   ├── mac-x64/
 │   ├── linux-x64/
 │   ├── linux-arm64/
-│   └── win-x64/              docx-revision-analyzer.exe
+│   ├── win-x64/              docx-revision-analyzer.exe
+│   └── win-arm64/            docx-revision-analyzer.exe
 ├── droplet/
 │   └── mac-arm64/            docx-revision-chart.app, docx-revision-flow.app
 └── desktop/
@@ -63,7 +64,7 @@ Steps whose tools are missing are skipped with the reason. Each step also has it
 | `npm run build` | every step this machine can do |
 | `npm run build:lib` | only compile the library (what `prepublishOnly` and CI use) |
 | `npm run build:cli` | one CLI executable for this OS/CPU |
-| `npm run build:cli:all-platforms` | one CLI for linux-x64, linux-arm64, mac-x64, mac-arm64, win-x64 |
+| `npm run build:cli:all-platforms` | one CLI for linux-x64, linux-arm64, mac-x64, mac-arm64, win-x64, win-arm64 |
 | `npm run build:droplet` | macOS droplets |
 | `npm run build:desktop` | desktop app for this OS/CPU (unpacked, no installer) |
 | `npm run build:desktop:installers` | desktop app installers (dmg/zip/NSIS; slow) |
@@ -141,6 +142,17 @@ npm run build:droplet               # macOS only
 ```
 
 Package the single CLI per OS/CPU as `docx-revision-analyzer-<os>-<cpu>.zip`. Archive OS names are `linux` / `macos` / `windows` (build folders use `linux` / `mac` / `win`). Zip the macOS `.app` bundles separately. Attach these to the next release; do not replace published assets.
+
+### Automated CLI release
+
+The `CLI release` workflow validates six native hosts: Linux/macOS/Windows × x64/ARM64. On a `vX.Y.Z` tag matching `package.json`, it runs the full root suite, tests each compiled CLI, validates ZIP architectures and checksums, checks the desktop module, and creates a **draft** release. It uses Node.js 22 and Bun 1.4.2. Workflow/package-script PRs also exercise native builds and packaging.
+
+1. Update the version, release notes in `docs/releases/vX.Y.Z.md`, and download links through a PR.
+2. After CI and merge, tag that merge commit and push the tag.
+3. Wait for all jobs, inspect the draft's six CLI ZIPs, two Apple Silicon droplets and SHA256SUMS.txt, then publish the approved release as Latest.
+4. Confirm the public links. npm publication remains separate.
+
+`node scripts/package-cli.mjs` packages the host CLI; add `--include-droplets` on mac-arm64 after building droplets. `node scripts/verify-cli-release.mjs release/assets --complete` verifies the complete asset set and writes SHA256SUMS.txt. Each CLI ZIP contains one executable and LICENSE.
 
 ## Test fixtures
 

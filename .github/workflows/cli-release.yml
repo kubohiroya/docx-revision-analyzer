@@ -1,0 +1,164 @@
+name: CLI release
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - ".github/workflows/cli-release.yml"
+      - "scripts/package-cli.mjs"
+      - "scripts/verify-cli-release.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+            directory: linux-x64
+            bun-target: linux-x64
+            executable: docx-revision-analyzer
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            directory: linux-arm64
+            bun-target: linux-aarch64
+            executable: docx-revision-analyzer
+          - runner: macos-15-intel
+            platform: darwin
+            arch: x64
+            directory: mac-x64
+            bun-target: darwin-x64
+            executable: docx-revision-analyzer
+          - runner: macos-15
+            platform: darwin
+            arch: arm64
+            directory: mac-arm64
+            bun-target: darwin-aarch64
+            executable: docx-revision-analyzer
+          - runner: windows-2025
+            platform: win32
+            arch: x64
+            directory: win-x64
+            bun-target: windows-x64
+            executable: docx-revision-analyzer.exe
+          - runner: windows-11-arm
+            platform: win32
+            arch: arm64
+            directory: win-arm64
+            bun-target: windows-aarch64
+            executable: docx-revision-analyzer.exe
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          architecture: ${{ matrix.arch }}
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+          bun-download-url: https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-${{ matrix.bun-target }}.zip
+      - name: Check native host and release version
+        env:
+          EXPECTED_PLATFORM: ${{ matrix.platform }}
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          node -e "const assert=require('node:assert/strict'); assert.equal(process.platform,process.env.EXPECTED_PLATFORM); assert.equal(process.arch,process.env.EXPECTED_ARCH); if(process.env.GITHUB_REF_TYPE==='tag') assert.equal(process.env.GITHUB_REF_NAME,'v'+require('./package.json').version);"
+          bun -e "if(process.platform!==process.env.EXPECTED_PLATFORM || process.arch!==process.env.EXPECTED_ARCH) throw new Error('Bun host architecture mismatch');"
+      - run: npm ci
+      - run: npm run build:lib
+      - name: Full release tests
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm test
+      - run: npm run build:cli
+      - name: Test the compiled CLI on its native host
+        env:
+          DRA_CLI_BINARY: ${{ github.workspace }}/release/cli/${{ matrix.directory }}/${{ matrix.executable }}
+        run: npm run test:cli
+      - name: Build Apple Silicon droplets
+        if: matrix.directory == 'mac-arm64'
+        run: npm run build:droplet
+      - name: Package and verify
+        env:
+          BUILD_DIRECTORY: ${{ matrix.directory }}
+        run: |
+          extra=()
+          if [ "$BUILD_DIRECTORY" = mac-arm64 ]; then extra+=(--include-droplets); fi
+          node scripts/package-cli.mjs "$BUILD_DIRECTORY" "${extra[@]}"
+          node scripts/verify-cli-release.mjs release/assets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.directory }}
+          path: |
+            release/assets/*.zip
+            release/assets/*.sha256
+          if-no-files-found: error
+          compression-level: 0
+
+  desktop:
+    timeout-minutes: 15
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: desktop
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run typecheck && npm test && npm run build
+        working-directory: desktop
+
+  draft:
+    timeout-minutes: 15
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [native, desktop]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          path: release/assets
+          merge-multiple: true
+      - run: node scripts/verify-cli-release.mjs release/assets --complete
+      - name: Create a draft from verified artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          notes="docs/releases/$GITHUB_REF_NAME.md"
+          test -f "$notes"
+          cp "$notes" release/notes.md
+          printf '\nSource commit: `%s`\n' "$GITHUB_SHA" >> release/notes.md
+          printf '\nValidation: all six native root/compiled-CLI suites, desktop checks, archive architecture checks and checksums passed.\n' >> release/notes.md
+          printf '\nBuild: https://github.com/%s/actions/runs/%s\n' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release/notes.md
+          gh release create "$GITHUB_REF_NAME" release/assets/*.zip release/assets/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --draft --latest=false --verify-tag \
+            --title "CLI $GITHUB_REF_NAME — single executable / 単一バイナリ" \
+            --notes-file release/notes.md

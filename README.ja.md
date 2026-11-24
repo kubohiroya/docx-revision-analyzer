@@ -13,12 +13,26 @@
 .docx を開く・ドロップして使えるアプリです。Node.js やコマンドラインの操作は不要です。
 インストール時の注意は [デスクトップ版 v0.2.0 の配布ページ](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.2.0)を参照してください。
 
+## CLI をダウンロード (v2.0.0)
+
+コマンドラインで使う場合は、OS と CPU に合う ZIP を **1つ**選んでください。全5サブコマンドを含む単一実行ファイルで、Node.js は不要です。
+
+| OS | x64 | ARM64 |
+|---|---|---|
+| macOS | [Intel Mac](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-macos-x64.zip) | [Apple Silicon](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-macos-arm64.zip) |
+| Windows | [x64](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-windows-x64.zip) | [ARM64](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-windows-arm64.zip) |
+| Linux | [x64](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-linux-x64.zip) | [ARM64](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-linux-arm64.zip) |
+
+[SHA256SUMS.txt](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/SHA256SUMS.txt) · [リリースノート](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0)
+
+展開後は `./docx-revision-analyzer flow 報告書.docx` (Windows: `.\docx-revision-analyzer.exe flow report.docx`) のように実行します。旧コマンドからの移行は[インストール](docs/installation.ja.md#旧コマンドからの移行)を参照してください。npm パッケージの v2.0.0 公開は別途行います。
+
 Word の変更履歴 (Track Changes / 校閲) が記録された `.docx` から、その文書が**どう書かれたか**を図にするツール群です。
 いつ・どこを・どれだけ書き足し、消し、まとめて貼り付けたかを、時系列のチャートと、ページの模式図をつないだ編集フローで示します。
 
 ![docx-revision-analyzer flow の出力例: 時間区間ごとに文書のページの模式図を並べ、段落ごとの変化を帯で結ぶ](./fixtures/flow-demo.ja.png)
 
-CLI は `docx-revision-analyzer <サブコマンド>` の1コマンドに統合しています。以下は次の CLI リリース向けの使い方です。公開済み v1.2.0 の個別コマンドからの移行とソースビルドは[インストール](docs/installation.ja.md#旧コマンドからの移行)を参照してください。
+CLI v2.0.0 は `docx-revision-analyzer <サブコマンド>` の1コマンドに統合しています。v1.2.0 の個別コマンド名は、下表の呼び出しへ置き換えてください。
 
 | コマンド | すること |
 |---|---|

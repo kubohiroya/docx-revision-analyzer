@@ -82,3 +82,5 @@
   CLI は5サブコマンド入りの `docx-revision-analyzer-<os>-<cpu>.zip` (os は `linux` / `macos` / `windows`) とし、ドロップレットは従来の `docx-revision-{chart,flow}-macos-arm64.app.zip` として別途添付する。別名リンクは生成しない。
 - `npm publish` は利用者の npm のアカウントの認証 (2段階認証) が必要なので、エージェントは実行せず、利用者に頼む
   (`npm publish --dry-run` で中身を確かめておく)。
+
+- CLI の `v*` タグは `.github/workflows/cli-release.yml` で Linux / macOS / Windows × x64 / arm64 のネイティブ検証後、下書きを作る。バージョン・リリースノート (`docs/releases/vX.Y.Z.md`)・アセットと SHA256SUMS.txt を確認してから公開する。npm 公開と desktop-v* の更新は別工程。

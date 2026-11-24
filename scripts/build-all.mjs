@@ -31,6 +31,7 @@ const PLATFORMS = [
   ["mac-x64", "bun-darwin-x64"],
   ["mac-arm64", "bun-darwin-arm64"],
   ["win-x64", "bun-windows-x64"],
+  ["win-arm64", "bun-windows-arm64"],
 ];
 
 const args = process.argv.slice(2);

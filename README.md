@@ -13,13 +13,27 @@ English | [日本語](./README.ja.md)
 Open or drop a .docx to use the app; no Node.js or command line is needed.
 See the [desktop v0.2.0 release notes](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.2.0) for installation notes.
 
+## Download the CLI (v2.0.0)
+
+For command-line use, choose **one** ZIP for your OS and CPU. Each contains one executable with all five subcommands; no Node.js installation is needed.
+
+| OS | x64 | ARM64 |
+|---|---|---|
+| macOS | [Intel Mac](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-macos-x64.zip) | [Apple Silicon](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-macos-arm64.zip) |
+| Windows | [x64](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-windows-x64.zip) | [ARM64](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-windows-arm64.zip) |
+| Linux | [x64](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-linux-x64.zip) | [ARM64](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/docx-revision-analyzer-linux-arm64.zip) |
+
+[SHA256SUMS.txt](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/SHA256SUMS.txt) · [Release notes](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0)
+
+After extraction, run `./docx-revision-analyzer flow report.docx` (Windows: `.\docx-revision-analyzer.exe flow report.docx`). See [Installation](docs/installation.md#migrating-from-the-separate-commands) for migration. Publication of the v2.0.0 npm package is separate.
+
 Tools that draw **how a document was written** from the tracked changes (Track Changes) recorded in a Word `.docx`.
 They show when, where and how much was added, deleted or pasted in at once, as a chart over time and as an edit flow
 that links schematic pages of the document.
 
 ![Example output of docx-revision-analyzer flow: schematic pages of the document for each editing session, with bands linking each paragraph's changes](./fixtures/flow-demo.png)
 
-The CLI uses one command, `docx-revision-analyzer <subcommand>`. The examples below describe the next CLI release. See [Installation](docs/installation.md#migrating-from-the-separate-commands) for source builds and migration from the separate commands in published v1.2.0.
+CLI v2.0.0 uses one command, `docx-revision-analyzer <subcommand>`. Replace the separate v1.2.0 command names with the invocations below.
 
 | Command | What it does |
 |---|---|
