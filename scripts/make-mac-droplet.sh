@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # ----------------------------------------------------------------------------
-# macOS 専用: docx-revision-chart (または docx-revision-flow) の単体実行ファイルを
-# Finder にドラッグ&ドロップできる ".app" (ドロップレット) にパッケージする。
+# macOS: wrap the shared CLI in a Finder droplet that selects chart or flow.
 #
 # 通常は npm run build:droplet (scripts/build-all.mjs) から呼ばれる。build-all.mjs が
 # Bun で実行ファイルを作ってから、このスクリプトに渡す。
 #
 # 使い方:
 #   ./scripts/make-mac-droplet.sh <chart|flow> <実行ファイル> <出力フォルダ>
-#   例: ./scripts/make-mac-droplet.sh flow release/cli/mac-arm64/docx-revision-flow release/droplet/mac-arm64
+#   例: ./scripts/make-mac-droplet.sh flow release/cli/mac-arm64/docx-revision-analyzer release/droplet/mac-arm64
 #
 # 仕組み:
 #   - 素の (バンドル化されていない) Unix実行ファイルは Finder の
@@ -118,12 +117,12 @@ on open theFiles
 	repeat with aFile in theFiles
 		set posixPath to POSIX path of aFile
 		set appPosix to POSIX path of (path to me)
-		set toolPath to appPosix & "Contents/Resources/__TOOL__"
+		set toolPath to appPosix & "Contents/Resources/docx-revision-analyzer"
 		set extraArgs to ""
 		set subtitleText to doneText
 		-- 変更履歴の作成者・日時を保存する設定が無効な文書なら、有効化するか尋ねる
 		try
-			set checkOut to do shell script quoted form of toolPath & " --check-history-settings " & quoted form of posixPath & langArg
+			set checkOut to do shell script quoted form of toolPath & " __SUBCOMMAND__ --check-history-settings " & quoted form of posixPath & langArg
 			if paragraph 1 of checkOut is "needs-fix" then
 				set AppleScript's text item delimiters to return
 				set promptText to (paragraphs 2 thru -1 of checkOut) as text
@@ -138,7 +137,7 @@ on open theFiles
 			end if
 		end try
 		try
-			set outPath to do shell script quoted form of toolPath & " " & quoted form of posixPath & " --drop" & langArg & extraArgs
+			set outPath to do shell script quoted form of toolPath & " __SUBCOMMAND__ " & quoted form of posixPath & " --drop" & langArg & extraArgs
 			display notification outPath with title "__TOOL__" subtitle subtitleText
 		on error errMsg
 			display dialog errMsg with title errorTitle buttons {"OK"} default button 1 with icon caution
@@ -147,7 +146,7 @@ on open theFiles
 end open
 APPLESCRIPT
 # AppleScript 内のツール名・結果の呼び名を差し込む (ヒアドキュメントは展開しない形で書いているため)
-sed -i '' -e "s/__TOOL__/$BIN_NAME/g" -e "s/__RESULT_LABEL_JA__/$RESULT_LABEL_JA/g" \
+sed -i '' -e "s/__TOOL__/$BIN_NAME/g" -e "s/__SUBCOMMAND__/$TARGET_CLI/g" -e "s/__RESULT_LABEL_JA__/$RESULT_LABEL_JA/g" \
   -e "s/__RESULT_LABEL_EN__/$RESULT_LABEL_EN/g" "$SCRIPT_SRC"
 
 # 既存の同名 .app があると osacompile が失敗するため、事前に退避 (削除ではなくrename)。
@@ -162,8 +161,8 @@ rm -f "$SCRIPT_SRC"
 
 echo "==> [3/4] 本体バイナリを同梱中..."
 mkdir -p "$APP_PATH/Contents/Resources"
-cp "$BIN_PATH" "$APP_PATH/Contents/Resources/$BIN_NAME"
-chmod +x "$APP_PATH/Contents/Resources/$BIN_NAME"
+cp "$BIN_PATH" "$APP_PATH/Contents/Resources/docx-revision-analyzer"
+chmod +x "$APP_PATH/Contents/Resources/docx-revision-analyzer"
 
 echo "==> [4/4] 署名中 (ad-hoc)..."
 # Apple SiliconではGatekeeperの警告とは別に、有効な署名 (ad-hocで十分) が

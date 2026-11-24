@@ -4,30 +4,30 @@
 
 各コマンドのオプションと、出力される図の見方です。Word や Teams と組み合わせた運用は[運用ガイド](operations-guide.ja.md)、JSON 出力や判定ルールは[高度な使い方](advanced.ja.md)を参照してください。
 
+CLI の呼び出しは `docx-revision-analyzer <サブコマンド> [引数] [オプション]` です。
+`docx-revision-analyzer --help` で一覧、`docx-revision-analyzer flow --help` または `docx-revision-analyzer help flow` で個別のヘルプを表示します。
+`--lang en` / `--lang ja` はサブコマンドの前後に指定できます。旧コマンドからの移行と公開済み版との違いは[インストール](installation.ja.md#旧コマンドからの移行)を参照してください。
+
 **目次**
 
-- [1. `docx-revision-chart` — 編集履歴のSVGチャート化](#1-docx-revision-chart--編集履歴のsvgチャート化)
-- [2. `docx-revision-flow` — 時間区間ごとの編集フロー](#2-docx-revision-flow--時間区間ごとの編集フロー)
-- [3. `docx-ai-suspicion-score` — AI不正利用疑いスコア](#3-docx-ai-suspicion-score--ai不正利用疑いスコア)
-- [4. `docx-revision-snapshot` — 区切りごとの提出の保管と通し解析](#4-docx-revision-snapshot--区切りごとの提出の保管と通し解析)
-- [5. `docx-revision-versions` — 過去の時点の文書 (版) の書き出し](#5-docx-revision-versions--過去の時点の文書-版-の書き出し)
+- [1. `docx-revision-analyzer chart` — 編集履歴のSVGチャート化](#1-docx-revision-analyzer-chart--編集履歴のsvgチャート化)
+- [2. `docx-revision-analyzer flow` — 時間区間ごとの編集フロー](#2-docx-revision-analyzer-flow--時間区間ごとの編集フロー)
+- [3. `docx-revision-analyzer score` — AI不正利用疑いスコア](#3-docx-revision-analyzer-score--ai不正利用疑いスコア)
+- [4. `docx-revision-analyzer snapshot` — 区切りごとの提出の保管と通し解析](#4-docx-revision-analyzer-snapshot--区切りごとの提出の保管と通し解析)
+- [5. `docx-revision-analyzer versions` — 過去の時点の文書 (版) の書き出し](#5-docx-revision-analyzer-versions--過去の時点の文書-版-の書き出し)
 - [改ざんの痕跡の検出](#改ざんの痕跡の検出)
 - [日時が記録されない場合 (`--preserve-history`)](#日時が記録されない場合---preserve-history)
 - [設定ファイル](#設定ファイル)
 - [表示言語](#表示言語)
 - [デスクトップアプリ (プレビュー)](#デスクトップアプリ-プレビュー)
 
-## 1. `docx-revision-chart` — 編集履歴のSVGチャート化
+## 1. `docx-revision-analyzer chart` — 編集履歴のSVGチャート化
 
 ```bash
-docx-revision-chart <input.docx> [input2.docx ...] [options]
+docx-revision-analyzer chart <input.docx> [input2.docx ...] [options]
 ```
 
-複数の入力ファイルをまとめて指定できます (各ファイルは独立に処理され、
-1件が失敗しても残りの処理は続行されます)。主にWindowsで、エクスプローラーから
-複数ファイルを実行ファイルにドロップした際に、それらが1回の起動に対する
-複数の引数として渡されるケースに対応するためのものです。`-o/--output` は
-入力ファイルが1つの場合のみ使用できます。
+複数の入力ファイルをまとめて指定できます。各ファイルは独立に処理され、1件が失敗しても残りの処理を続けます。`-o/--output` は入力ファイルが1つの場合のみ使用できます。Windows でもサブコマンドを指定して実行してください ([Windows での実行](installation.ja.md#windows-での実行))。
 
 | オプション | 説明 | 既定値 |
 |---|---|---|
@@ -37,7 +37,7 @@ docx-revision-chart <input.docx> [input2.docx ...] [options]
 | `-w, --width <px>` | 画像の幅 | `1100` (`-p` 指定時は内容に応じて自動計算) |
 | `-H, --height <px>` | 画像の高さ | `550` |
 | `-t, --title <text>` | チャートタイトル | `編集履歴: <ファイル名> (最終更新 <ファイルの最終更新日時>)` |
-| `--bulk-chars <n>` | 同じ作成者・同じ時刻にまとめて挿入された文字数がこれ以上なら一括挿入とみなす (`docx-revision-flow` と同じ規則) | `150` |
+| `--bulk-chars <n>` | 同じ作成者・同じ時刻にまとめて挿入された文字数がこれ以上なら一括挿入とみなす (`docx-revision-analyzer flow` と同じ規則) | `150` |
 | `--json [file.json]` | 解析結果 (挿入の窓と特徴量) を JSON にも出力する。[高度な使い方](advanced.ja.md#解析結果の-json---json)を参照 | 出力しない (名前を省略すると `<出力名>.json`) |
 | `--rules <file>` | 挿入の窓にハイライトの段階を付けるルールファイル (`--bulk-chars` の代わりに使う)。[判定ルール](advanced.ja.md#ハイライトの判定ルール---rules)を参照 | なし |
 | `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | 挿入の窓: 時間窓 Δt と、文書上の距離 (文字数 / 段落数)。ルールの `window` を置き換える | ルールの値 |
@@ -46,25 +46,25 @@ docx-revision-chart <input.docx> [input2.docx ...] [options]
 | `--preserve-history` | 文書が「保存時に個人情報 (変更履歴の作成者・日時) を削除する」設定の場合に、その設定を外し「変更履歴の記録」もオンにして上書き保存する (元のファイルはバックアップとして残す。文書が開かれている場合はエラー)。`--preserveHistory` でも可。「[日時が記録されない場合](#日時が記録されない場合---preserve-history)」を参照 | off |
 | `--check-history-settings` | チャートは作らず設定の確認だけを行い、1行目に `ok` / `needs-fix`、`needs-fix` なら2行目以降に確認用の文面を出力する | off |
 | `--lock` | 図は作らず、入力したテンプレートに変更履歴のロックをかけて上書きする (元のファイルはバックアップとして残す)。[本ツールでロックをかける](operations-guide.ja.md#2-変更履歴をロックする-任意)を参照 | off |
-| `--drop` | デスクトップからのドラッグ&ドロップ起動モード。`-o` 未指定時、各ファイルの出力先を通常の `<ファイル名>.svg` ではなく `<入力と同じディレクトリ>/<そのファイル名>-<そのファイルの最終更新日時>.svg` にする。macOS用Finderドロップレット ([インストール](installation.ja.md#finderドラッグドロップ対応アプリ-macos専用)参照) や、Windowsエクスプローラーからの直接ドロップ(またはターミナルを介さない他の起動方法)向け。Windows上ではさらにネイティブなメッセージボックスで結果を表示する | off |
+| `--drop` | デスクトップからのドラッグ&ドロップ起動モード。`-o` 未指定時、各ファイルの出力先を通常の `<ファイル名>.svg` ではなく `<入力と同じディレクトリ>/<そのファイル名>-<そのファイルの最終更新日時>.svg` にする。macOS用Finderドロップレット ([インストール](installation.ja.md#finderドラッグドロップ対応アプリ-macos専用)参照) や、サブコマンドを指定するランチャーなど、ターミナルを介さない起動方法向け。Windows上ではさらにネイティブなメッセージボックスで結果を表示する | off |
 | `--lang <en\|ja>` | メッセージと図の表示言語 ([表示言語](#表示言語)を参照) | OS のロケール |
 
 ### 出力される図の見方
 
-![docx-revision-chart の出力例](../fixtures/chart-demo.ja.png)
+![docx-revision-analyzer chart の出力例](../fixtures/chart-demo.ja.png)
 
 上の図は `fixtures/chart-demo.docx` (2日にわたる3回の執筆。細かく入力しながら下書きを大小さまざまな単位で
 散発的に削除し、2回目の最初 (14:50) に文章をまとめて貼り付け) に対する、次のコマンドの出力です。
 `-p 2` により、2時間以上の無編集期間で区切った期間ごとに並べ、期間の間に無編集期間の長さ (4.5 h・17 h) を示しています。
 
 ```bash
-docx-revision-chart fixtures/chart-demo.docx -p 2
+docx-revision-analyzer chart fixtures/chart-demo.docx -p 2
 ```
 
 
 - **横軸**: 時間 (バケットごとに集計)
 - **上向きの棒**: そのバケット内で追加された文字数を、下から次の順に積み上げたもの
-  (判定の規則は `docx-revision-flow` と同じ)
+  (判定の規則は `docx-revision-analyzer flow` と同じ)
   - **緑 (細かい編集)**: 一括挿入・移動/並べ替え以外の挿入
   - **オレンジ (一括挿入)**: 同じ作成者・同じ時刻の挿入の合計が `--bulk-chars` 文字以上のもの。
     Word は貼り付けた文章を段落ごとに別々の挿入として記録しますが、時刻は同じになるためです
@@ -77,7 +77,7 @@ docx-revision-chart fixtures/chart-demo.docx -p 2
 Word が移動として記録した変更 (`w:moveFrom` / `w:moveTo`) は、文字数が増減しないため棒には含めません。
 
 ```bash
-docx-revision-chart fixtures/natural-writing.docx -o out.svg
+docx-revision-analyzer chart fixtures/natural-writing.docx -o out.svg
 ```
 
 同梱の `fixtures/*.svg` (および見た目確認用の `fixtures/*.png`) がサンプル出力です。
@@ -97,7 +97,7 @@ docx-revision-chart fixtures/natural-writing.docx -o out.svg
 実際には経過していない時間を線でつながないよう、セッションごとに独立させています。
 
 ```bash
-docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
+docx-revision-analyzer chart fixtures/multi-session.docx -p 12 -o out.svg
 ```
 
 同梱の `fixtures/multi-session.docx` (3日間、間に29時間・20.5時間の空白を挟んだ想定)
@@ -108,7 +108,7 @@ docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
 
 ---
 
-## 2. `docx-revision-flow` — 時間区間ごとの編集フロー
+## 2. `docx-revision-analyzer flow` — 時間区間ごとの編集フロー
 
 変更履歴を「連続的に編集が行われた時間区間」に分け、最初の区間の開始時点と各区間の終了時点の文書を
 ページのサムネイル (模式図) の列として左から右へ時系列順に並べ、列の間に、その区間での段落・図表ごとの変化を
@@ -116,13 +116,13 @@ docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
 開始時点を兼ねます。
 
 ```bash
-docx-revision-flow fixtures/flow-demo.docx -o flow.svg
+docx-revision-analyzer flow fixtures/flow-demo.docx -o flow.svg
 
 # 期間を指定し、2時間以上の無編集期間で区間を分ける
-docx-revision-flow 報告書.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
+docx-revision-analyzer flow 報告書.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 ```
 
-![docx-revision-flow の出力例](../fixtures/flow-demo.ja.png)
+![docx-revision-analyzer flow の出力例](../fixtures/flow-demo.ja.png)
 
 | オプション | 説明 | 既定値 |
 |---|---|---|
@@ -138,7 +138,7 @@ docx-revision-flow 報告書.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 | `--page-width <px>` | ページのサムネイルの幅 | `150` |
 | `--slope-width <px>` | サムネイルの列の間 (変化を示す帯) の幅 | `72` |
 | `-t, --title <text>` | 図のタイトル | `編集フロー: <ファイル名> (最終更新 <ファイルの最終更新日時>)` |
-| `--drop` / `--preserve-history` / `--check-history-settings` | `docx-revision-chart` と同じ。`--drop` の出力先は `<ファイル名>-flow-<最終更新日時>.svg` | |
+| `--drop` / `--preserve-history` / `--check-history-settings` | `docx-revision-analyzer chart` と同じ。`--drop` の出力先は `<ファイル名>-flow-<最終更新日時>.svg` | |
 | `--lang <en\|ja>` | メッセージと図の表示言語 ([表示言語](#表示言語)を参照) | OS のロケール |
 
 時系列解析できる変更履歴が無い場合や、指定した期間に変更履歴が無い場合は、SVG を作らずにエラーになります。
@@ -202,14 +202,14 @@ Word は複数の段落を貼り付けると段落ごとに別々の挿入 (`w:i
   (空白の違いは無視) だけを判定します。貼り付けた後に手を加えた部分は、並べ替えではなく編集として扱われます。文字を含まない図の追加は、
   帯では「追加」(緑) として示しますが、段落の塗りはしません。
   本文 (`word/document.xml`) だけが対象で、脚注・ヘッダー・テキストボックス内は対象外です。
-- 一括挿入の判定はヒューリスティックであり、不正の証拠にはなりません (`docx-ai-suspicion-score` と同様)。
+- 一括挿入の判定はヒューリスティックであり、不正の証拠にはなりません (`docx-revision-analyzer score` と同様)。
 
 ---
 
-## 3. `docx-ai-suspicion-score` — AI不正利用疑いスコア
+## 3. `docx-revision-analyzer score` — AI不正利用疑いスコア
 
 ```bash
-docx-ai-suspicion-score <input.docx> [options]
+docx-revision-analyzer score <input.docx> [options]
 ```
 
 | オプション | 説明 | 既定値 |
@@ -225,7 +225,7 @@ docx-ai-suspicion-score <input.docx> [options]
 | `--lang <en\|ja>` | メッセージと図の表示言語 ([表示言語](#表示言語)を参照) | OS のロケール |
 
 ```bash
-docx-ai-suspicion-score fixtures/suspicious-paste.docx --pretty
+docx-revision-analyzer score fixtures/suspicious-paste.docx --pretty
 ```
 
 ### スコアの算出方法 (アルゴリズムの説明)
@@ -292,20 +292,20 @@ score = max_weight × (最も疑わしいイベントのスコア)
 
 ---
 
-## 4. `docx-revision-snapshot` — 区切りごとの提出の保管と通し解析
+## 4. `docx-revision-analyzer snapshot` — 区切りごとの提出の保管と通し解析
 
 卒論のように長く書く文書を、区切りごとに提出させたもの (スナップショット) を保管し、すべての回を通して解析します。
 使い方は [長期の執筆 (卒論など)](operations-guide.ja.md#長期の執筆-卒論など-区切りごとに提出させる) を参照してください。
 
 ```bash
 # 第1回: 提出物のフォルダを渡す (第1回は、配ったテンプレートと照合する)
-docx-revision-snapshot 保管先/ 提出物-第1回/ --template template.docx
+docx-revision-analyzer snapshot 保管先/ 提出物-第1回/ --template template.docx
 
 # 第2回以降: 同じ保管先に、その回の提出物のフォルダを渡す
-docx-revision-snapshot 保管先/ 提出物-第2回/
+docx-revision-analyzer snapshot 保管先/ 提出物-第2回/
 
 # 保管済みのものから、図と一覧を作り直す
-docx-revision-snapshot 保管先/
+docx-revision-analyzer snapshot 保管先/
 ```
 
 提出物ごとに、次のことを行います。
@@ -333,24 +333,24 @@ docx-revision-snapshot 保管先/
 | `--template <file.docx>` | 最初に配ったテンプレート。第1回の提出物をこれと照合する | なし |
 | `--key-depth <n>` | パスの先頭からこの数のフォルダだけで文書を見分ける | なし (パス全体) |
 | `-p, --gap-threshold <hours>` | 各回のフローの時間区間の閾値 | `1` |
-| `--bulk-chars <n>` / `--rules <file>` | 一括挿入の判定 (`docx-revision-chart` と同じ) | `150` / なし |
+| `--bulk-chars <n>` / `--rules <file>` | 一括挿入の判定 (`docx-revision-analyzer chart` と同じ) | `150` / なし |
 | `--no-tamper-check` | 改ざんの痕跡を調べない | off |
 | `--lang <en\|ja>` | 表示言語 | OS の設定 |
 
-## 5. `docx-revision-versions` — 過去の時点の文書 (版) の書き出し
+## 5. `docx-revision-analyzer versions` — 過去の時点の文書 (版) の書き出し
 
 変更履歴の日時から、過去のある時点の文書を復元し、版として `.docx` (またはテキスト) に書き出します。その時点までの
 変更は受け入れ、その後の変更は元に戻すので、版には変更履歴が残りません。
 
 ```bash
 # 時間区間の終わりごとの版と、最初の変更の直前の版 (既定)
-docx-revision-versions 報告書.docx
+docx-revision-analyzer versions 報告書.docx
 
 # 指定した時刻の版
-docx-revision-versions 報告書.docx --at "2026-06-01 10:30" --at 2026-06-02
+docx-revision-analyzer versions 報告書.docx --at "2026-06-01 10:30" --at 2026-06-02
 
 # 最初の変更から10分ごとの版を、.docx とテキストで
-docx-revision-versions 報告書.docx --every 10m -f docx,txt
+docx-revision-analyzer versions 報告書.docx --every 10m -f docx,txt
 ```
 
 版は入力と同じフォルダの `<名前>-versions/` に `<名前>-<YYYYMMDD-HHMMSS>.docx` (ローカル時刻) として書き出し、
@@ -362,7 +362,7 @@ docx-revision-versions 報告書.docx --every 10m -f docx,txt
 - 段落記号の挿入・削除も同じです。段落記号がまだ無い (またはすでに削除された) ところでは、段落を次の段落とつなげます。
   表の行の挿入・削除も同じように扱います。
 - その後に行われた書式の変更 (`w:rPrChange`, `w:pPrChange` など) は、記録されている元の書式に戻します。
-- 日時の無い変更 (「個人情報を削除する」設定で消されたものなど) は、`docx-revision-flow` と同じく、最初の日時のある
+- 日時の無い変更 (「個人情報を削除する」設定で消されたものなど) は、`docx-revision-analyzer flow` と同じく、最初の日時のある
   変更より前に行われたものとして扱います。
 - 復元できるのは変更履歴に残っている範囲だけです。記録をオフにしていた間の編集や、承諾・取り消しで消えた変更は、
   どの版にも含まれません。
@@ -374,14 +374,14 @@ docx-revision-versions 報告書.docx --every 10m -f docx,txt
 | `--at <日時>` | この時刻の版を書き出す (`YYYY-MM-DD HH:mm` のローカル時刻、または ISO 8601。日付だけならその日の終わり)。複数回指定できる | なし |
 | `--every <間隔>` | 最初の変更から、この間隔ごとの版を書き出す (`30s`, `10m`, `2h`, `1d`、または秒数)。最初の変更の直前の版も書き出す | なし |
 | `--sessions` | 時間区間の終わりごとの版と、最初の変更の直前の版を書き出す | `--at` も `--every` も無ければオン |
-| `-p, --gap-threshold <時間>` | `--sessions` の区切り (`docx-revision-flow` と同じ) | `1` |
+| `-p, --gap-threshold <時間>` | `--sessions` の区切り (`docx-revision-analyzer flow` と同じ) | `1` |
 | `-f, --format <形式>` | `docx`、`txt`、または `docx,txt` | `docx` |
 | `-o, --out-dir <フォルダ>` | 版を書き出すフォルダ | 入力と同じフォルダの `<名前>-versions` |
 | `--lang <en\|ja>` | 表示言語 | OS の設定 |
 
 ## 改ざんの痕跡の検出
 
-`docx-revision-chart` と `docx-revision-flow` は、変更履歴が改ざんされた痕跡がファイルに残っていないかを調べます。
+`docx-revision-analyzer chart` と `docx-revision-analyzer flow` は、変更履歴が改ざんされた痕跡がファイルに残っていないかを調べます。
 痕跡が見つかると、
 
 - 図の上部に、見つかった痕跡を並べた赤い枠の警告を表示します。
@@ -391,7 +391,7 @@ docx-revision-versions 報告書.docx --every 10m -f docx,txt
 
 ```bash
 # 配ったテンプレートと照合して、提出物のフォルダをまとめて処理する
-docx-revision-chart submissions/ --template template.docx
+docx-revision-analyzer chart submissions/ --template template.docx
 ```
 
 | 痕跡 | 内容 | `--template` |
@@ -424,7 +424,7 @@ Word for the web (Teams の課題で開いたときに使われることが多�
 Windows 版 Word では [ファイル] > [オプション] > [トラスト センター] > [トラスト センターの設定] > [プライバシー オプション] でオフにできますが、
 macOS 版 Word の [設定] > [セキュリティ] にはこの項目がありません。
 
-`docx-revision-chart` と `docx-revision-flow` は、解析の前にこの設定を確認し、有効になっていれば次のように案内します
+`docx-revision-analyzer chart` と `docx-revision-analyzer flow` は、解析の前にこの設定を確認し、有効になっていれば次のように案内します
 (「変更履歴の記録」がオフなだけの文書では尋ねません)。
 
 - **CLI:** ターミナルから実行した場合は、`--preserve-history` の処理を実行するかを `[y/N]` で尋ねます
@@ -443,6 +443,8 @@ Windows では書き込みオープンの可否、macOS/Linux では `lsof`) を
 
 ## 設定ファイル
 
+統合後も、設定はサブコマンドごとの従来のファイル名を使います。`chart` → `docx-revision-chart.yml`、`flow` → `docx-revision-flow.yml`、`score` → `docx-ai-suspicion-score.yml`、`snapshot` → `docx-revision-snapshot.yml`、`versions` → `docx-revision-versions.yml` です。選んだサブコマンドの設定だけを読みます。解析 JSON の `tool` の識別子も従来どおりです。
+
 既定値を変えたい場合は、ツール名の YAML ファイル (`docx-revision-chart.yml` / `docx-revision-flow.yml` /
 `docx-ai-suspicion-score.yml`。拡張子は `.yaml` でも可) を実行ファイルと同じフォルダに置きます。
 macOS のドラッグ&ドロップ版では `.app` と同じフォルダ、npm でインストールした場合はコマンドと同じフォルダです。
@@ -459,7 +461,7 @@ lang: ja
 ```
 
 - キーは、そのツールのオプションの長い名前から `--` を除いたものです (`output`・`gap-threshold`・`bulk-chars`・
-  `page-width`・`slope-width`・`title`・`bucket`・`from`・`to`・`lang` など。`docx-ai-suspicion-score` では
+  `page-width`・`slope-width`・`title`・`bucket`・`from`・`to`・`lang` など。`docx-revision-analyzer score` では
   `min-chars`・`burst-low`・`pretty` など)。`pretty` のようなフラグは `true` / `false` で指定します。
 - コマンドラインでの指定が設定ファイルより優先され、設定ファイルは組み込みの既定値より優先されます。
 - `output` / `rules` の相対パスは、設定ファイルのあるフォルダを基準にします。複数のファイルをまとめて処理するときは `output` を使いません。
@@ -499,7 +501,7 @@ lang: ja
 リンク (Microsoft Teams の課題の提出物が集まるフォルダなど) を貼り、出力先のフォルダを選ぶ (作る) と、参照先のフォルダの
 階層構造を出力先に再現して、その中に SVG を作成します (選べば、1つのフォルダにまとめてファイル名にパスを含めることもできます)。
 どちらも一覧の `summary.csv` (Excel 用) と `index.html` (すべての図へのリンク) を作成します。CLI (と macOS のドロップレット) も
-フォルダを受け付けます: `docx-revision-flow 提出物/`。
+フォルダを受け付けます: `docx-revision-analyzer flow 提出物/`。
 
 **テンプレートにロックを施す**: 開いた文書に変更履歴のロックをかけたものを、保存ダイアログで保存します
 ([本ツールでロックをかける](operations-guide.ja.md#2-変更履歴をロックする-任意))。
@@ -509,7 +511,7 @@ URL から開いた OneDrive / SharePoint の文書は Microsoft Graph に1〜2�
 中身の版 (`cTag`) の変化を見ます。問い合わせのためにサインインの画面を開くことはありません。Word で保存するたびに図を描き直し、
 次のものを記録のフォルダに残します。
 
-- 保存ごとの版 (`snapshots.json` と `<名前>-sNN.docx`。`docx-revision-snapshot` のアーカイブと同じ形式)。後で「すべて承諾」
+- 保存ごとの版 (`snapshots.json` と `<名前>-sNN.docx`。`docx-revision-analyzer snapshot` のアーカイブと同じ形式)。後で「すべて承諾」
   などで変更履歴が消えても、その前の版が残ります
 - 文書のコメント (他人のものを含むすべて) の出来事: 初めて見た・本文の変更・解決済み・削除・再出現 (`comments.jsonl`、
   1行1件の JSON。追記だけで、文書からコメントが消えても記録からは消しません)。コメントの範囲は、段落 (`w14:paraId`)・

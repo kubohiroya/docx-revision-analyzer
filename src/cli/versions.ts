@@ -1,11 +1,10 @@
-#!/usr/bin/env node
 /**
- * docx-revision-versions: 変更履歴の日時から、過去のある時点の文書 (版) を復元して書き出す。
+ * Reconstruct and export earlier versions from tracked-change timestamps.
  *
- *   docx-revision-versions <files...> [--at <日時>]... [--every <間隔>] [--sessions]
+ *   docx-revision-analyzer versions <files...> [--at <datetime>]... [--every <interval>]
  *
- * 版は <出力先>/<名前>-<YYYYMMDD-HHMMSS>.docx (または .txt) に書き出し、各版の時刻を
- * <出力先>/<名前>.versions.json にまとめる。出力先の既定は入力と同じフォルダの <名前>-versions/。
+ * Writes <name>-<YYYYMMDD-HHMMSS>.docx / .txt and <name>.versions.json.
+ * The default output directory is <name>-versions/ beside the input.
  */
 import { Command } from "commander";
 import * as fs from "fs";
@@ -20,10 +19,6 @@ import { initLangFromArgv, t } from "../lib/i18n";
 import { applyToolConfig, loadToolConfig, loadToolConfigOrExit } from "./config";
 
 const TOOL = "docx-revision-versions";
-
-const loadedConfig = loadToolConfig(TOOL);
-initLangFromArgv(process.argv, loadedConfig.config?.values.lang);
-const toolConfig = loadToolConfigOrExit(TOOL, loadedConfig);
 
 const FORMATS = ["docx", "txt"] as const;
 type Format = (typeof FORMATS)[number];
@@ -127,22 +122,24 @@ async function processOne(inputFile: string, options: Record<string, any>): Prom
 
 const collect = (value: string, previous: string[] = []) => [...previous, value];
 
-const program = new Command();
-program
-  .name(TOOL)
-  .description(t("versionsDescription"))
-  .argument("<files...>", t("versionsArgFiles"))
-  .option("--at <datetime>", t("versionsOptAt"), collect)
-  .option("--every <interval>", t("versionsOptEvery"))
-  .option("--sessions", t("versionsOptSessions"))
-  .option("-p, --gap-threshold <hours>", t("flowOptGap"), String(DEFAULT_FLOW_OPTIONS.gapThresholdHours))
-  .option("-f, --format <list>", t("versionsOptFormat"), "docx")
-  .option("-o, --out-dir <dir>", t("versionsOptOutDir"))
-  .addOption(langOption())
-  .action(async (files: string[], options) => {
-    await runForFiles(TOOL, files, options, (file) => processOne(file, options));
-  });
+export function configureVersionsCommand(program: Command, argv: string[]): void {
+  const loadedConfig = loadToolConfig(TOOL);
+  initLangFromArgv(argv, loadedConfig.config?.values.lang);
+  const toolConfig = loadToolConfigOrExit(TOOL, loadedConfig);
 
-if (toolConfig) applyToolConfig(program, toolConfig);
+  program
+    .description(t("versionsDescription"))
+    .argument("<files...>", t("versionsArgFiles"))
+    .option("--at <datetime>", t("versionsOptAt"), collect)
+    .option("--every <interval>", t("versionsOptEvery"))
+    .option("--sessions", t("versionsOptSessions"))
+    .option("-p, --gap-threshold <hours>", t("flowOptGap"), String(DEFAULT_FLOW_OPTIONS.gapThresholdHours))
+    .option("-f, --format <list>", t("versionsOptFormat"), "docx")
+    .option("-o, --out-dir <dir>", t("versionsOptOutDir"))
+    .addOption(langOption())
+    .action(async (files: string[], options) => {
+      await runForFiles(TOOL, files, options, (file) => processOne(file, options));
+    });
 
-program.parseAsync(process.argv);
+  if (toolConfig) applyToolConfig(program, toolConfig);
+}

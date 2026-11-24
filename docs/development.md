@@ -36,7 +36,7 @@ grouped by kind and then by platform. `<os>` is `mac` / `win` / `linux` and `<ar
 | Step | Output | When |
 |---|---|---|
 | `lib` | Library and CLIs (JavaScript) → `dist/` | always |
-| `cli` | Single executables `docx-revision-chart` / `-flow` / `-snapshot` / `-versions` / `docx-ai-suspicion-score` → `release/cli/<os>-<arch>/` | if [Bun](https://bun.sh) is installed |
+| `cli` | One CLI `docx-revision-analyzer` → `release/cli/<os>-<arch>/` | if [Bun](https://bun.sh) is installed |
 | `droplet` | macOS droplets `docx-revision-chart.app` / `docx-revision-flow.app` → `release/droplet/mac-<arch>/` | on macOS with Bun |
 | `desktop` | Desktop app for this OS/CPU (unsigned) → `release/desktop/<os>/` (installs `desktop/` dependencies the first time) | always |
 
@@ -44,11 +44,11 @@ grouped by kind and then by platform. `<os>` is `mac` / `win` / `linux` and `<ar
 dist/                         npm package (tsc output)
 release/
 ├── cli/
-│   ├── mac-arm64/            docx-revision-chart, docx-revision-flow, …
+│   ├── mac-arm64/            docx-revision-analyzer
 │   ├── mac-x64/
 │   ├── linux-x64/
 │   ├── linux-arm64/
-│   └── win-x64/              docx-revision-chart.exe, …
+│   └── win-x64/              docx-revision-analyzer.exe
 ├── droplet/
 │   └── mac-arm64/            docx-revision-chart.app, docx-revision-flow.app
 └── desktop/
@@ -62,8 +62,8 @@ Steps whose tools are missing are skipped with the reason. Each step also has it
 |---|---|
 | `npm run build` | every step this machine can do |
 | `npm run build:lib` | only compile the library (what `prepublishOnly` and CI use) |
-| `npm run build:cli` | single executables for this OS/CPU |
-| `npm run build:cli:all-platforms` | single executables for Linux/macOS/Windows × x64/arm64 |
+| `npm run build:cli` | one CLI executable for this OS/CPU |
+| `npm run build:cli:all-platforms` | one CLI for linux-x64, linux-arm64, mac-x64, mac-arm64, win-x64 |
 | `npm run build:droplet` | macOS droplets |
 | `npm run build:desktop` | desktop app for this OS/CPU (unpacked, no installer) |
 | `npm run build:desktop:installers` | desktop app installers (dmg/zip/NSIS; slow) |
@@ -74,33 +74,38 @@ Options (after `--`, for `npm run build` and the scripts above):
 ```bash
 npm run build -- --skip=desktop          # everything except the desktop app
 npm run build -- --only=lib,cli          # only these steps
-npm run build:cli -- --cli=flow,score    # only these CLIs (chart, flow, score, snapshot, versions)
 npm run build -- --all-platforms         # cross-build the executables for every platform
 npm run build -- --installers            # also build the desktop installers
 ```
 
 Requires Node.js 18+ (developed and tested on Node.js 22). After building,
-run `dist/cli/chart.js` / `dist/cli/flow.js` / `dist/cli/score.js` directly with `node` (see
-[Usage](usage.md)). Running `npm link` exposes them globally as `docx-revision-chart` /
-`docx-revision-flow` / `docx-ai-suspicion-score`.
+run `node dist/cli/index.js flow report.docx` directly (see [Usage](usage.md)).
+`npm link` exposes the single public command `docx-revision-analyzer`. No aliases or alias links are provided.
+See [Migration](installation.md#migrating-from-the-separate-commands) for the old command names.
+
+For CLI changes, run `npm run test:cli`. It exercises all five subcommands, help, language selection,
+settings, and argument boundaries. To run the same checks against a compiled executable on this machine:
+
+```bash
+DRA_CLI_BINARY="$PWD/release/cli/mac-arm64/docx-revision-analyzer" npm run test:cli
+```
+
+Replace the path with the executable built for your host OS / CPU.
 
 ## Building single-binary executables with Bun
 
-If [Bun](https://bun.sh) is installed, `docx-revision-chart` can be compiled
+If [Bun](https://bun.sh) is installed, `docx-revision-analyzer` can be compiled
 into a single executable that needs neither Node.js nor `node_modules` to run
 (JSZip, fast-xml-parser, commander, etc. are all bundled into the binary).
-Bun compiles the TypeScript source (`src/cli/chart.ts`) directly, so there's
+Bun compiles the TypeScript source (`src/cli/index.ts`) directly, so there's
 no need to run `npm run build:lib` first.
 
 ```bash
 # Install Bun if you don't have it
 curl -fsSL https://bun.sh/install | bash
 
-# Build every CLI for the current OS/CPU -> release/cli/<os>-<arch>/
+# Build one CLI containing all five subcommands for the current OS/CPU -> release/cli/<os>-<arch>/
 npm run build:cli
-
-# Only some CLIs
-npm run build:cli -- --cli=chart,flow
 
 # Cross-build for the major OS/CPU combinations -> release/cli/{linux,mac,win}-{x64,arm64}/
 npm run build:cli:all-platforms
@@ -110,7 +115,7 @@ The resulting binary can be run and distributed as-is (no Node.js install
 needed):
 
 ```bash
-./release/cli/mac-arm64/docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
+./release/cli/mac-arm64/docx-revision-analyzer chart fixtures/multi-session.docx -p 12 -o out.svg
 ```
 
 > Binaries cross-compiled for other OSes (`--all-platforms`) can't be smoke-tested on
@@ -131,11 +136,11 @@ Only `dist/`, `README.md` / `README.ja.md`, and `LICENSE` are published (the `fi
 ## Attaching single executables to a GitHub Release (maintainers)
 
 ```bash
-npm run build:cli:all-platforms     # every CLI for every platform
+npm run build:cli:all-platforms     # one CLI executable per supported OS/CPU
 npm run build:droplet               # macOS only
 ```
 
-Zip each folder under `release/cli/` (and `release/droplet/`) and attach them to the release.
+Package the single CLI per OS/CPU as `docx-revision-analyzer-<os>-<cpu>.zip`. Archive OS names are `linux` / `macos` / `windows` (build folders use `linux` / `mac` / `win`). Zip the macOS `.app` bundles separately. Attach these to the next release; do not replace published assets.
 
 ## Test fixtures
 
@@ -149,7 +154,7 @@ npm run fixtures
 ```
 
 - `fixtures/chart-demo.docx`: three writing sessions over two days (4.5-hour
-  and 17-hour idle gaps) with one bulk paste and sporadic deletions of a draft (the `docx-revision-chart`
+  and 17-hour idle gaps) with one bulk paste and sporadic deletions of a draft (the `docx-revision-analyzer chart`
   example in [Usage](usage.md))
 - `fixtures/natural-writing.docx`: simulates ~37 minutes of gradual, organic
   typing (score: 0 / low)
@@ -162,16 +167,16 @@ npm run fixtures
   figure, edited in three sessions — typing by hand; pasting three paragraphs
   at once and touching them up; replacing and deleting paragraphs, making small
   fixes and adding a figure; and a fourth session reordering paragraphs by cut +
-  paste (recorded as a move) and by copy + paste + delete (for `docx-revision-flow`; sample output in
+  paste (recorded as a move) and by copy + paste + delete (for `docx-revision-analyzer flow`; sample output in
   `fixtures/flow-demo.svg`)
 - `fixtures/snapshot-demo/sprint{1,2,3}/thesis.docx`: a thesis handed in at three sprints. Before each one, the
   teacher accepted all changes and handed it back; sprint 3 includes text written elsewhere and pasted in, and a
-  paragraph typed with Track Changes off (for checking `docx-revision-snapshot`). The sample outputs
+  paragraph typed with Track Changes off (for checking `docx-revision-analyzer snapshot`). The sample outputs
   `fixtures/snapshot-through.svg` (the chart across all submissions) and `fixtures/tamper-warning.svg` (sprint 3's
   chart, with the tampering warning) are made like this:
 
   ```bash
-  for n in 1 2 3; do node dist/cli/snapshot.js /tmp/archive fixtures/snapshot-demo/sprint$n --lang en; done
+  for n in 1 2 3; do node dist/cli/index.js snapshot /tmp/archive fixtures/snapshot-demo/sprint$n --lang en; done
   # /tmp/archive/thesis/thesis-through-tampered.svg -> fixtures/snapshot-through.svg
   # /tmp/archive/thesis/thesis-s03-tampered.svg     -> fixtures/tamper-warning.svg  (.ja.svg with --lang ja)
   ```
@@ -200,11 +205,12 @@ docx-revision-analyzer/
 │   ├── index.ts           Entry point when importing as a library (Node.js)
 │   ├── core.ts            The core without file system access (for browsers; docx-revision-analyzer/core)
 │   ├── cli/
-│   │   ├── chart.ts       docx-revision-chart CLI
-│   │   ├── flow.ts        docx-revision-flow CLI
-│   │   ├── score.ts       docx-ai-suspicion-score CLI
-│   │   ├── snapshot.ts    docx-revision-snapshot CLI (archiving and charting submissions over time)
-│   │   ├── versions.ts    docx-revision-versions CLI (writing out the document at earlier points in time)
+│   │   ├── index.ts       public CLI entry point (five subcommands)
+│   │   ├── chart.ts       chart subcommand
+│   │   ├── flow.ts        flow subcommand
+│   │   ├── score.ts       score subcommand
+│   │   ├── snapshot.ts    snapshot subcommand (archiving and charting submissions over time)
+│   │   ├── versions.ts    versions subcommand (writing out the document at earlier points in time)
 │   │   ├── config.ts      Settings files (<tool>.yml)
 │   │   └── common.ts      Shared CLI logic (--preserve-history, --lock, --template, multiple files and result output)
 │   ├── lib/

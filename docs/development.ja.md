@@ -36,7 +36,7 @@ pnpm も使えます (`pnpm install`、`pnpm run build`) が、`pnpm-lock.yaml` 
 | 工程 | 作るもの | 条件 |
 |---|---|---|
 | `lib` | ライブラリと CLI (JavaScript) → `dist/` | 常に |
-| `cli` | 単体実行ファイル `docx-revision-chart` / `-flow` / `-snapshot` / `-versions` / `docx-ai-suspicion-score` → `release/cli/<os>-<arch>/` | [Bun](https://bun.sh) があれば |
+| `cli` | 単一 CLI `docx-revision-analyzer` → `release/cli/<os>-<arch>/` | [Bun](https://bun.sh) があれば |
 | `droplet` | macOS のドロップレット `docx-revision-chart.app` / `docx-revision-flow.app` → `release/droplet/mac-<arch>/` | macOS で Bun があれば |
 | `desktop` | この OS / CPU 向けのデスクトップアプリ (署名なし) → `release/desktop/<os>/` (初回は `desktop/` の依存も入れる) | 常に |
 
@@ -44,11 +44,11 @@ pnpm も使えます (`pnpm install`、`pnpm run build`) が、`pnpm-lock.yaml` 
 dist/                         npm パッケージ (tsc の出力)
 release/
 ├── cli/
-│   ├── mac-arm64/            docx-revision-chart, docx-revision-flow, …
+│   ├── mac-arm64/            docx-revision-analyzer
 │   ├── mac-x64/
 │   ├── linux-x64/
 │   ├── linux-arm64/
-│   └── win-x64/              docx-revision-chart.exe, …
+│   └── win-x64/              docx-revision-analyzer.exe
 ├── droplet/
 │   └── mac-arm64/            docx-revision-chart.app, docx-revision-flow.app
 └── desktop/
@@ -63,7 +63,7 @@ release/
 | `npm run build` | この環境で作れる工程をすべて |
 | `npm run build:lib` | ライブラリのコンパイルだけ (`prepublishOnly` と CI はこちら) |
 | `npm run build:cli` | この OS / CPU 向けの単体実行ファイル |
-| `npm run build:cli:all-platforms` | Linux/macOS/Windows × x64/arm64 向けの単体実行ファイル |
+| `npm run build:cli:all-platforms` | linux-x64 / linux-arm64 / mac-x64 / mac-arm64 / win-x64 向けの単体実行ファイル |
 | `npm run build:droplet` | macOS のドロップレット |
 | `npm run build:desktop` | この OS / CPU 向けのデスクトップアプリ (展開済みのアプリのみ。インストーラなし) |
 | `npm run build:desktop:installers` | デスクトップアプリのインストーラ (dmg/zip/NSIS。時間がかかる) |
@@ -74,33 +74,38 @@ release/
 ```bash
 npm run build -- --skip=desktop          # デスクトップアプリ以外
 npm run build -- --only=lib,cli          # 指定した工程だけ
-npm run build:cli -- --cli=flow,score    # 指定した CLI だけ (chart, flow, score, snapshot, versions)
 npm run build -- --all-platforms         # 単体実行ファイルをすべてのプラットフォーム向けにクロスビルド
 npm run build -- --installers            # デスクトップアプリのインストーラも作る
 ```
 
 Node.js 18 以降を想定しています (開発・動作確認は Node.js 22 で実施)。
-ビルド後は `dist/cli/chart.js` / `dist/cli/flow.js` / `dist/cli/score.js` を `node` で直接実行できます
-(使い方は[使い方](usage.ja.md)を参照)。`npm link` するとコマンド名 `docx-revision-chart` /
-`docx-revision-flow` / `docx-ai-suspicion-score` としてどこからでも実行できるようになります。
+ビルド後は `node dist/cli/index.js flow 報告書.docx` のように実行できます。
+`npm link` すると、公開コマンド `docx-revision-analyzer` をどこからでも実行できます。
+別名コマンド・別名リンクは提供しません。旧コマンドからの移行は[インストール](installation.ja.md#旧コマンドからの移行)を参照してください。
+
+CLI の変更時は `npm run test:cli` で、全5サブコマンド、ヘルプ、言語指定、設定、引数の境界を検証できます。
+同じ検証をこのマシン向けのコンパイル済み実行ファイルに対して行う場合:
+
+```bash
+DRA_CLI_BINARY="$PWD/release/cli/mac-arm64/docx-revision-analyzer" npm run test:cli
+```
+
+パスは実行するホストの OS / CPU 向けのバイナリに置き換えてください。
 
 ## Bunでシングルバイナリ化する
 
-[Bun](https://bun.sh) がインストールされていれば、`docx-revision-chart` を
+[Bun](https://bun.sh) がインストールされていれば、`docx-revision-analyzer` を
 Node.js 本体すら不要な単一の実行ファイルにまとめられます (JSZip / fast-xml-parser /
 commander などの依存パッケージもすべてバイナリに埋め込まれます)。TypeScript の
-ソース (`src/cli/chart.ts`) を直接コンパイルするため、事前に `npm run build:lib` する
+ソース (`src/cli/index.ts`) を直接コンパイルするため、事前に `npm run build:lib` する
 必要はありません。
 
 ```bash
 # Bun のインストール (未導入の場合)
 curl -fsSL https://bun.sh/install | bash
 
-# 実行中のOS/CPU向けにすべての CLI をビルド → release/cli/<os>-<arch>/
+# 実行中の OS / CPU 向けに全5サブコマンド入りの CLI を1つビルド → release/cli/<os>-<arch>/
 npm run build:cli
-
-# 一部の CLI だけ
-npm run build:cli -- --cli=chart,flow
 
 # 主要なOS/CPU向けに一括クロスビルド → release/cli/{linux,mac,win}-{x64,arm64}/
 npm run build:cli:all-platforms
@@ -109,7 +114,7 @@ npm run build:cli:all-platforms
 生成された実行ファイルはそのまま配布・実行できます (Node.jsのインストール不要):
 
 ```bash
-./release/cli/mac-arm64/docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
+./release/cli/mac-arm64/docx-revision-analyzer chart fixtures/multi-session.docx -p 12 -o out.svg
 ```
 
 > クロスコンパイル (`--all-platforms`) で生成した他OS向けの実行ファイルは、ビルドを実行した
@@ -129,11 +134,11 @@ npm publish
 ## GitHub Releases への単体バイナリの添付 (メンテナー向け)
 
 ```bash
-npm run build:cli:all-platforms     # すべての CLI をすべてのプラットフォーム向けに
+npm run build:cli:all-platforms     # 対応する OS / CPU ごとに単一 CLI を生成
 npm run build:droplet               # macOS 上でのみ
 ```
 
-`release/cli/` (と `release/droplet/`) の下のフォルダごとに zip にして、リリースに添付します。
+CLI は OS / CPU ごとに1つのバイナリを `docx-revision-analyzer-<os>-<cpu>.zip` にまとめます。配布名の `<os>` は `linux` / `macos` / `windows` (ビルド先フォルダ名では `linux` / `mac` / `win`) です。macOS の `.app` は別途 zip にします。既存の公開済み配布物は差し替えず、次のリリースに添付してください。
 
 ## テスト用フィクスチャ
 
@@ -146,7 +151,7 @@ npm run fixtures
 ```
 
 - `fixtures/chart-demo.docx`: 2日にわたる3回の執筆 (間に4.5時間・17時間の無編集期間) で、1回まとめて
-  貼り付け、下書きを散発的に削除したことを想定 ([使い方](usage.ja.md)の `docx-revision-chart` の図の例)
+  貼り付け、下書きを散発的に削除したことを想定 ([使い方](usage.ja.md)の `docx-revision-analyzer chart` の図の例)
 - `fixtures/natural-writing.docx`: 約37分かけて少しずつタイプしたことを想定
   (スコア: 0 / low)
 - `fixtures/suspicious-paste.docx`: 最初に少しタイプした直後、295文字を1秒で
@@ -156,14 +161,14 @@ npm run fixtures
 - `fixtures/flow-demo.docx`: 見出し・図を含む複数段落の文書を、3つの時間区間で
   「手で入力」「3段落の一括貼り付けと手直し」「段落の置き換え・削除と細かい修正・図の追加」と編集し、
   4つ目の区間で「カット＋貼り付け (移動として記録)」「コピー＋貼り付け＋削除」による並べ替えを行ったことを想定
-  (`docx-revision-flow` の動作確認用。出力例は `fixtures/flow-demo.svg`)
+  (`docx-revision-analyzer flow` の動作確認用。出力例は `fixtures/flow-demo.svg`)
 - `fixtures/snapshot-demo/sprint{1,2,3}/thesis.docx`: 卒論を3回の区切りで提出したことを想定。各回の前に教員がすべての変更を
-  承諾して返し、第3回には外部で作った文章の貼り付けと、記録をオフにして入力した段落がある (`docx-revision-snapshot` の
+  承諾して返し、第3回には外部で作った文章の貼り付けと、記録をオフにして入力した段落がある (`docx-revision-analyzer snapshot` の
   動作確認用)。出力例の `fixtures/snapshot-through.svg` (すべての回を通したチャート) と `fixtures/tamper-warning.svg`
   (第3回のチャート。改ざんの痕跡の警告付き) は、次のように作ります
 
   ```bash
-  for n in 1 2 3; do node dist/cli/snapshot.js /tmp/archive fixtures/snapshot-demo/sprint$n --lang en; done
+  for n in 1 2 3; do node dist/cli/index.js snapshot /tmp/archive fixtures/snapshot-demo/sprint$n --lang en; done
   # /tmp/archive/thesis/thesis-through-tampered.svg → fixtures/snapshot-through.svg
   # /tmp/archive/thesis/thesis-s03-tampered.svg     → fixtures/tamper-warning.svg  (--lang ja で .ja.svg)
   ```
@@ -191,11 +196,12 @@ docx-revision-analyzer/
 │   ├── index.ts           ライブラリとして import する場合のエントリポイント (Node.js 用)
 │   ├── core.ts            ファイルシステムを使わないコア (ブラウザ用。docx-revision-analyzer/core)
 │   ├── cli/
-│   │   ├── chart.ts       docx-revision-chart CLI本体
-│   │   ├── flow.ts        docx-revision-flow CLI本体
-│   │   ├── score.ts       docx-ai-suspicion-score CLI本体
-│   │   ├── snapshot.ts    docx-revision-snapshot CLI本体 (区切りごとの提出の保管と通し解析)
-│   │   ├── versions.ts    docx-revision-versions CLI本体 (過去の時点の文書の書き出し)
+│   │   ├── index.ts       共通 CLI 入口 (5サブコマンド)
+│   │   ├── chart.ts       chart サブコマンド本体
+│   │   ├── flow.ts        flow サブコマンド本体
+│   │   ├── score.ts       score サブコマンド本体
+│   │   ├── snapshot.ts    snapshot サブコマンド本体 (区切りごとの提出の保管と通し解析)
+│   │   ├── versions.ts    versions サブコマンド本体 (過去の時点の文書の書き出し)
 │   │   ├── config.ts      設定ファイル (<ツール名>.yml) の読み込み
 │   │   └── common.ts      CLI共通処理 (--preserve-history・--lock・--template の処理、複数ファイルの処理と結果表示)
 │   ├── lib/

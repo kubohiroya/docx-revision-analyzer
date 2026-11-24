@@ -3,7 +3,7 @@
 // 成果物は種類ごとに次の場所にまとまる (dist/ は npm パッケージ、配布物はすべて release/ の下):
 //
 //   dist/                       lib      ライブラリと CLI (TypeScript → JavaScript。npm パッケージの中身)
-//   release/cli/<os>-<arch>/    cli      単体実行ファイル docx-revision-chart など (Bun)
+//   release/cli/<os>-<arch>/    cli      One docx-revision-analyzer CLI executable (Bun)
 //   release/droplet/mac-<arch>/ droplet  macOS のドロップレット docx-revision-chart.app / -flow.app (macOS のみ)
 //   release/desktop/<os>/       desktop  デスクトップアプリ (Electron。インストーラと展開済みのアプリ)
 //
@@ -13,7 +13,6 @@
 // オプション (npm run build -- --skip=desktop のように指定する):
 //   --only=lib,cli           指定した工程だけを行う
 //   --skip=desktop,droplet   指定した工程を飛ばす
-//   --cli=chart,flow         単体実行ファイルを作る CLI を絞る (既定はすべて)
 //   --all-platforms          単体実行ファイルを主要な OS / CPU 向けにまとめてクロスビルドする
 //   --installers             デスクトップアプリのインストーラ (dmg / zip / NSIS) も作る (時間がかかる)
 import { spawnSync } from "node:child_process";
@@ -23,14 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const STEPS = ["lib", "cli", "droplet", "desktop"];
-// [CLI 名, 実行ファイル名]
-const CLIS = [
-  ["chart", "docx-revision-chart"],
-  ["flow", "docx-revision-flow"],
-  ["score", "docx-ai-suspicion-score"],
-  ["snapshot", "docx-revision-snapshot"],
-  ["versions", "docx-revision-versions"],
-];
+const CLI_NAME = "docx-revision-analyzer";
 const DROPLET_CLIS = ["chart", "flow"];
 // [フォルダ名 (<os>-<arch>), Bun のターゲット]
 const PLATFORMS = [
@@ -50,7 +42,6 @@ const listArg = (name) =>
     .filter(Boolean);
 const only = listArg("only");
 const skip = new Set(listArg("skip"));
-const cliFilter = listArg("cli");
 const allPlatforms = args.includes("--all-platforms");
 const installers = args.includes("--installers");
 for (const s of [...only, ...skip]) {
@@ -59,11 +50,9 @@ for (const s of [...only, ...skip]) {
     process.exit(2);
   }
 }
-for (const c of cliFilter) {
-  if (!CLIS.some(([cli]) => cli === c)) {
-    console.error(`unknown CLI "${c}" (CLIs: ${CLIS.map(([cli]) => cli).join(", ")})`);
-    process.exit(2);
-  }
+if (args.some((arg) => arg === "--cli" || arg.startsWith("--cli="))) {
+  console.error("--cli has been removed: the single executable includes every subcommand.");
+  process.exit(2);
 }
 const wanted = (step) => (only.length ? only.includes(step) : !skip.has(step));
 
@@ -103,12 +92,14 @@ function step(name, title, fn) {
 }
 
 /** Bun で CLI を単体実行ファイルにする。target が無ければこの OS / CPU 向け */
-function compileCli(cli, name, platform, target) {
+function compileCli(platform, target) {
   const dir = path.join(release, "cli", platform);
+  // Remove obsolete per-tool binaries from this generated output directory.
+  fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
-  const out = path.join(dir, exe(platform.split("-")[0], name));
+  const out = path.join(dir, exe(platform.split("-")[0], CLI_NAME));
   // Bun はコンパイル中の一時ファイル (.<hash>.bun-build) を作業フォルダに作るため、出力先で実行して後で消す
-  run("bun", ["build", path.join(root, "src", "cli", `${cli}.ts`), "--compile", ...(target ? [`--target=${target}`] : []), "--outfile", out], {
+  run("bun", ["build", path.join(root, "src", "cli", "index.ts"), "--compile", ...(target ? [`--target=${target}`] : []), "--outfile", out], {
     cwd: dir,
   });
   for (const f of fs.readdirSync(dir)) if (f.endsWith(".bun-build")) fs.rmSync(path.join(dir, f), { force: true });
@@ -119,21 +110,19 @@ function compileCli(cli, name, platform, target) {
 step("lib", "Library and CLIs (TypeScript → dist/)", () => {
   fs.rmSync(path.join(root, "dist"), { recursive: true, force: true });
   run(process.execPath, [path.join(root, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"]);
-  return ["dist/index.js", "dist/core.js", "dist/cli/{chart,flow,score,snapshot,versions}.js"];
+  return ["dist/index.js", "dist/core.js", "dist/cli/index.js"];
 });
 
 // 2. 単体実行ファイル
-const builtHostCli = new Set();
-step("cli", `Single executables (Bun → release/cli/${allPlatforms ? "<os>-<arch>" : hostPlatform}/)`, () => {
+let hostCli;
+step("cli", `Single CLI executable (Bun → release/cli/${allPlatforms ? "<os>-<arch>" : hostPlatform}/)`, () => {
   if (!has("bun")) return "Bun isn't installed (https://bun.sh: curl -fsSL https://bun.sh/install | bash)";
   const targets = allPlatforms ? PLATFORMS : [[hostPlatform, undefined]];
   const made = [];
   for (const [platform, target] of targets) {
-    for (const [cli, name] of CLIS) {
-      if (cliFilter.length && !cliFilter.includes(cli)) continue;
-      made.push(rel(compileCli(cli, name, platform, target)));
-      if (platform === hostPlatform) builtHostCli.add(cli);
-    }
+    const binary = compileCli(platform, target);
+    made.push(rel(binary));
+    if (platform === hostPlatform) hostCli = binary;
   }
   return made;
 });
@@ -145,9 +134,10 @@ step("droplet", `macOS droplets (release/droplet/${hostPlatform}/*.app)`, () => 
   if (!has("osacompile")) return "osacompile isn't available";
   const outDir = path.join(release, "droplet", hostPlatform);
   const made = [];
+  hostCli ??= compileCli(hostPlatform);
   for (const cli of DROPLET_CLIS) {
-    const name = CLIS.find(([c]) => c === cli)[1];
-    const bin = builtHostCli.has(cli) ? path.join(release, "cli", hostPlatform, name) : compileCli(cli, name, hostPlatform);
+    const name = `docx-revision-${cli}`;
+    const bin = hostCli;
     run("bash", [path.join(root, "scripts", "make-mac-droplet.sh"), cli, bin, outDir]);
     made.push(rel(path.join(outDir, `${name}.app`)));
   }

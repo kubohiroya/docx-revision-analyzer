@@ -74,7 +74,7 @@ the setting that removes authors and dates on save if it is set.
   original is kept as `<name>.backup-<date>.docx`). No figure is drawn.
 
   ```bash
-  docx-revision-chart --lock template.docx
+  docx-revision-analyzer chart --lock template.docx
   ```
 
   Where there is no terminal (such as when launched by drag and drop), pass the password in the
@@ -152,7 +152,7 @@ it, then accept all the changes and hand it back. Rewriting accepted text is rec
 revision across sprints is kept; only rewrites within a single sprint are lost.
 
 1. The student hands the document in at the end of the sprint.
-2. The teacher archives it with [`docx-revision-snapshot`](usage.md#4-docx-revision-snapshot--archive-and-chart-submissions-over-time),
+2. The teacher archives it with [`docx-revision-analyzer snapshot`](usage.md#4-docx-revision-analyzer-snapshot--archive-and-chart-submissions-over-time),
    which numbers it, checks it against the previous submission, and draws each submission's figures and a chart
    across all of them.
 3. The teacher opens the same file in Word, unlocks it, clicks "Accept All Changes", locks it again and saves.
@@ -176,8 +176,8 @@ You can analyze a whole folder of submissions at once. Pass the template you han
 check each file against it for [traces of tampering](usage.md#detecting-traces-of-tampering).
 
 ```bash
-docx-revision-chart submissions/ --template template.docx
-docx-revision-flow submissions/ --template template.docx
+docx-revision-analyzer chart submissions/ --template template.docx
+docx-revision-analyzer flow submissions/ --template template.docx
 ```
 
 - A chart (`<name>.svg`) and a flow (`<name>-flow.svg`) are written next to each submission. Figures of submissions
@@ -186,7 +186,7 @@ docx-revision-flow submissions/ --template template.docx
   to the SharePoint folder where a Teams assignment's submissions are collected. It also writes an index
   (`summary.csv`, `index.html`).
 - If writers hand in at each sprint, archive the submissions with
-  [`docx-revision-snapshot`](usage.md#4-docx-revision-snapshot--archive-and-chart-submissions-over-time).
+  [`docx-revision-analyzer snapshot`](usage.md#4-docx-revision-analyzer-snapshot--archive-and-chart-submissions-over-time).
 
 **Traces and bulk-insertion highlights are not proof of misconduct.** Saving with an app other than Word is enough to
 leave traces, and a writer's own text drafted in another app and pasted in looks like a bulk insertion. Use the

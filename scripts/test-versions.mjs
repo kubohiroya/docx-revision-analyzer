@@ -1,6 +1,6 @@
 // 指定時刻の版の復元 (src/lib/versions.ts, src/cli/versions.ts) のテスト。
 //
-// 変更の種類ごとに日時をずらした文書を JSZip で作り、docx-revision-versions を実際に動かして、各時刻の版の本文・
+// 変更の種類ごとに日時をずらした文書を JSZip で作り、docx-revision-analyzer versions を実際に動かして、各時刻の版の本文・
 // 書式・出力ファイル・versions.json を確かめる。
 //
 //   T1 (10:00) 語句の挿入
@@ -28,7 +28,7 @@ const { XMLValidator } = require("fast-xml-parser");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dra-versions-"));
 const cli = path.join(tmp, "versions.cjs");
 await esbuild.build({
-  entryPoints: [path.join(root, "src/cli/versions.ts")],
+  entryPoints: [path.join(root, "src/cli/index.ts")],
   bundle: true,
   platform: "node",
   format: "cjs",
@@ -126,7 +126,7 @@ function versions(...args) {
 }
 /** 失敗を確かめるとき用 (エラーを表示しない) */
 function versionsQuiet(...args) {
-  return spawnSync(process.execPath, [cli, input, ...args, "--lang", "en"], { encoding: "utf-8" });
+  return spawnSync(process.execPath, [cli, "versions", input, ...args, "--lang", "en"], { encoding: "utf-8" });
 }
 const readJson = (dir) => JSON.parse(fs.readFileSync(path.join(dir, "essay.versions.json"), "utf-8"));
 const lines = (dir, file) => fs.readFileSync(path.join(dir, file), "utf-8").trimEnd().split("\n");

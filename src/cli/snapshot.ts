@@ -1,15 +1,11 @@
-#!/usr/bin/env node
 /**
- * docx-revision-snapshot: 区切りごとに提出された文書を通し番号付きで保管し、通し解析する。
+ * Archive successive submissions and chart revisions across all of them.
  *
- *   docx-revision-snapshot <保管先> [提出物のファイル・フォルダ...]
+ *   docx-revision-analyzer snapshot <archive> [files-or-folders...]
  *
- * 提出物を渡すと、文書ごとに次の番号で保管し (直前の回と同じ内容なら保管しない)、その文書について
- *  - 各回のチャートとフロー (<名前>-s01.svg, <名前>-s01-flow.svg)
- *  - 通し解析のチャート (<名前>-through.svg。1回の提出を1つのパネルにして並べる)
- * を作り直す。各回は前回の提出物と照合して改ざんの痕跡を調べる (第1回は --template があればそれと)。
- * 最後に、保管先の直下に一覧 (index.html と summary.csv) を作る。提出物を渡さなければ、保管済みのすべての文書について
- * 作り直すだけを行う。
+ * Identical submissions are not archived twice. Each document gets per-submission
+ * charts/flows and a combined chart; the archive also contains index.html and summary.csv.
+ * Without inputs, redraw figures for all documents already in the archive.
  */
 import { Command } from "commander";
 import * as fs from "fs";
@@ -49,10 +45,6 @@ import { getLang, initLangFromArgv, t } from "../lib/i18n";
 import { applyToolConfig, loadToolConfig, loadToolConfigOrExit } from "./config";
 
 const TOOL = "docx-revision-snapshot";
-
-const loadedConfig = loadToolConfig(TOOL);
-initLangFromArgv(process.argv, loadedConfig.config?.values.lang);
-const toolConfig = loadToolConfigOrExit(TOOL, loadedConfig);
 
 /** 入力の .docx と、そのフォルダからの相対パス */
 interface InputFile {
@@ -305,75 +297,76 @@ ${sections}
   fs.writeFileSync(path.join(archive, "index.html"), html, "utf-8");
 }
 
-const program = new Command();
+export function configureSnapshotCommand(program: Command, argv: string[]): void {
+  const loadedConfig = loadToolConfig(TOOL);
+  initLangFromArgv(argv, loadedConfig.config?.values.lang);
+  const toolConfig = loadToolConfigOrExit(TOOL, loadedConfig);
 
-program
-  .name(TOOL)
-  .description(t("snapDescription"))
-  .argument("<archive>", t("snapArgArchive"))
-  .argument("[inputs...]", t("snapArgInputs"))
-  .option("--template <file.docx>", t("snapOptTemplate"))
-  .option("--key-depth <n>", t("snapOptKeyDepth"))
-  .option("-p, --gap-threshold <hours>", t("flowOptGap"), String(DEFAULT_FLOW_OPTIONS.gapThresholdHours))
-  .option("--bulk-chars <n>", t("optBulkChars"), String(DEFAULT_BULK_CHARS))
-  .option("--rules <file>", t("optRules"))
-  .option("--no-tamper-check", t("optNoTamperCheck"))
-  .addOption(langOption())
-  .action(async (archiveArg: string, inputs: string[], options) => {
-    try {
-      const archive = path.resolve(archiveArg);
-      fs.mkdirSync(archive, { recursive: true });
-      const depth = options.keyDepth !== undefined ? parseInt(options.keyDepth, 10) : undefined;
-      if (depth !== undefined && !(depth > 0)) throw new Error(t("errPositive", "--key-depth"));
-      if (options.template && !fs.existsSync(path.resolve(options.template))) {
-        throw new Error(t("errTemplateNotFound", path.resolve(options.template)));
-      }
-
-      // 1. 保管
-      const touched = new Set<string>();
-      for (const input of expandSnapshotInputs(inputs)) {
-        const key = snapshotKey(input.relative, depth);
-        const r = await addSnapshot(archive, key, input.file);
-        console.error(
-          r.added
-            ? t("snapAdded", key, r.entry.n, path.join(r.dir, r.entry.file))
-            : t("snapUnchanged", key, r.entry.n)
-        );
-        touched.add(key);
-      }
-      if (inputs.length > 0 && touched.size === 0) throw new Error(t("errNoDocxFound"));
-
-      // 2. 図 (提出物を渡さなければ、保管済みのすべての文書)
-      const keys = inputs.length ? [...touched] : listSnapshotKeys(archive);
-      if (keys.length === 0) throw new Error(t("snapNoSnapshots", archive));
-      let failed = false;
-      for (const key of keys) {
-        try {
-          const r = await processKey(archive, key, options);
-          const warn = r.snapshots.some((s) => s.evidence.length > 0);
-          if (warn) console.error(t("warning", t("snapEvidenceFound", key)));
-          if (r.through) console.log(path.join(keyDir(archive, key), r.through));
-        } catch (err) {
-          failed = true;
-          console.error(t("errorFor", key, err instanceof Error ? err.message : String(err)));
+  program
+    .description(t("snapDescription"))
+    .argument("<archive>", t("snapArgArchive"))
+    .argument("[inputs...]", t("snapArgInputs"))
+    .option("--template <file.docx>", t("snapOptTemplate"))
+    .option("--key-depth <n>", t("snapOptKeyDepth"))
+    .option("-p, --gap-threshold <hours>", t("flowOptGap"), String(DEFAULT_FLOW_OPTIONS.gapThresholdHours))
+    .option("--bulk-chars <n>", t("optBulkChars"), String(DEFAULT_BULK_CHARS))
+    .option("--rules <file>", t("optRules"))
+    .option("--no-tamper-check", t("optNoTamperCheck"))
+    .addOption(langOption())
+    .action(async (archiveArg: string, inputs: string[], options) => {
+      try {
+        const archive = path.resolve(archiveArg);
+        fs.mkdirSync(archive, { recursive: true });
+        const depth = options.keyDepth !== undefined ? parseInt(options.keyDepth, 10) : undefined;
+        if (depth !== undefined && !(depth > 0)) throw new Error(t("errPositive", "--key-depth"));
+        if (options.template && !fs.existsSync(path.resolve(options.template))) {
+          throw new Error(t("errTemplateNotFound", path.resolve(options.template)));
         }
+
+        // 1. 保管
+        const touched = new Set<string>();
+        for (const input of expandSnapshotInputs(inputs)) {
+          const key = snapshotKey(input.relative, depth);
+          const r = await addSnapshot(archive, key, input.file);
+          console.error(
+            r.added
+              ? t("snapAdded", key, r.entry.n, path.join(r.dir, r.entry.file))
+              : t("snapUnchanged", key, r.entry.n)
+          );
+          touched.add(key);
+        }
+        if (inputs.length > 0 && touched.size === 0) throw new Error(t("errNoDocxFound"));
+
+        // 2. 図 (提出物を渡さなければ、保管済みのすべての文書)
+        const keys = inputs.length ? [...touched] : listSnapshotKeys(archive);
+        if (keys.length === 0) throw new Error(t("snapNoSnapshots", archive));
+        let failed = false;
+        for (const key of keys) {
+          try {
+            const r = await processKey(archive, key, options);
+            const warn = r.snapshots.some((s) => s.evidence.length > 0);
+            if (warn) console.error(t("warning", t("snapEvidenceFound", key)));
+            if (r.through) console.log(path.join(keyDir(archive, key), r.through));
+          } catch (err) {
+            failed = true;
+            console.error(t("errorFor", key, err instanceof Error ? err.message : String(err)));
+          }
+        }
+
+        // 3. 一覧 (保管済みのすべての文書。作り直さなかった文書は前回の report.json を使う)
+        const reports: KeyReport[] = [];
+        for (const key of listSnapshotKeys(archive)) {
+          const f = path.join(keyDir(archive, key), "report.json");
+          if (fs.existsSync(f)) reports.push(JSON.parse(fs.readFileSync(f, "utf-8")) as KeyReport);
+        }
+        writeIndex(archive, reports);
+        console.error(t("snapIndexWritten", path.join(archive, "index.html")));
+        if (failed) process.exit(1);
+      } catch (err) {
+        console.error(t("errorFor", TOOL, err instanceof Error ? err.message : String(err)));
+        process.exit(1);
       }
+    });
 
-      // 3. 一覧 (保管済みのすべての文書。作り直さなかった文書は前回の report.json を使う)
-      const reports: KeyReport[] = [];
-      for (const key of listSnapshotKeys(archive)) {
-        const f = path.join(keyDir(archive, key), "report.json");
-        if (fs.existsSync(f)) reports.push(JSON.parse(fs.readFileSync(f, "utf-8")) as KeyReport);
-      }
-      writeIndex(archive, reports);
-      console.error(t("snapIndexWritten", path.join(archive, "index.html")));
-      if (failed) process.exit(1);
-    } catch (err) {
-      console.error(t("errorFor", TOOL, err instanceof Error ? err.message : String(err)));
-      process.exit(1);
-    }
-  });
-
-if (toolConfig) applyToolConfig(program, toolConfig);
-
-program.parseAsync(process.argv);
+  if (toolConfig) applyToolConfig(program, toolConfig);
+}
