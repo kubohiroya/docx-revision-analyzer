@@ -4,7 +4,7 @@
 
 npm パッケージ・単体実行ファイル・ドラッグ&ドロップ版の入手と準備の方法です。ソースからのビルドは[開発者向けガイド](development.ja.md)を参照してください。
 
-このページは次の CLI リリースに向けた統合版の説明です。公開済み **v1.2.0** の npm パッケージと配布物は個別コマンド方式です。統合版を今試す場合は、[開発ガイド](development.ja.md)の手順でソースからビルドしてください。
+統合 CLI **v2.0.0** は [GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0) の単体バイナリを使ってください。npm 版の公開は別途行います。ソースからのビルドは[開発ガイド](development.ja.md)を参照してください。
 
 **目次**
 
@@ -17,29 +17,27 @@ npm パッケージ・単体実行ファイル・ドラッグ&ドロップ版の
 
 ## npm から (Node.js 18 以降)
 
-```bash
-npm install -g docx-revision-analyzer
-```
-
-`docx-revision-analyzer` という1つのコマンドに、`chart` / `flow` / `score` / `snapshot` / `versions` の5サブコマンドが入ります。別名コマンドや別名リンクは作成しません。
+npm の公開済み v1.2.0 は旧コマンド方式です。このリリースの npm 公開は別途行うため、統合 CLI は下の単体バイナリを使ってください。
 
 ```bash
-docx-revision-analyzer --help
-docx-revision-analyzer flow 報告書.docx
-docx-revision-analyzer help versions
+npm install -g docx-revision-analyzer@1.2.0
 ```
+
+この旧版では `docx-revision-chart` などの個別コマンドを使います。v2.0.0 に移る場合は[移行表](#旧コマンドからの移行)を参照してください。
 
 ## 単体バイナリ (Node.js 不要)
 
-次のリリースからは、[GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases) で OS / CPU に合う `docx-revision-analyzer-<os>-<cpu>.zip` を **1つ**選び、展開します。
+[CLI v2.0.0](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0) で OS / CPU に合う `docx-revision-analyzer-<os>-<cpu>.zip` を **1つ**選び、展開します。
 
 | 環境 | 選ぶファイル | 中の実行ファイル |
 |---|---|---|
 | Linux x64 / ARM64 | `docx-revision-analyzer-linux-x64.zip` / `-linux-arm64.zip` | `docx-revision-analyzer` |
 | Mac Intel / Apple Silicon | `docx-revision-analyzer-macos-x64.zip` / `-macos-arm64.zip` | `docx-revision-analyzer` |
-| Windows x64 | `docx-revision-analyzer-windows-x64.zip` | `docx-revision-analyzer.exe` |
+| Windows x64 / ARM64 | `docx-revision-analyzer-windows-x64.zip` / `-windows-arm64.zip` | `docx-revision-analyzer.exe` |
 
-どの実行ファイルにも5つのサブコマンドが含まれます。macOS / Linux で必要な場合は `chmod +x docx-revision-analyzer` を実行し、`./docx-revision-analyzer flow 報告書.docx` のように使います。Windows の例は後述します。
+各 ZIP は全5サブコマンド入りの実行ファイル1つと LICENSE を含みます。macOS / Linux で必要な場合は `chmod +x docx-revision-analyzer` を実行し、`./docx-revision-analyzer flow 報告書.docx` のように使います。Windows の例は後述します。
+
+[SHA256SUMS.txt](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/SHA256SUMS.txt) の対応する行と、ダウンロードした ZIP の SHA-256 を照合できます。配布物は Developer ID / Authenticode による署名・公証をしていないため、OS が初回実行時に警告する場合があります。
 
 macOS のドロップレットは `docx-revision-chart.app` / `docx-revision-flow.app` の名前を維持し、それぞれ共通 CLI に `chart` / `flow` を渡します。各 `.app` だけで動作します。ad-hoc 署名のみのため、初回は Finder で右クリック →「開く」を選んでください。
 
@@ -95,7 +93,7 @@ AppleScriptアプリを生成することでこれを解決しています。
 
 ## Windows での実行
 
-Windows 上では `npm run build:cli`、クロスビルドでは `npm run build:cli:all-platforms` を使います。Windows x64 向けの出力は `release/cli/win-x64/docx-revision-analyzer.exe` です。
+Windows 上では `npm run build:cli`、クロスビルドでは `npm run build:cli:all-platforms` を使います。Windows 向けの出力は `release/cli/win-<arch>/docx-revision-analyzer.exe` (`x64` / `arm64`) です。
 
 ```powershell
 .\docx-revision-analyzer.exe --help

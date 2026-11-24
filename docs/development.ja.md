@@ -48,7 +48,8 @@ release/
 │   ├── mac-x64/
 │   ├── linux-x64/
 │   ├── linux-arm64/
-│   └── win-x64/              docx-revision-analyzer.exe
+│   ├── win-x64/              docx-revision-analyzer.exe
+│   └── win-arm64/            docx-revision-analyzer.exe
 ├── droplet/
 │   └── mac-arm64/            docx-revision-chart.app, docx-revision-flow.app
 └── desktop/
@@ -63,7 +64,7 @@ release/
 | `npm run build` | この環境で作れる工程をすべて |
 | `npm run build:lib` | ライブラリのコンパイルだけ (`prepublishOnly` と CI はこちら) |
 | `npm run build:cli` | この OS / CPU 向けの単体実行ファイル |
-| `npm run build:cli:all-platforms` | linux-x64 / linux-arm64 / mac-x64 / mac-arm64 / win-x64 向けの単体実行ファイル |
+| `npm run build:cli:all-platforms` | linux-x64 / linux-arm64 / mac-x64 / mac-arm64 / win-x64 / win-arm64 向けの単体実行ファイル |
 | `npm run build:droplet` | macOS のドロップレット |
 | `npm run build:desktop` | この OS / CPU 向けのデスクトップアプリ (展開済みのアプリのみ。インストーラなし) |
 | `npm run build:desktop:installers` | デスクトップアプリのインストーラ (dmg/zip/NSIS。時間がかかる) |
@@ -139,6 +140,17 @@ npm run build:droplet               # macOS 上でのみ
 ```
 
 CLI は OS / CPU ごとに1つのバイナリを `docx-revision-analyzer-<os>-<cpu>.zip` にまとめます。配布名の `<os>` は `linux` / `macos` / `windows` (ビルド先フォルダ名では `linux` / `mac` / `win`) です。macOS の `.app` は別途 zip にします。既存の公開済み配布物は差し替えず、次のリリースに添付してください。
+
+### CLI リリースの自動化
+
+`CLI release` ワークフローは Linux / macOS / Windows × x64 / ARM64 の6環境で検証します。`package.json` と一致する `vX.Y.Z` タグで、全ルートテスト・各コンパイル済み CLI の実行・ZIP のアーキテクチャとチェックサム・デスクトップモジュールを確認し、リリースの**下書き**を作ります。Node.js 22 と Bun 1.4.2 を使用します。ワークフローと梱包スクリプトを変更する PR でも、ネイティブビルドと梱包を検証します。
+
+1. バージョン、`docs/releases/vX.Y.Z.md` のリリースノート、ダウンロードリンクを PR で更新します。
+2. CI 成功後にマージし、そのマージコミットへタグを付けて push します。
+3. 全ジョブの成功後、下書きの CLI ZIP 6件・Apple Silicon 用ドロップレット2件・SHA256SUMS.txt を確認し、承認済みリリースを Latest として公開します。
+4. 公開リンクを確認します。npm 公開は別途行います。
+
+`node scripts/package-cli.mjs` でホスト向け CLI を梱包します。mac-arm64 でドロップレットも作った場合は `--include-droplets` を付けます。`node scripts/verify-cli-release.mjs release/assets --complete` で全アセットを検証し、SHA256SUMS.txt を生成します。CLI の各 ZIP は実行ファイル1つと LICENSE を含みます。
 
 ## テスト用フィクスチャ
 

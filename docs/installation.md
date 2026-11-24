@@ -4,7 +4,7 @@ English | [日本語](./installation.ja.md) · [Back to the README](../README.md
 
 How to get and set up the npm package, the standalone CLI and the drag-and-drop apps. To build from source, see the [developer guide](development.md).
 
-This page describes the unified CLI for the next CLI release. The published **v1.2.0** npm package and release assets still use separate commands; build from source using the [developer guide](development.md) to try the unified CLI now.
+Get the unified CLI **v2.0.0** as a standalone executable from [GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0). npm publication is separate. For source builds, see the [developer guide](development.md).
 
 **Contents**
 
@@ -17,29 +17,27 @@ This page describes the unified CLI for the next CLI release. The published **v1
 
 ## From npm (Node.js 18+)
 
-```bash
-npm install -g docx-revision-analyzer
-```
-
-This installs one command, `docx-revision-analyzer`, with five subcommands: `chart`, `flow`, `score`, `snapshot`, and `versions`. No aliases or alias links are installed.
+The published npm v1.2.0 uses the separate commands. npm publication of this release is separate; use the standalone binaries below for the unified CLI.
 
 ```bash
-docx-revision-analyzer --help
-docx-revision-analyzer flow report.docx
-docx-revision-analyzer help versions
+npm install -g docx-revision-analyzer@1.2.0
 ```
+
+That legacy package provides commands such as `docx-revision-chart`. See the [migration table](#migrating-from-the-separate-commands) when moving to v2.0.0.
 
 ## Standalone CLI (no Node.js needed)
 
-For the next release, download **one** `docx-revision-analyzer-<os>-<cpu>.zip` for your OS / CPU from [GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases), then unzip it:
+Download **one** `docx-revision-analyzer-<os>-<cpu>.zip` for your OS / CPU from [CLI v2.0.0](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0), then unzip it:
 
 | Platform | File to choose | Executable inside |
 |---|---|---|
 | Linux x64 / ARM64 | `docx-revision-analyzer-linux-x64.zip` / `-linux-arm64.zip` | `docx-revision-analyzer` |
 | Mac Intel / Apple Silicon | `docx-revision-analyzer-macos-x64.zip` / `-macos-arm64.zip` | `docx-revision-analyzer` |
-| Windows x64 | `docx-revision-analyzer-windows-x64.zip` | `docx-revision-analyzer.exe` |
+| Windows x64 / ARM64 | `docx-revision-analyzer-windows-x64.zip` / `-windows-arm64.zip` | `docx-revision-analyzer.exe` |
 
-Every executable contains all five subcommands. On macOS/Linux, use `chmod +x docx-revision-analyzer` if needed, then run `./docx-revision-analyzer flow report.docx`. Windows examples are below.
+Each ZIP contains one executable with all five subcommands, plus LICENSE. On macOS/Linux, use `chmod +x docx-revision-analyzer` if needed, then run `./docx-revision-analyzer flow report.docx`. Windows examples are below.
+
+Compare the ZIP's SHA-256 with its line in [SHA256SUMS.txt](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/SHA256SUMS.txt). These builds are not Developer ID / Authenticode signed or notarized, so your OS may warn on first launch.
 
 The separate macOS droplets keep their names, `docx-revision-chart.app` and `docx-revision-flow.app`. They call the shared CLI with `chart` or `flow` and remain self-contained. They are ad-hoc signed; on first launch, right-click the app in Finder and choose "Open".
 
@@ -95,7 +93,7 @@ A few things worth knowing:
 
 ## Windows
 
-Build from source with `npm run build:cli` on Windows, or cross-compile with `npm run build:cli:all-platforms`. The Windows x64 output is `release/cli/win-x64/docx-revision-analyzer.exe`.
+Build from source with `npm run build:cli` on Windows, or cross-compile with `npm run build:cli:all-platforms`. The Windows output is `release/cli/win-<arch>/docx-revision-analyzer.exe` (`x64` / `arm64`).
 
 ```powershell
 .\docx-revision-analyzer.exe --help
