@@ -3,6 +3,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [English](./README.md) | 日本語
 
+## デスクトップ版をダウンロード (プレビュー)
+
+| お使いのパソコン | ダウンロード |
+|---|---|
+| Mac (Apple Silicon / Intel 共通) | [Mac 版をダウンロード (.dmg)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.2.0/Docx-Revision-Analyzer-0.2.0-universal.dmg) |
+| Windows (x64 / arm64) | [Windows 版をダウンロード (.exe)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.2.0/Docx-Revision-Analyzer-Setup-0.2.0.exe) |
+
+.docx を開く・ドロップして使えるアプリです。Node.js やコマンドラインの操作は不要です。
+インストール時の注意は [デスクトップ版 v0.2.0 の配布ページ](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.2.0)を参照してください。
+
 Word の変更履歴 (Track Changes / 校閲) が記録された `.docx` から、その文書が**どう書かれたか**を図にするツール群です。
 いつ・どこを・どれだけ書き足し、消し、まとめて貼り付けたかを、時系列のチャートと、ページの模式図をつないだ編集フローで示します。
 
