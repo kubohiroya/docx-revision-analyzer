@@ -3,6 +3,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 English | [日本語](./README.ja.md)
 
+## Download the desktop app (preview)
+
+| Your computer | Download |
+|---|---|
+| Mac (Apple Silicon / Intel) | [Download for Mac (.dmg)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.2.0/Docx-Revision-Analyzer-0.2.0-universal.dmg) |
+| Windows (x64 / arm64) | [Download for Windows (.exe)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.2.0/Docx-Revision-Analyzer-Setup-0.2.0.exe) |
+
+Open or drop a .docx to use the app; no Node.js or command line is needed.
+See the [desktop v0.2.0 release notes](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.2.0) for installation notes.
+
 Tools that draw **how a document was written** from the tracked changes (Track Changes) recorded in a Word `.docx`.
 They show when, where and how much was added, deleted or pasted in at once, as a chart over time and as an edit flow
 that links schematic pages of the document.
