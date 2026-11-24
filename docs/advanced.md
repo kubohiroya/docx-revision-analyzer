@@ -6,7 +6,7 @@ The analysis JSON output, annotations on figures, highlight rules, and integrity
 
 ## Analysis JSON (`--json`)
 
-With `--json`, `docx-revision-chart` and `docx-revision-flow` also write the analysis as JSON. It contains
+With `--json`, `docx-revision-analyzer chart` and `docx-revision-analyzer flow` also write the analysis as JSON. It contains
 *insertion windows*: insertions made within a short time (`seconds`, from the window's first insertion)
 and close together in the document (`chars`, and `paras` if given), measured in the final document. The window
 settings come from the rules (see below; by default, the same author and the same timestamp) and can be
@@ -69,9 +69,9 @@ levels:
 - Without `--rules`, the default rule is used: window = same author and same timestamp, one level
   `insertedChars >= --bulk-chars`. This gives exactly the same result as before.
 - `--bulk-chars` is still used to decide which large deletions don't count as fine-grained edits in
-  `docx-revision-flow`.
+  `docx-revision-analyzer flow`.
 - Each level is drawn in its own color and replaces "bulk insertion" in the legends. In the chart, levels are stacked
-  between fine-grained edits and moves (lower levels below). In `docx-revision-flow`, a paragraph is filled with the
+  between fine-grained edits and moves (lower levels below). In `docx-revision-analyzer flow`, a paragraph is filled with the
   highest level that applies to it; other categories are shown by the thin strip at its left.
 - So that levels aren't told apart by color alone, each level also gets a pattern (`hatch`, `cross`, `dots` in order;
   set `pattern:` on a level to choose, or `pattern: none`). A warning is shown when a level's color has less than 3:1

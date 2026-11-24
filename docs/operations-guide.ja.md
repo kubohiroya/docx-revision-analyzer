@@ -67,7 +67,7 @@ Word を操作する代わりに、本ツールでもロックをかけられま
   (元のファイルは `<名前>.backup-<日時>.docx` として残します)。図は作りません。
 
   ```bash
-  docx-revision-chart --lock template.docx
+  docx-revision-analyzer chart --lock template.docx
   ```
 
   ターミナルが無い環境 (ドラッグ&ドロップ起動など) では、パスワードを環境変数 `DOCX_LOCK_PASSWORD` で渡します。
@@ -140,7 +140,7 @@ Word 以外のアプリでロックが守られる保証もありません。ま
 書き直しだけです。
 
 1. 学生が区切りで提出する。
-2. 教員が提出物を [`docx-revision-snapshot`](usage.ja.md#4-docx-revision-snapshot--区切りごとの提出の保管と通し解析) で保管する。
+2. 教員が提出物を [`docx-revision-analyzer snapshot`](usage.ja.md#4-docx-revision-analyzer-snapshot--区切りごとの提出の保管と通し解析) で保管する。
    通し番号を付けて保管し、前回の提出と照合して、各回の図とすべての回を通したチャートを作る。
 3. 教員が同じファイルを Word で開き、ロックを外して［すべての変更を反映］し、再びロックして保存する。
 4. 返却し、学生は同じファイルで続きを書く。
@@ -161,15 +161,15 @@ Word 以外のアプリでロックが守られる保証もありません。ま
 [改ざんの痕跡](usage.ja.md#改ざんの痕跡の検出)を調べます。
 
 ```bash
-docx-revision-chart 提出物/ --template template.docx
-docx-revision-flow 提出物/ --template template.docx
+docx-revision-analyzer chart 提出物/ --template template.docx
+docx-revision-analyzer flow 提出物/ --template template.docx
 ```
 
 - 各提出物の隣に、チャート (`<名前>.svg`) とフロー (`<名前>-flow.svg`) ができます。痕跡が見つかった提出物の図には
   赤い枠の警告が付き、ファイル名の末尾が `-tampered` になります (`<名前>-tampered.svg`)。
 - コマンドラインを使わない場合は、[デスクトップアプリ](usage.ja.md#デスクトップアプリ-プレビュー)にフォルダをドロップするか、
   Teams の課題の提出物が集まる SharePoint のフォルダのリンクを開きます。一覧 (`summary.csv`・`index.html`) も作ります。
-- 区切りごとに提出させている場合は、[`docx-revision-snapshot`](usage.ja.md#4-docx-revision-snapshot--区切りごとの提出の保管と通し解析)
+- 区切りごとに提出させている場合は、[`docx-revision-analyzer snapshot`](usage.ja.md#4-docx-revision-analyzer-snapshot--区切りごとの提出の保管と通し解析)
   で保管します。
 
 **痕跡や一括挿入のハイライトは、不正の証拠ではありません。** Word 以外のアプリで保存しただけでも痕跡は残り、別のアプリで

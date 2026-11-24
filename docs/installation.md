@@ -2,14 +2,17 @@
 
 English | [日本語](./installation.ja.md) · [Back to the README](../README.md)
 
-How to get and set up the npm package, the single executables and the drag-and-drop apps. To build from source, see the [developer guide](development.md).
+How to get and set up the npm package, the standalone CLI and the drag-and-drop apps. To build from source, see the [developer guide](development.md).
+
+This page describes the unified CLI for the next CLI release. The published **v1.2.0** npm package and release assets still use separate commands; build from source using the [developer guide](development.md) to try the unified CLI now.
 
 **Contents**
 
 - [From npm (Node.js 18+)](#from-npm-nodejs-18)
-- [Single executables (no Node.js needed)](#single-executables-no-nodejs-needed)
+- [Standalone CLI (no Node.js needed)](#standalone-cli-no-nodejs-needed)
 - [Finder drag-and-drop app (macOS only)](#finder-drag-and-drop-app-macos-only)
-- [Windows drag-and-drop (no wrapper app needed)](#windows-drag-and-drop-no-wrapper-app-needed)
+- [Windows](#windows)
+- [Migrating from the separate commands](#migrating-from-the-separate-commands)
 - [Desktop app](#desktop-app)
 
 ## From npm (Node.js 18+)
@@ -18,26 +21,34 @@ How to get and set up the npm package, the single executables and the drag-and-d
 npm install -g docx-revision-analyzer
 ```
 
-This installs five commands: `docx-revision-chart`, `docx-revision-flow`, `docx-ai-suspicion-score`, `docx-revision-snapshot`, and `docx-revision-versions`.
+This installs one command, `docx-revision-analyzer`, with five subcommands: `chart`, `flow`, `score`, `snapshot`, and `versions`. No aliases or alias links are installed.
 
-## Single executables (no Node.js needed)
+```bash
+docx-revision-analyzer --help
+docx-revision-analyzer flow report.docx
+docx-revision-analyzer help versions
+```
 
-Download the file for your OS / CPU from [GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases) and unzip it.
+## Standalone CLI (no Node.js needed)
 
-| File | Contents |
-|---|---|
-| `docx-revision-<chart\|flow>-<os>-<cpu>.zip`, `docx-ai-suspicion-score-<os>-<cpu>.zip` | Standalone executable for each tool (`linux-x64` / `linux-arm64` / `macos-x64` / `macos-arm64` / `windows-x64`) |
-| `docx-revision-<chart\|flow>-macos-arm64.app.zip` | Drag-and-drop app for macOS (Apple Silicon): drop `.docx` files onto its icon in Finder and the SVG is written next to them |
+For the next release, download **one** `docx-revision-analyzer-<os>-<cpu>.zip` for your OS / CPU from [GitHub Releases](https://github.com/kubohiroya/docx-revision-analyzer/releases), then unzip it:
 
-The drag-and-drop apps are only ad-hoc signed, so the first time, right-click the app in Finder and choose "Open".
-On Windows you can drop `.docx` files straight onto the `.exe`.
+| Platform | File to choose | Executable inside |
+|---|---|---|
+| Linux x64 / ARM64 | `docx-revision-analyzer-linux-x64.zip` / `-linux-arm64.zip` | `docx-revision-analyzer` |
+| Mac Intel / Apple Silicon | `docx-revision-analyzer-macos-x64.zip` / `-macos-arm64.zip` | `docx-revision-analyzer` |
+| Windows x64 | `docx-revision-analyzer-windows-x64.zip` | `docx-revision-analyzer.exe` |
 
-For building from source, making the single executables and drag-and-drop apps, the test fixtures, and the directory
+Every executable contains all five subcommands. On macOS/Linux, use `chmod +x docx-revision-analyzer` if needed, then run `./docx-revision-analyzer flow report.docx`. Windows examples are below.
+
+The separate macOS droplets keep their names, `docx-revision-chart.app` and `docx-revision-flow.app`. They call the shared CLI with `chart` or `flow` and remain self-contained. They are ad-hoc signed; on first launch, right-click the app in Finder and choose "Open".
+
+For building from source, making the standalone CLI and drag-and-drop apps, the test fixtures, and the directory
 layout, see the [developer guide](development.md).
 
 ## Finder drag-and-drop app (macOS only)
 
-Beyond the command line, `docx-revision-chart` can be packaged as a small
+Beyond the command line, `docx-revision-analyzer chart` can be packaged as a small
 macOS app (a "droplet") that you can drop one or more `.docx` files onto
 directly in Finder — no Terminal needed. For each file dropped, it writes
 the chart next to it, named `<filename>-<that file's last-modified time>.svg`
@@ -48,7 +59,7 @@ native notification/dialog instead of console output.
 npm run build:droplet
 ```
 
-This builds the Bun binary and wraps it into
+This builds the shared Bun CLI and wraps it into
 `release/droplet/mac-<arch>/docx-revision-chart.app` (`<arch>` is `arm64` or `x64`)
 using `osacompile` (an AppleScript compiler that ships with every Mac — no
 extra install beyond Bun itself). Move or copy that `.app` anywhere convenient
@@ -56,7 +67,7 @@ extra install beyond Bun itself). Move or copy that `.app` anywhere convenient
 icon.
 
 The same command also builds a droplet for
-`docx-revision-flow` (`release/droplet/mac-<arch>/docx-revision-flow.app`). It covers the
+`docx-revision-analyzer flow` (`release/droplet/mac-<arch>/docx-revision-flow.app`). It covers the
 whole editing period with default settings and writes
 `<file name>-flow-<that file's last-modified time>.svg`.
 
@@ -65,7 +76,7 @@ proper application bundles (via an Apple Event), never directly as command-line
 arguments to a bare, unbundled executable — so the raw Bun binary by itself
 can't be a drop target. `scripts/make-mac-droplet.sh` generates a minimal
 AppleScript application whose `on open` handler shells out to the bundled
-binary with `--drop`, which is what produces the timestamped filename.
+binary with `chart --drop` or `flow --drop`, which is what produces the timestamped filename.
 
 A few things worth knowing:
 
@@ -82,40 +93,33 @@ A few things worth knowing:
   author of this feature — please open an issue if dropping a file doesn't
   behave as described.
 
-## Windows drag-and-drop (no wrapper app needed)
+## Windows
 
-Windows doesn't need a wrapper app the way macOS does: Explorer launches a
-`.exe` directly with the dropped file path(s) as plain command-line
-arguments, so the Windows binary produced by `npm run build:cli:all-platforms`
-(the `bun-windows-x64` target) can be dropped onto directly, with no
-`osacompile`-style packaging step.
-
-- Drop one **or several** `.docx` files onto `docx-revision-chart.exe` at
-  once — Explorer passes them all as separate arguments to a single process
-  invocation, and each is processed independently (a failure on one file
-  doesn't stop the rest). This is exactly the multi-file support added to
-  `docx-revision-chart` for this purpose (see [Usage](usage.md)).
-- Use `--drop` the same way as on macOS, so each output is named
-  `<filename>-<that file's last-modified time>.svg` instead of the plain
-  `<filename>.svg` default.
-- Console-subsystem executables launched by double-click or drag-drop on
-  Windows open (and then immediately close) a console window when the
-  process exits, so there's nothing to read there. To give some feedback
-  without a terminal, `--drop` on Windows also pops up a native message box
-  (via a bundled PowerShell call) summarizing which files succeeded or
-  failed.
-- Like the macOS droplet, **this has been implemented and reasoned through
-  but not verified on actual Windows hardware** — please open an issue if
-  it doesn't behave as described.
+Build from source with `npm run build:cli` on Windows, or cross-compile with `npm run build:cli:all-platforms`. The Windows x64 output is `release/cli/win-x64/docx-revision-analyzer.exe`.
 
 ```powershell
-# Cross-compile from macOS/Linux (or run natively on Windows with Bun installed)
-npm run build:cli:all-platforms
-# -> release/cli/win-x64/docx-revision-chart.exe
+.\docx-revision-analyzer.exe --help
+.\docx-revision-analyzer.exe chart .\report.docx
+.\docx-revision-analyzer.exe flow .\report.docx .\report2.docx
 ```
+
+The CLI requires a subcommand, so dropping a document directly onto the `.exe` does not select an analysis. For a graphical drag-and-drop interface, use the [desktop app](#desktop-app). When invoking `chart` or `flow` with `--drop` from a launcher, the timestamped output names and Windows result dialogs remain available.
+
+## Migrating from the separate commands
+
+Both npm and the standalone build expose one command. Replace existing invocations as follows; subcommand options and output formats remain unchanged. Old executable names and alias links are not generated.
+
+| Previous command | New invocation |
+|---|---|
+| `docx-revision-chart` | `docx-revision-analyzer chart` |
+| `docx-revision-flow` | `docx-revision-analyzer flow` |
+| `docx-ai-suspicion-score` | `docx-revision-analyzer score` |
+| `docx-revision-snapshot` | `docx-revision-analyzer snapshot` |
+| `docx-revision-versions` | `docx-revision-analyzer versions` |
+
+Existing settings filenames (such as `docx-revision-chart.yml`) and the analysis JSON's `tool` identifiers remain unchanged. The build option `--cli=...` has been removed; every build includes all five subcommands.
 
 ## Desktop app
 
-The desktop app (Electron), for people who aren't used to the command line, doesn't have an installer yet. To run it
-from source, see [desktop/README.md](../desktop/README.md); to package it, see
-[desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md). Its features are described in [Usage](usage.md#desktop-app-preview).
+The desktop app (Electron, preview) has installers in [desktop-v0.2.0](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.2.0). Choose the `.dmg` for Mac or `Setup-0.2.0.exe` for Windows. These are separate from the CLI.
+To run from source, see [desktop/README.md](../desktop/README.md); to package it, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md). Its features are described in [Usage](usage.md#desktop-app-preview).

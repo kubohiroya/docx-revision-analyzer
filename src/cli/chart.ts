@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { Command } from "commander";
 import * as fs from "fs";
 import * as path from "path";
@@ -31,14 +30,6 @@ import {
 import "../node/locale";
 import { initLangFromArgv, t } from "../lib/i18n";
 import { applyToolConfig, loadToolConfig, loadToolConfigOrExit } from "./config";
-
-// 実行ファイルと同じフォルダの設定ファイルを読む (lang の指定があれば表示言語にも使う)
-const loadedConfig = loadToolConfig("docx-revision-chart");
-// ヘルプの文言はコマンドの定義時に決まるため、先に表示言語を確定する
-initLangFromArgv(process.argv, loadedConfig.config?.values.lang);
-const toolConfig = loadToolConfigOrExit("docx-revision-chart", loadedConfig);
-
-const program = new Command();
 
 async function processOne(
   inputFile: string,
@@ -156,26 +147,29 @@ async function processOne(
   }
 }
 
-program
-  .name("docx-revision-chart")
-  .description(t("chartDescription"))
-  .argument("<files...>", t("chartArgFiles"))
-  .option("-o, --output <file.svg>", t("chartOptOutput"))
-  .option("-b, --bucket <spec>", t("chartOptBucket"), "auto")
-  .option("-p, --gap-threshold <hours>", t("chartOptGap"))
-  .option("--bulk-chars <n>", t("optBulkChars"), String(DEFAULT_BULK_CHARS))
-  .option("-w, --width <number>", t("chartOptWidth"))
-  .option("-H, --height <number>", t("chartOptHeight"), "550")
-  .option("-t, --title <text>", t("chartOptTitle"))
-  .action(async (files: string[], options) => {
-    await runForFiles("docx-revision-chart", files, options, (file, output) =>
-      processOne(file, options, output)
-    );
-  });
+export function configureChartCommand(program: Command, argv: string[]): void {
+  const loadedConfig = loadToolConfig("docx-revision-chart");
+  initLangFromArgv(argv, loadedConfig.config?.values.lang);
+  const toolConfig = loadToolConfigOrExit("docx-revision-chart", loadedConfig);
 
-addAnalysisOptions(program);
-addCommonOptions(program);
+  program
+    .description(t("chartDescription"))
+    .argument("<files...>", t("chartArgFiles"))
+    .option("-o, --output <file.svg>", t("chartOptOutput"))
+    .option("-b, --bucket <spec>", t("chartOptBucket"), "auto")
+    .option("-p, --gap-threshold <hours>", t("chartOptGap"))
+    .option("--bulk-chars <n>", t("optBulkChars"), String(DEFAULT_BULK_CHARS))
+    .option("-w, --width <number>", t("chartOptWidth"))
+    .option("-H, --height <number>", t("chartOptHeight"), "550")
+    .option("-t, --title <text>", t("chartOptTitle"))
+    .action(async (files: string[], options) => {
+      await runForFiles("docx-revision-chart", files, options, (file, output) =>
+        processOne(file, options, output)
+      );
+    });
 
-if (toolConfig) applyToolConfig(program, toolConfig);
+  addAnalysisOptions(program);
+  addCommonOptions(program);
 
-program.parseAsync(process.argv);
+  if (toolConfig) applyToolConfig(program, toolConfig);
+}

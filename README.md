@@ -17,15 +17,17 @@ Tools that draw **how a document was written** from the tracked changes (Track C
 They show when, where and how much was added, deleted or pasted in at once, as a chart over time and as an edit flow
 that links schematic pages of the document.
 
-![Example output of docx-revision-flow: schematic pages of the document for each editing session, with bands linking each paragraph's changes](./fixtures/flow-demo.png)
+![Example output of docx-revision-analyzer flow: schematic pages of the document for each editing session, with bands linking each paragraph's changes](./fixtures/flow-demo.png)
+
+The CLI uses one command, `docx-revision-analyzer <subcommand>`. The examples below describe the next CLI release. See [Installation](docs/installation.md#migrating-from-the-separate-commands) for source builds and migration from the separate commands in published v1.2.0.
 
 | Command | What it does |
 |---|---|
-| `docx-revision-chart` | Charts the characters added and deleted, and the total length, over time (SVG) |
-| `docx-revision-flow` | For each session of continuous editing, draws schematic pages at its start and end, with bands showing how each paragraph, figure and table changed |
-| `docx-ai-suspicion-score` | Scores, from 0 to 100, unnatural jumps in length that suggest text written elsewhere was pasted in |
-| `docx-revision-snapshot` | Archives each submission of a long-running document (such as a thesis) under a serial number and charts the history across all of them |
-| `docx-revision-versions` | Rebuilds the document as it was at earlier points in time from its tracked changes and writes each version out (.docx or text) |
+| `docx-revision-analyzer chart` | Charts the characters added and deleted, and the total length, over time (SVG) |
+| `docx-revision-analyzer flow` | For each session of continuous editing, draws schematic pages at its start and end, with bands showing how each paragraph, figure and table changed |
+| `docx-revision-analyzer score` | Scores, from 0 to 100, unnatural jumps in length that suggest text written elsewhere was pasted in |
+| `docx-revision-analyzer snapshot` | Archives each submission of a long-running document (such as a thesis) under a serial number and charts the history across all of them |
+| `docx-revision-analyzer versions` | Rebuilds the document as it was at earlier points in time from its tracked changes and writes each version out (.docx or text) |
 
 They can also check submissions for **traces of tampering** (with a warning in the figure) and put a **Track Changes
 lock** on the template you hand out. They come as an npm package, single executables that need no Node.js,
@@ -46,8 +48,8 @@ Turn Track Changes on before you start, and once you have finished you can see w
 made big revisions.
 
 ```bash
-docx-revision-flow report.docx -p 2     # draw the edit flow, splitting sessions at idle gaps over 2 hours
-docx-revision-versions report.docx      # write out the document as it was at the end of each session
+docx-revision-analyzer flow report.docx -p 2     # draw the edit flow, splitting sessions at idle gaps over 2 hours
+docx-revision-analyzer versions report.docx      # write out the document as it was at the end of each session
 ```
 
 ### 2. Checking assignment submissions (Microsoft Teams)
@@ -57,8 +59,8 @@ submissions are analyzed a folder at a time; those with traces such as tracking 
 different document swapped in get a warning in the figure and a distinct file name.
 
 ```bash
-docx-revision-chart --lock template.docx                      # lock Track Changes in the template
-docx-revision-chart submissions/ --template template.docx      # draw the submissions, checking each against the template
+docx-revision-analyzer chart --lock template.docx                      # lock Track Changes in the template
+docx-revision-analyzer chart submissions/ --template template.docx      # draw the submissions, checking each against the template
 ```
 
 ### 3. Supervising a thesis sprint by sprint
@@ -68,7 +70,7 @@ changes accepted. Even when old versions disappear and rewrites of your own pend
 revision across sprints is kept, and you can look back across all of them.
 
 ```bash
-docx-revision-snapshot archive/ submissions-sprint3/          # archive sprint 3 and redraw the chart across sprints
+docx-revision-analyzer snapshot archive/ submissions-sprint3/          # archive sprint 3 and redraw the chart across sprints
 ```
 
 The step-by-step procedures with Word, OneDrive and Teams are in the [operations guide](docs/operations-guide.md).
@@ -89,7 +91,7 @@ four states:
 |---|---|---|
 | **A: No tracking** | Track Changes is off, so edits leave no record | Exit with an error saying the file was saved with Track Changes off |
 | **B: Tracking on** | Track Changes is on, but nothing has been edited since | Exit with an error saying there are no tracked changes yet |
-| **C: Too sparse** | Some edits are recorded, but too few or over too short a time | Run, but the chart and flow show little, and `docx-ai-suspicion-score` warns that fewer than 5 insertion events are statistically weak |
+| **C: Too sparse** | Some edits are recorded, but too few or over too short a time | Run, but the chart and flow show little, and `docx-revision-analyzer score` warns that fewer than 5 insertion events are statistically weak |
 | **D: Sufficient** | Enough edits recorded over a long enough period | **What these tools are for:** produce meaningful results |
 
 A document moves forward, A → B → C → D, as you keep writing with Track Changes on. Turn it on (Review tab →
@@ -118,16 +120,16 @@ Word strips the author and date of every tracked change, so the timeline is lost
 
 ## Example output
 
-### Revision history chart (`docx-revision-chart`)
+### Revision history chart (`docx-revision-analyzer chart`)
 
-![Example output of docx-revision-chart](./fixtures/chart-demo.png)
+![Example output of docx-revision-analyzer chart](./fixtures/chart-demo.png)
 
 Three writing sessions over two days, laid out side by side split at idle gaps over 2 hours (`-p 2`). Upward bars are
 characters added (green for fine-grained edits, orange for bulk insertions pasted in at once), red downward bars are
 characters deleted, and the line is the total length. The text pasted in at the start of the second session shows up in
 orange. → [How to read the chart](docs/usage.md#how-to-read-the-chart)
 
-### Edit flow (`docx-revision-flow`)
+### Edit flow (`docx-revision-analyzer flow`)
 
 The figure at the top. Each column is the document's pages at that point, and the bands between columns show how each
 paragraph, figure and table changed (green for fine-grained edits, orange for bulk insertions and replacements, red for
@@ -141,15 +143,15 @@ A submission with a paragraph typed while Track Changes was off. Figures with tr
 name ending in `-tampered` (`<name>-tampered.svg`), so they stand out even among many submissions.
 → [Detecting traces of tampering](docs/usage.md#detecting-traces-of-tampering)
 
-### History across sprint submissions (`docx-revision-snapshot`)
+### History across sprint submissions (`docx-revision-analyzer snapshot`)
 
 ![Chart across three submissions: one panel per submission; submission 3 is shown in red because it has traces](./fixtures/snapshot-through.png)
 
 A thesis handed in three times. Each submission is one panel, with the idle time between them (such as 5.9 d).
 Changes already present in an earlier submission are not counted again.
-→ [`docx-revision-snapshot`](docs/usage.md#4-docx-revision-snapshot--archive-and-chart-submissions-over-time)
+→ [`docx-revision-analyzer snapshot`](docs/usage.md#4-docx-revision-analyzer-snapshot--archive-and-chart-submissions-over-time)
 
-### AI-misuse suspicion score (`docx-ai-suspicion-score`)
+### AI-misuse suspicion score (`docx-revision-analyzer score`)
 
 ```json
 {
@@ -204,7 +206,7 @@ A document typed little by little, then with 295 characters inserted within a se
 | Document | Contents |
 |---|---|
 | [Installation](docs/installation.md) | Getting and setting up the npm package, single executables, drag-and-drop apps and desktop app |
-| [Usage](docs/usage.md) | The four commands' options and how to read the figures, traces of tampering, missing timestamps, settings files, display language, the desktop app |
+| [Usage](docs/usage.md) | The five subcommands' options and how to read the figures, traces of tampering, missing timestamps, settings files, display language, the desktop app |
 | [Operations guide](docs/operations-guide.md) | Running it with Word, OneDrive and Teams (locking the template, handing it out through assignments, instructions for students, sprint submissions, checking submissions) |
 | [Advanced usage](docs/advanced.md) | The analysis JSON, annotations on figures, highlight rules, integrity notes |
 | [Using it as a library](docs/library.md) | Using it from Node.js and browsers, classifiers, color categories, where each edit happened |

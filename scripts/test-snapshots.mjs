@@ -1,6 +1,6 @@
 // スナップショットの保管と通し解析 (src/lib/snapshots.ts, src/node/snapshotArchive.ts, src/cli/snapshot.ts) のテスト。
 //
-// 区切り (スプリント) ごとの提出を JSZip で作り、docx-revision-snapshot を実際に動かして、通し番号での保管・
+// 区切り (スプリント) ごとの提出を JSZip で作り、docx-revision-analyzer snapshot を実際に動かして、通し番号での保管・
 // 同じ内容の二重保管の防止・各回で新しく加わった変更の数・改ざんの痕跡・出力ファイル名・一覧を確かめる。
 //
 //   1. 第1回: テンプレート (ロック済み) に、記録しながら書き足したもの
@@ -25,7 +25,7 @@ const { XMLValidator } = require("fast-xml-parser");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dra-snapshots-"));
 const cli = path.join(tmp, "snapshot.cjs");
 await esbuild.build({
-  entryPoints: [path.join(root, "src/cli/snapshot.ts")],
+  entryPoints: [path.join(root, "src/cli/index.ts")],
   bundle: true,
   platform: "node",
   format: "cjs",
@@ -92,7 +92,7 @@ await docx(sprint(4), "thesis.docx", settings({ rsids: rs("00B00001", "00C00001"
 
 const archive = path.join(tmp, "archive");
 function snapshot(...args) {
-  const r = spawnSync(process.execPath, [cli, archive, ...args, "--lang", "en"], { encoding: "utf-8" });
+  const r = spawnSync(process.execPath, [cli, "snapshot", archive, ...args, "--lang", "en"], { encoding: "utf-8" });
   if (r.status !== 0) console.error(r.stderr);
   return r;
 }

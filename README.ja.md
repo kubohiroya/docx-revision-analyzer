@@ -16,15 +16,17 @@
 Word の変更履歴 (Track Changes / 校閲) が記録された `.docx` から、その文書が**どう書かれたか**を図にするツール群です。
 いつ・どこを・どれだけ書き足し、消し、まとめて貼り付けたかを、時系列のチャートと、ページの模式図をつないだ編集フローで示します。
 
-![docx-revision-flow の出力例: 時間区間ごとに文書のページの模式図を並べ、段落ごとの変化を帯で結ぶ](./fixtures/flow-demo.ja.png)
+![docx-revision-analyzer flow の出力例: 時間区間ごとに文書のページの模式図を並べ、段落ごとの変化を帯で結ぶ](./fixtures/flow-demo.ja.png)
+
+CLI は `docx-revision-analyzer <サブコマンド>` の1コマンドに統合しています。以下は次の CLI リリース向けの使い方です。公開済み v1.2.0 の個別コマンドからの移行とソースビルドは[インストール](docs/installation.ja.md#旧コマンドからの移行)を参照してください。
 
 | コマンド | すること |
 |---|---|
-| `docx-revision-chart` | 追加・削除した文字数と総文字数の推移を SVG のチャートにする |
-| `docx-revision-flow` | 連続して編集した時間区間ごとに、開始時点と終了時点のページの模式図を並べ、段落・図表ごとの変化を帯で描く |
-| `docx-ai-suspicion-score` | 外部で作った文章の貼り付けを疑わせる、不自然な文字数の増え方を 0〜100 のスコアにする |
-| `docx-revision-snapshot` | 卒論のように長く書く文書を、区切りごとの提出として通し番号付きで保管し、すべての回を通したチャートにする |
-| `docx-revision-versions` | 変更履歴から過去の時点の文書を復元し、版として書き出す (.docx またはテキスト) |
+| `docx-revision-analyzer chart` | 追加・削除した文字数と総文字数の推移を SVG のチャートにする |
+| `docx-revision-analyzer flow` | 連続して編集した時間区間ごとに、開始時点と終了時点のページの模式図を並べ、段落・図表ごとの変化を帯で描く |
+| `docx-revision-analyzer score` | 外部で作った文章の貼り付けを疑わせる、不自然な文字数の増え方を 0〜100 のスコアにする |
+| `docx-revision-analyzer snapshot` | 卒論のように長く書く文書を、区切りごとの提出として通し番号付きで保管し、すべての回を通したチャートにする |
+| `docx-revision-analyzer versions` | 変更履歴から過去の時点の文書を復元し、版として書き出す (.docx またはテキスト) |
 
 あわせて、提出物に残る**改ざんの痕跡**を調べて図に警告を出し、配布するテンプレートに**変更履歴のロック**をかけることもできます。
 npm パッケージ、Node.js の要らない単体実行ファイル、ドラッグ&ドロップ版、デスクトップアプリ (プレビュー) があります。
@@ -42,8 +44,8 @@ npm パッケージ、Node.js の要らない単体実行ファイル、ドラ�
 書き始める前に変更履歴の記録をオンにしておけば、書き終えた後で、どの日にどこをどれだけ書き、どこを大きく直したかを見返せます。
 
 ```bash
-docx-revision-flow 報告書.docx -p 2     # 2時間以上空いたところで区切って、編集フローを描く
-docx-revision-versions 報告書.docx      # 時間区間の終わりごとの文書を書き出す
+docx-revision-analyzer flow 報告書.docx -p 2     # 2時間以上空いたところで区切って、編集フローを描く
+docx-revision-analyzer versions 報告書.docx      # 時間区間の終わりごとの文書を書き出す
 ```
 
 ### 2. レポート課題の提出物を確かめる (Microsoft Teams)
@@ -52,8 +54,8 @@ docx-revision-versions 報告書.docx      # 時間区間の終わりごとの�
 記録をオフにした・ロックを外した・別の文書に差し替えた、といった痕跡のある提出物は、図に警告が付き、ファイル名で区別されます。
 
 ```bash
-docx-revision-chart --lock template.docx                    # テンプレートに変更履歴のロックをかける
-docx-revision-chart 提出物/ --template template.docx         # 提出物を、配ったテンプレートと照合して図にする
+docx-revision-analyzer chart --lock template.docx                    # テンプレートに変更履歴のロックをかける
+docx-revision-analyzer chart 提出物/ --template template.docx         # 提出物を、配ったテンプレートと照合して図にする
 ```
 
 ### 3. 卒論を区切りごとに指導する
@@ -62,7 +64,7 @@ docx-revision-chart 提出物/ --template template.docx         # 提出物を�
 自分の書き直しが変更履歴に残らなくても、区切りをまたぐ推敲はすべて残り、すべての回を通して見返せます。
 
 ```bash
-docx-revision-snapshot 保管先/ 提出物-第3回/                 # 第3回の提出を保管し、通しのチャートを作り直す
+docx-revision-analyzer snapshot 保管先/ 提出物-第3回/                 # 第3回の提出を保管し、通しのチャートを作り直す
 ```
 
 Word・OneDrive・Teams での具体的な手順は[運用ガイド](docs/operations-guide.ja.md)にあります。
@@ -82,7 +84,7 @@ Word・OneDrive・Teams での具体的な手順は[運用ガイド](docs/operat
 |---|---|---|
 | **A: 未記録** | 変更履歴の記録がオフで、編集が記録されない | 変更履歴の記録がオフで保存されたファイルである旨のエラーで終了 |
 | **B: 記録ON** | 記録はオンだが、その後まだ編集されていない | 変更履歴がまだない旨のエラーで終了 |
-| **C: 履歴不十分** | 編集は記録されているが、件数が少ない・期間が短い | 実行はできるが、チャートやフローに表れる情報が乏しく、`docx-ai-suspicion-score` は挿入イベントが5件未満だと統計的に弱い旨の警告を出す |
+| **C: 履歴不十分** | 編集は記録されているが、件数が少ない・期間が短い | 実行はできるが、チャートやフローに表れる情報が乏しく、`docx-revision-analyzer score` は挿入イベントが5件未満だと統計的に弱い旨の警告を出す |
 | **D: 履歴十分** | 十分な件数の編集が十分な期間にわたって記録されている | **本ツールの解析対象**。意味のある結果が得られる |
 
 文書は、変更履歴の記録をオンにしたまま書き進めることで A → B → C → D と進みます。記録は執筆を**始める前に**
@@ -109,15 +111,15 @@ Word・OneDrive・Teams での具体的な手順は[運用ガイド](docs/operat
 
 ## 出力の例
 
-### 編集履歴のチャート (`docx-revision-chart`)
+### 編集履歴のチャート (`docx-revision-analyzer chart`)
 
-![docx-revision-chart の出力例](./fixtures/chart-demo.ja.png)
+![docx-revision-analyzer chart の出力例](./fixtures/chart-demo.ja.png)
 
 2日にわたる3回の執筆を、2時間以上空いたところで区切って並べたものです (`-p 2`)。上向きの棒が追加した文字数
 (緑は細かい編集、オレンジはまとめて貼り付けた一括挿入)、下向きの赤い棒が削除した文字数、折れ線が総文字数です。
 2回目の最初に、まとめて貼り付けた文章がオレンジで表れています。→ [図の見方](docs/usage.ja.md#出力される図の見方)
 
-### 編集フロー (`docx-revision-flow`)
+### 編集フロー (`docx-revision-analyzer flow`)
 
 冒頭の図です。各列がその時点の文書のページの模式図で、列の間の帯が段落・図表ごとの変化 (緑は細かい編集、オレンジは
 一括挿入・置き換え、赤は削除、青は移動・並べ替え) を表します。→ [図の見方](docs/usage.ja.md#図の見方)
@@ -130,14 +132,14 @@ Word・OneDrive・Teams での具体的な手順は[運用ガイド](docs/operat
 `-tampered` になる (`<名前>-tampered.svg`) ため、大人数の提出物でも一覧で見分けられます。
 → [改ざんの痕跡の検出](docs/usage.ja.md#改ざんの痕跡の検出)
 
-### 区切りごとの提出を通した編集履歴 (`docx-revision-snapshot`)
+### 区切りごとの提出を通した編集履歴 (`docx-revision-analyzer snapshot`)
 
 ![3回の提出を通した編集履歴のチャート。提出1回が1つのパネルで、第3回は痕跡があるため赤で示されている](./fixtures/snapshot-through.ja.png)
 
 卒論を3回に分けて提出した例です。1回の提出が1つのパネルになり、回の間の空白期間 (5.9 d など) を示します。
-前の回にもあった変更は重ねて数えません。→ [`docx-revision-snapshot`](docs/usage.ja.md#4-docx-revision-snapshot--区切りごとの提出の保管と通し解析)
+前の回にもあった変更は重ねて数えません。→ [`docx-revision-analyzer snapshot`](docs/usage.ja.md#4-docx-revision-analyzer-snapshot--区切りごとの提出の保管と通し解析)
 
-### AI不正利用疑いスコア (`docx-ai-suspicion-score`)
+### AI不正利用疑いスコア (`docx-revision-analyzer score`)
 
 ```json
 {
@@ -183,7 +185,7 @@ Word・OneDrive・Teams での具体的な手順は[運用ガイド](docs/operat
 | ドキュメント | 内容 |
 |---|---|
 | [インストール](docs/installation.ja.md) | npm・単体実行ファイル・ドラッグ&ドロップ版・デスクトップアプリの入手と準備 |
-| [使い方](docs/usage.ja.md) | 4つのコマンドのオプションと図の見方、改ざんの痕跡、日時が記録されない場合、設定ファイル、表示言語、デスクトップアプリ |
+| [使い方](docs/usage.ja.md) | 5つのサブコマンドのオプションと図の見方、改ざんの痕跡、日時が記録されない場合、設定ファイル、表示言語、デスクトップアプリ |
 | [運用ガイド](docs/operations-guide.ja.md) | Word・OneDrive・Teams と組み合わせた運用 (テンプレートのロック、課題での配布、学生への指示、区切りごとの提出、提出物の確認) |
 | [高度な使い方](docs/advanced.ja.md) | 解析結果の JSON、図への注釈、ハイライトの判定ルール、整合性についての情報 |
 | [ライブラリとして使う](docs/library.ja.md) | Node.js・ブラウザからの利用、分類器、色のカテゴリ、各編集の位置 |

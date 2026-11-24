@@ -107,6 +107,14 @@ export function initLangFromArgv(argv: string[], configLang?: unknown): Lang {
 // ---------------------------------------------------------------------------
 
 const en = {
+  cliDescription: "Analyze Word (.docx) Track Changes using a subcommand.",
+  cliHelp: "Show help for a subcommand",
+  cliUnknownCommand: (name: string) => `Unknown subcommand: ${name}`,
+  cliChart: "Chart revision activity over time (SVG)",
+  cliFlow: "Draw the edit flow across sessions (SVG)",
+  cliScore: "Score abrupt, paste-like insertions (JSON)",
+  cliSnapshot: "Archive and chart successive submissions",
+  cliVersions: "Export earlier document versions (.docx / text)",
   // 共通
   errorFor: (file: string, msg: string) => `Error (${file}): ${msg}`,
   doneFor: (file: string, msg: string) => `Done (${file}): ${msg}`,
@@ -190,7 +198,7 @@ const en = {
     "Write a version at this interval from the first change (30s, 10m, 2h, 1d, or seconds), skipping intervals " +
     "with no changes, plus the version just before the first change",
   versionsOptSessions:
-    "Write the version at the end of each session (split as in docx-revision-flow, by -p), plus the version just " +
+    "Write the version at the end of each session (split as in docx-revision-analyzer flow, by -p), plus the version just " +
     "before the first change. This is the default when neither --at nor --every is given",
   versionsOptFormat: "Output format: docx, txt, or both (docx,txt)",
   versionsOptOutDir: "Folder to write the versions to (default: <name>-versions next to the input)",
@@ -301,7 +309,7 @@ const en = {
     "Generate an SVG chart of characters added/deleted over time and the total character count from a Word file " +
     "(.docx) edited with Track Changes. Multiple files are processed one by one; a failure doesn't stop the rest.",
   chartArgFiles:
-    ".docx files or folders to analyze (several allowed, e.g. files dropped onto the .exe in Windows Explorer). " +
+    ".docx files or folders to analyze (several allowed). " +
     "A folder means every .docx in it, including subfolders",
   chartOptOutput: "Output SVG path (default: same name as the input with .svg). Not allowed with multiple files",
   chartOptBucket: "Time bucket size: auto|second|minute|hour|day, or a number of seconds",
@@ -389,6 +397,14 @@ const en = {
 type Catalog = typeof en;
 
 const ja: Catalog = {
+  cliDescription: "サブコマンドを指定して Word (.docx) の変更履歴を解析します。",
+  cliHelp: "サブコマンドのヘルプを表示",
+  cliUnknownCommand: (name) => `不明なサブコマンド: ${name}`,
+  cliChart: "編集履歴を時系列のチャートにする (SVG)",
+  cliFlow: "時間区間ごとの編集フローを描く (SVG)",
+  cliScore: "一括貼り付けのような挿入をスコア化する (JSON)",
+  cliSnapshot: "区切りごとの提出物を保管して通し解析する",
+  cliVersions: "過去の時点の文書を書き出す (.docx / テキスト)",
   errorFor: (file, msg) => `エラー (${file}): ${msg}`,
   doneFor: (file, msg) => `完了 (${file}): ${msg}`,
   warning: (msg) => `警告: ${msg}`,
@@ -464,7 +480,7 @@ const ja: Catalog = {
     "最初の変更から、この間隔ごとの版を書き出す (30s, 10m, 2h, 1d、または秒数)。変更の無い間隔は飛ばす。" +
     "最初の変更の直前の版も書き出す",
   versionsOptSessions:
-    "時間区間 (docx-revision-flow と同じく -p で区切る) の終わりごとの版と、最初の変更の直前の版を書き出す。" +
+    "時間区間 (docx-revision-analyzer flow と同じく -p で区切る) の終わりごとの版と、最初の変更の直前の版を書き出す。" +
     "--at も --every も指定しなければこれになる",
   versionsOptFormat: "出力形式: docx、txt、または両方 (docx,txt)",
   versionsOptOutDir: "版を書き出すフォルダ (既定: 入力と同じフォルダの <名前>-versions)",
@@ -572,7 +588,7 @@ const ja: Catalog = {
     "変更履歴(Track Changes)が有効なWordファイル(.docx)から、時系列の追加/削除文字数と総文字数のSVGチャートを生成します。" +
     "複数ファイルを指定するとまとめて処理します(1件ずつ独立に処理し、失敗しても残りは続行します)。",
   chartArgFiles:
-    "解析対象の .docx ファイルまたはフォルダ (複数指定可。Windowsでエクスプローラーから複数ファイルをドロップした場合に対応)。" +
+    "解析対象の .docx ファイルまたはフォルダ (複数指定可)。" +
     "フォルダはサブフォルダを含むすべての .docx",
   chartOptOutput: "出力するSVGファイルのパス (既定: 入力と同名の .svg)。複数ファイル指定時は使用不可",
   chartOptBucket: "時間バケットの粒度: auto|second|minute|hour|day、または秒数の数値",

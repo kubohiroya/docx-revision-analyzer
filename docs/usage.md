@@ -4,30 +4,30 @@ English | [日本語](./usage.ja.md) · [Back to the README](../README.md)
 
 Each command's options and how to read the figures it draws. For running it together with Word and Teams, see the [operations guide](operations-guide.md); for the JSON output and highlight rules, see [advanced usage](advanced.md).
 
+Invoke the CLI as `docx-revision-analyzer <subcommand> [arguments] [options]`.
+Use `docx-revision-analyzer --help` for the command list, and `docx-revision-analyzer flow --help` or `docx-revision-analyzer help flow` for detailed help.
+`--lang en` / `--lang ja` can appear before or after the subcommand. See [Installation](installation.md#migrating-from-the-separate-commands) for migration and differences from the published release.
+
 **Contents**
 
-- [1. `docx-revision-chart` — SVG chart of the revision history](#1-docx-revision-chart--svg-chart-of-the-revision-history)
-- [2. `docx-revision-flow` — edit flow across editing sessions](#2-docx-revision-flow--edit-flow-across-editing-sessions)
-- [3. `docx-ai-suspicion-score` — AI-misuse suspicion score](#3-docx-ai-suspicion-score--ai-misuse-suspicion-score)
-- [4. `docx-revision-snapshot` — archive and chart submissions over time](#4-docx-revision-snapshot--archive-and-chart-submissions-over-time)
-- [5. `docx-revision-versions` — the document as it was at earlier points in time](#5-docx-revision-versions--the-document-as-it-was-at-earlier-points-in-time)
+- [1. `docx-revision-analyzer chart` — SVG chart of the revision history](#1-docx-revision-analyzer-chart--svg-chart-of-the-revision-history)
+- [2. `docx-revision-analyzer flow` — edit flow across editing sessions](#2-docx-revision-analyzer-flow--edit-flow-across-editing-sessions)
+- [3. `docx-revision-analyzer score` — AI-misuse suspicion score](#3-docx-revision-analyzer-score--ai-misuse-suspicion-score)
+- [4. `docx-revision-analyzer snapshot` — archive and chart submissions over time](#4-docx-revision-analyzer-snapshot--archive-and-chart-submissions-over-time)
+- [5. `docx-revision-analyzer versions` — the document as it was at earlier points in time](#5-docx-revision-analyzer-versions--the-document-as-it-was-at-earlier-points-in-time)
 - [Detecting traces of tampering](#detecting-traces-of-tampering)
 - [When timestamps are missing (`--preserve-history`)](#when-timestamps-are-missing---preserve-history)
 - [Settings file](#settings-file)
 - [Language](#language)
 - [Desktop app (preview)](#desktop-app-preview)
 
-## 1. `docx-revision-chart` — SVG chart of the revision history
+## 1. `docx-revision-analyzer chart` — SVG chart of the revision history
 
 ```bash
-docx-revision-chart <input.docx> [input2.docx ...] [options]
+docx-revision-analyzer chart <input.docx> [input2.docx ...] [options]
 ```
 
-Multiple input files can be given at once (each is processed independently,
-and a failure on one doesn't stop the rest) — mainly useful for Windows,
-where dropping several files onto the executable in Explorer passes them
-all as separate arguments to one process invocation. `-o/--output` can only
-be used with a single input file.
+Multiple input files can be given at once. Each is processed independently, and a failure on one does not stop the rest. `-o/--output` can only be used with a single input file. On Windows, specify the subcommand explicitly (see [Windows](installation.md#windows)).
 
 | Option | Description | Default |
 |---|---|---|
@@ -37,7 +37,7 @@ be used with a single input file.
 | `-w, --width <px>` | Image width | `1100` (auto-computed from content when `-p` is used) |
 | `-H, --height <px>` | Image height | `550` |
 | `-t, --title <text>` | Chart title | `Revision history: <file name> (last modified <last-modified time>)` |
-| `--bulk-chars <n>` | Treat insertions by the same author at the same time totalling at least this many characters as a bulk insertion (same rule as `docx-revision-flow`) | `150` |
+| `--bulk-chars <n>` | Treat insertions by the same author at the same time totalling at least this many characters as a bulk insertion (same rule as `docx-revision-analyzer flow`) | `150` |
 | `--json [file.json]` | Also write the analysis (insertion windows and their features) as JSON. See [Analysis JSON](advanced.md#analysis-json---json) | off (`<output>.json` when given without a name) |
 | `--rules <file>` | Rules file that assigns highlight levels to insertion windows (replaces `--bulk-chars`). See [Highlight rules](advanced.md#highlight-rules---rules) | none |
 | `--window-seconds <s>` / `--window-chars <n>` / `--window-paras <n>` | Insertion windows: time window Δt, and distance in the document in characters / paragraphs. Overrides the rules' `window` | from the rules |
@@ -46,12 +46,12 @@ be used with a single input file.
 | `--preserve-history` | If the document removes personal information (tracked-change authors and dates) on save, remove that setting, turn Track Changes on, and save it in place (the original is kept as a backup; fails if the document is open). `--preserveHistory` also works. See [When timestamps are missing](#when-timestamps-are-missing---preserve-history) | off |
 | `--check-history-settings` | Don't draw a chart; only check the settings and print `ok` or `needs-fix` on the first line, followed by the confirmation text when `needs-fix` | off |
 | `--lock` | Don't draw a chart; lock Track Changes in the given template and overwrite it (the original is kept as a backup). See [Locking with these tools](operations-guide.md#2-lock-tracking-optional) | off |
-| `--drop` | Desktop drag-and-drop launch mode. When `-o` isn't given, names each output `<same directory as its input>/<filename>-<that input file's last-modified time>.svg` instead of the plain `<filename>.svg` default. Intended for the macOS Finder droplet or a direct Windows Explorer drop (see [Installation](installation.md#finder-drag-and-drop-app-macos-only)) (or any other double-click/drag-drop launch with no terminal attached). On Windows, also shows a native message box summarizing the result | off |
+| `--drop` | Desktop drag-and-drop launch mode. When `-o` isn't given, names each output `<same directory as its input>/<filename>-<that input file's last-modified time>.svg` instead of the plain `<filename>.svg` default. Intended for the macOS Finder droplet or a launcher that supplies the subcommand on Windows (see [Installation](installation.md#finder-drag-and-drop-app-macos-only)) (or any other double-click/drag-drop launch with no terminal attached). On Windows, also shows a native message box summarizing the result | off |
 | `--lang <en\|ja>` | Display language for messages and the figure (see [Language](#language)) | OS locale |
 
 ### How to read the chart
 
-![Sample docx-revision-chart output](../fixtures/chart-demo.png)
+![Sample docx-revision-analyzer chart output](../fixtures/chart-demo.png)
 
 This is the output of the command below for `fixtures/chart-demo.docx` (three writing sessions over two days: typed
 in small steps while trimming a draft in deletions of varying size here and there, with one bulk paste at the start of
@@ -59,13 +59,13 @@ the second session, 14:50). With `-p 2` the chart is split at idle gaps longer t
 gap (4.5 h, 17 h) is shown between the periods.
 
 ```bash
-docx-revision-chart fixtures/chart-demo.docx -p 2
+docx-revision-analyzer chart fixtures/chart-demo.docx -p 2
 ```
 
 
 - **X-axis**: time (aggregated per bucket)
 - **Upward bars**: characters inserted within that bucket, stacked from the bottom in this order (same rules as
-  `docx-revision-flow`):
+  `docx-revision-analyzer flow`):
   - **Green (fine-grained editing)**: insertions that are neither bulk nor moved
   - **Orange (bulk insertion)**: insertions by the same author at the same time totalling at least `--bulk-chars`
     characters — Word records a pasted passage as one insertion per paragraph, all with the same timestamp
@@ -78,7 +78,7 @@ Changes Word recorded as moves (`w:moveFrom` / `w:moveTo`) don't change the char
 the bars.
 
 ```bash
-docx-revision-chart fixtures/natural-writing.docx -o out.svg
+docx-revision-analyzer chart fixtures/natural-writing.docx -o out.svg
 ```
 
 Sample outputs are bundled under `fixtures/*.svg` (and `fixtures/*.png` for a
@@ -103,7 +103,7 @@ as a separate polyline per session rather than one continuous line, so it
 never visually bridges a gap where no time actually elapsed.
 
 ```bash
-docx-revision-chart fixtures/multi-session.docx -p 12 -o out.svg
+docx-revision-analyzer chart fixtures/multi-session.docx -p 12 -o out.svg
 ```
 
 `fixtures/multi-session.docx` (writing spread across 3 days, with 29-hour and
@@ -114,7 +114,7 @@ rendering (`fixtures/multi-session-single.svg` / `.png`, generated without
 
 ---
 
-## 2. `docx-revision-flow` — edit flow across editing sessions
+## 2. `docx-revision-analyzer flow` — edit flow across editing sessions
 
 Splits the Track Changes history into sessions of continuous editing and draws, left to right in time order, the
 document at the start of the first session and at the end of every session as columns of page thumbnails (a
@@ -122,13 +122,13 @@ schematic, not Word's real layout). Between two columns, bands connect each para
 that session. Nothing changes between sessions, so each session's end column doubles as the next session's start.
 
 ```bash
-docx-revision-flow fixtures/flow-demo.docx -o flow.svg
+docx-revision-analyzer flow fixtures/flow-demo.docx -o flow.svg
 
 # Limit the period and split sessions at idle gaps longer than 2 hours
-docx-revision-flow report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
+docx-revision-analyzer flow report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 ```
 
-![Sample docx-revision-flow output](../fixtures/flow-demo.png)
+![Sample docx-revision-analyzer flow output](../fixtures/flow-demo.png)
 
 | Option | Description | Default |
 |---|---|---|
@@ -144,7 +144,7 @@ docx-revision-flow report.docx --from 2026-06-01 --to "2026-06-02 18:00" -p 2
 | `--page-width <px>` | Width of each page thumbnail | `150` |
 | `--slope-width <px>` | Width of the band area between two thumbnail columns | `72` |
 | `-t, --title <text>` | Title | `Edit flow: <file name> (last modified <last-modified time>)` |
-| `--drop` / `--preserve-history` / `--check-history-settings` | Same as `docx-revision-chart`; `--drop` writes `<file name>-flow-<last-modified time>.svg` | |
+| `--drop` / `--preserve-history` / `--check-history-settings` | Same as `docx-revision-analyzer chart`; `--drop` writes `<file name>-flow-<last-modified time>.svg` | |
 | `--lang <en\|ja>` | Display language for messages and the figure (see [Language](#language)) | OS locale |
 
 If there are no timestamped revisions, or none in the requested period, no SVG is written and the tool exits with an error.
@@ -216,14 +216,14 @@ insertion + deletion).
   matches exactly (ignoring whitespace); anything edited after pasting counts as editing, not reordering. An added figure with no text is
   shown as "added" (green) in the bands, but its paragraph isn't painted. Only the body
   (`word/document.xml`) is analyzed — footnotes, headers, and text boxes are not.
-- Bulk-insertion detection is a heuristic, not evidence of misconduct (same caveat as `docx-ai-suspicion-score`).
+- Bulk-insertion detection is a heuristic, not evidence of misconduct (same caveat as `docx-revision-analyzer score`).
 
 ---
 
-## 3. `docx-ai-suspicion-score` — AI-misuse suspicion score
+## 3. `docx-revision-analyzer score` — AI-misuse suspicion score
 
 ```bash
-docx-ai-suspicion-score <input.docx> [options]
+docx-revision-analyzer score <input.docx> [options]
 ```
 
 | Option | Description | Default |
@@ -239,7 +239,7 @@ docx-ai-suspicion-score <input.docx> [options]
 | `--lang <en\|ja>` | Display language for messages and the figure (see [Language](#language)) | OS locale |
 
 ```bash
-docx-ai-suspicion-score fixtures/suspicious-paste.docx --pretty
+docx-revision-analyzer score fixtures/suspicious-paste.docx --pretty
 ```
 
 ### How the score is computed
@@ -318,7 +318,7 @@ Other technical constraints:
 
 ---
 
-## 4. `docx-revision-snapshot` — archive and chart submissions over time
+## 4. `docx-revision-analyzer snapshot` — archive and chart submissions over time
 
 Archives the submissions (snapshots) of a long-running document, such as a thesis handed in at the end of each
 sprint, and analyzes them as one history. For the workflow, see
@@ -326,13 +326,13 @@ sprint, and analyzes them as one history. For the workflow, see
 
 ```bash
 # Sprint 1: pass the folder of submissions (the first one is checked against the template you handed out)
-docx-revision-snapshot archive/ submissions-sprint1/ --template template.docx
+docx-revision-analyzer snapshot archive/ submissions-sprint1/ --template template.docx
 
 # Later sprints: pass that sprint's folder to the same archive
-docx-revision-snapshot archive/ submissions-sprint2/
+docx-revision-analyzer snapshot archive/ submissions-sprint2/
 
 # Redraw the figures and the index from what is archived
-docx-revision-snapshot archive/
+docx-revision-analyzer snapshot archive/
 ```
 
 For each submission it:
@@ -364,11 +364,11 @@ submissions, use `--key-depth <n>` to identify documents by only their first n f
 | `--template <file.docx>` | The template handed out at the start; the first submission is checked against it | none |
 | `--key-depth <n>` | Identify a document by only this many leading folders of its path | none (the whole path) |
 | `-p, --gap-threshold <hours>` | Session gap for each submission's flow | `1` |
-| `--bulk-chars <n>` / `--rules <file>` | Bulk-insertion detection (as in `docx-revision-chart`) | `150` / none |
+| `--bulk-chars <n>` / `--rules <file>` | Bulk-insertion detection (as in `docx-revision-analyzer chart`) | `150` / none |
 | `--no-tamper-check` | Don't check for traces of tampering | off |
 | `--lang <en\|ja>` | Display language | from the OS |
 
-## 5. `docx-revision-versions` — the document as it was at earlier points in time
+## 5. `docx-revision-analyzer versions` — the document as it was at earlier points in time
 
 Rebuilds the document as it was at earlier points in time from the dates of its tracked changes, and writes each
 version out as `.docx` (and/or plain text). Changes dated up to that time are accepted and later ones undone, so a
@@ -376,13 +376,13 @@ version holds no tracked changes.
 
 ```bash
 # The document at the end of each session, plus just before the first change (the default)
-docx-revision-versions report.docx
+docx-revision-analyzer versions report.docx
 
 # The document at given times
-docx-revision-versions report.docx --at "2026-06-01 10:30" --at 2026-06-02
+docx-revision-analyzer versions report.docx --at "2026-06-01 10:30" --at 2026-06-02
 
 # Every 10 minutes from the first change, as .docx and as text
-docx-revision-versions report.docx --every 10m -f docx,txt
+docx-revision-analyzer versions report.docx --every 10m -f docx,txt
 ```
 
 The versions are written to `<name>-versions/` next to the input as `<name>-<YYYYMMDD-HHMMSS>.docx` (local time), and
@@ -396,7 +396,7 @@ How a version is rebuilt:
   the paragraph is joined to the next one. Inserted and deleted table rows are handled the same way.
 - Formatting changes made later (`w:rPrChange`, `w:pPrChange`, …) are reverted to the formatting recorded with them.
 - Changes without a date (e.g. removed by the "remove personal information" setting) are treated as made before the
-  first dated change, as in `docx-revision-flow`.
+  first dated change, as in `docx-revision-analyzer flow`.
 - Only what the tracked changes recorded can be rebuilt. Edits made while Track Changes was off, and changes that
   were accepted or rejected, are not in any version.
 - `--every` skips intervals with no changes, so consecutive versions always differ.
@@ -407,14 +407,14 @@ How a version is rebuilt:
 | `--at <datetime>` | Write the version at this time (`YYYY-MM-DD HH:mm` in local time, or ISO 8601; a date alone means the end of that day). Can be given more than once | none |
 | `--every <interval>` | Write a version at this interval from the first change (`30s`, `10m`, `2h`, `1d`, or seconds), plus the version just before the first change | none |
 | `--sessions` | Write the version at the end of each session, plus the version just before the first change | on when neither `--at` nor `--every` is given |
-| `-p, --gap-threshold <hours>` | Session gap for `--sessions` (as in `docx-revision-flow`) | `1` |
+| `-p, --gap-threshold <hours>` | Session gap for `--sessions` (as in `docx-revision-analyzer flow`) | `1` |
 | `-f, --format <list>` | `docx`, `txt`, or `docx,txt` | `docx` |
 | `-o, --out-dir <dir>` | Folder to write the versions to | `<name>-versions` next to the input |
 | `--lang <en\|ja>` | Display language | from the OS |
 
 ## Detecting traces of tampering
 
-`docx-revision-chart` and `docx-revision-flow` check each file for traces of tampering with its tracked changes.
+`docx-revision-analyzer chart` and `docx-revision-analyzer flow` check each file for traces of tampering with its tracked changes.
 When they find any:
 
 - The figure gets a red-bordered warning at the top listing the traces found.
@@ -425,7 +425,7 @@ When they find any:
 
 ```bash
 # Process a folder of submissions, checking each against the template you handed out
-docx-revision-chart submissions/ --template template.docx
+docx-revision-analyzer chart submissions/ --template template.docx
 ```
 
 | Trace | What it means | `--template` |
@@ -460,7 +460,7 @@ the author and date of every tracked change each time the document is saved. Wor
 File > Options > Trust Center > Trust Center Settings > Privacy Options, but Word for macOS has no such option in
 Settings > Security.
 
-Before analyzing, `docx-revision-chart` and `docx-revision-flow` check this setting and, if it is on (documents that merely have Track Changes off are not flagged):
+Before analyzing, `docx-revision-analyzer chart` and `docx-revision-analyzer flow` check this setting and, if it is on (documents that merely have Track Changes off are not flagged):
 
 - **CLI:** when run from a terminal, asks `[y/N]` whether to perform the `--preserve-history` rewrite
   (Enter alone or Ctrl+D means No); when input isn't interactive (e.g. piped), it only prints a warning.
@@ -478,6 +478,8 @@ Edits made after the rewrite are timestamped; timestamps already removed cannot 
 
 ## Settings file
 
+The unified CLI keeps the existing settings filenames per subcommand: `chart` → `docx-revision-chart.yml`, `flow` → `docx-revision-flow.yml`, `score` → `docx-ai-suspicion-score.yml`, `snapshot` → `docx-revision-snapshot.yml`, and `versions` → `docx-revision-versions.yml`. Only the selected subcommand's settings are loaded. The analysis JSON's `tool` identifiers also remain unchanged.
+
 To change the defaults, put a YAML file named after the tool (`docx-revision-chart.yml`,
 `docx-revision-flow.yml`, or `docx-ai-suspicion-score.yml`; `.yaml` also works) in the same folder as the executable.
 For the macOS drag-and-drop apps, put it next to the `.app`; for an npm installation, next to the installed command.
@@ -494,7 +496,7 @@ lang: en
 ```
 
 - Keys are the tool's long option names without `--` (for example `output`, `gap-threshold`, `bulk-chars`,
-  `page-width`, `slope-width`, `title`, `bucket`, `from`, `to`, `lang`; for `docx-ai-suspicion-score`, `min-chars`,
+  `page-width`, `slope-width`, `title`, `bucket`, `from`, `to`, `lang`; for `docx-revision-analyzer score`, `min-chars`,
   `burst-low`, `pretty`, ...). Flags such as `pretty` take `true` / `false`.
 - Options given on the command line take precedence over the settings file, which takes precedence over the
   built-in defaults.
@@ -538,7 +540,7 @@ are not part of exported SVGs / PNGs.
 "Open from URL…" — for example the folder where Microsoft Teams collects assignment submissions — and choose (or
 create) an output folder: the source folder's hierarchy is recreated there with the SVGs inside (or, if you choose,
 everything is put in one folder with the path in the file names). Both also write `summary.csv` (for Excel) and
-`index.html` (links to every figure). The CLIs (and the macOS droplets) also accept folders: `docx-revision-flow
+`index.html` (links to every figure). The CLIs (and the macOS droplets) also accept folders: `docx-revision-analyzer flow
 submissions/`.
 
 **Lock template**: saves a copy of the opened document with Track Changes locked, through a save dialog (see
@@ -549,7 +551,7 @@ app watches the file; for a OneDrive / SharePoint document opened from a URL it 
 (four times less often while the app is in the background) whether its content version (`cTag`) has changed, without
 ever opening a sign-in page for that. Each time Word saves it, the figures are redrawn and the records folder keeps:
 
-- every saved version (`snapshots.json` and `<name>-sNN.docx`, the same format as a `docx-revision-snapshot` archive),
+- every saved version (`snapshots.json` and `<name>-sNN.docx`, the same format as a `docx-revision-analyzer snapshot` archive),
   so the history survives a later "Accept All"
 - the history of all comments in the document, including other people's: first seen, edited, resolved, deleted,
   reappeared (`comments.jsonl`, one JSON object per line, append-only; a comment deleted from the document stays in

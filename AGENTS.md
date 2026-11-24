@@ -79,6 +79,6 @@
 - タグは `vX.Y.Z`。`package.json` のバージョンを PR で上げてから、`main` のマージコミットで GitHub Release を作る
   (このリリースが「Latest」になる)。
 - 単体実行ファイルとドロップレットは `npm run build:cli:all-platforms` と `npm run build:droplet` で作り、
-  `<コマンド>-<os>-<cpu>.zip` (os は `linux` / `macos` / `windows`)、`<コマンド>-macos-arm64.app.zip` にして添付する。
+  CLI は5サブコマンド入りの `docx-revision-analyzer-<os>-<cpu>.zip` (os は `linux` / `macos` / `windows`) とし、ドロップレットは従来の `docx-revision-{chart,flow}-macos-arm64.app.zip` として別途添付する。別名リンクは生成しない。
 - `npm publish` は利用者の npm のアカウントの認証 (2段階認証) が必要なので、エージェントは実行せず、利用者に頼む
   (`npm publish --dry-run` で中身を確かめておく)。
