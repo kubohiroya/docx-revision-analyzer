@@ -25,7 +25,19 @@
 
 [SHA256SUMS.txt](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/SHA256SUMS.txt) · [リリースノート](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0)
 
-展開後は `./docx-revision-analyzer flow 報告書.docx` (Windows: `.\docx-revision-analyzer.exe flow report.docx`) のように実行します。旧コマンドからの移行は[インストール](docs/installation.ja.md#旧コマンドからの移行)を参照してください。npm パッケージの v2.0.0 公開は別途行います。
+展開後は `./docx-revision-analyzer flow 報告書.docx` (Windows: `.\docx-revision-analyzer.exe flow report.docx`) のように実行します。旧コマンドからの移行は[インストール](docs/installation.ja.md#旧コマンドからの移行)を参照してください。
+
+### npm からインストール (Node.js 18 以降)
+
+統合 CLI **v2.0.0** は [npm](https://www.npmjs.com/package/docx-revision-analyzer/v/2.0.0) からもインストールできます。
+
+```bash
+npm install -g docx-revision-analyzer@2.0.0
+docx-revision-analyzer --version
+docx-revision-analyzer --help
+```
+
+使い方と v1.x からの更新は[インストールガイド](docs/installation.ja.md#npm-から-nodejs-18-以降)を参照してください。
 
 Word の変更履歴 (Track Changes / 校閲) が記録された `.docx` から、その文書が**どう書かれたか**を図にするツール群です。
 いつ・どこを・どれだけ書き足し、消し、まとめて貼り付けたかを、時系列のチャートと、ページの模式図をつないだ編集フローで示します。

@@ -25,7 +25,19 @@ For command-line use, choose **one** ZIP for your OS and CPU. Each contains one 
 
 [SHA256SUMS.txt](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/v2.0.0/SHA256SUMS.txt) · [Release notes](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/v2.0.0)
 
-After extraction, run `./docx-revision-analyzer flow report.docx` (Windows: `.\docx-revision-analyzer.exe flow report.docx`). See [Installation](docs/installation.md#migrating-from-the-separate-commands) for migration. Publication of the v2.0.0 npm package is separate.
+After extraction, run `./docx-revision-analyzer flow report.docx` (Windows: `.\docx-revision-analyzer.exe flow report.docx`). See [Installation](docs/installation.md#migrating-from-the-separate-commands) for migration.
+
+### Install from npm (Node.js 18+)
+
+The unified CLI **v2.0.0** is also available on [npm](https://www.npmjs.com/package/docx-revision-analyzer/v/2.0.0):
+
+```bash
+npm install -g docx-revision-analyzer@2.0.0
+docx-revision-analyzer --version
+docx-revision-analyzer --help
+```
+
+See [Installation](docs/installation.md#from-npm-nodejs-18) for usage and upgrading from v1.x.
 
 Tools that draw **how a document was written** from the tracked changes (Track Changes) recorded in a Word `.docx`.
 They show when, where and how much was added, deleted or pasted in at once, as a chart over time and as an edit flow
