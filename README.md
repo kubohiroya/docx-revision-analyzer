@@ -7,11 +7,11 @@ English | [日本語](./README.ja.md)
 
 | Your computer | Download |
 |---|---|
-| Mac (Apple Silicon / Intel) | [Download for Mac (.dmg)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.2.0/Docx-Revision-Analyzer-0.2.0-universal.dmg) |
-| Windows (x64 / arm64) | [Download for Windows (.exe)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.2.0/Docx-Revision-Analyzer-Setup-0.2.0.exe) |
+| Mac (Apple Silicon / Intel) | [Download for Mac (.dmg)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) |
+| Windows (x64 / arm64) | [Download for Windows (.exe)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) |
 
 Open or drop a .docx to use the app; no Node.js or command line is needed.
-See the [desktop v0.2.0 release notes](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.2.0) for installation notes.
+See the [desktop v0.3.0 release notes](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0) for installation notes.
 
 ## Download the CLI (v2.0.0)
 

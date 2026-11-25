@@ -7,11 +7,11 @@
 
 | お使いのパソコン | ダウンロード |
 |---|---|
-| Mac (Apple Silicon / Intel 共通) | [Mac 版をダウンロード (.dmg)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.2.0/Docx-Revision-Analyzer-0.2.0-universal.dmg) |
-| Windows (x64 / arm64) | [Windows 版をダウンロード (.exe)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.2.0/Docx-Revision-Analyzer-Setup-0.2.0.exe) |
+| Mac (Apple Silicon / Intel 共通) | [Mac 版をダウンロード (.dmg)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) |
+| Windows (x64 / arm64) | [Windows 版をダウンロード (.exe)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) |
 
 .docx を開く・ドロップして使えるアプリです。Node.js やコマンドラインの操作は不要です。
-インストール時の注意は [デスクトップ版 v0.2.0 の配布ページ](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.2.0)を参照してください。
+インストール時の注意は [デスクトップ版 v0.3.0 の配布ページ](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0)を参照してください。
 
 ## CLI をダウンロード (v2.0.0)
 
