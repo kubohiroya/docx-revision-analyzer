@@ -255,6 +255,19 @@ export class SavedReportAnalysis {
     return analyzed;
   }
 
+  private characterChanges(link: LineageLink): NonNullable<ReportChange["characterChanges"]> | null {
+    if (link.kind === "ambiguous" || link.alignmentPartial) return null;
+    const count = (ranges: readonly LineageRange[]) => ranges.reduce((total, range) => {
+      const source = this.source(range.version);
+      const interval = source.interval(range);
+      return interval ? total + Array.from(source.text.slice(...interval)).length : total;
+    }, 0);
+    const after = count(link.to);
+    if (link.kind === "copied" || link.kind === "reappeared") return { added: after, deleted: 0 };
+    const unchanged = count(link.unchanged.map(span => span.to));
+    return { added: after - unchanged, deleted: count(link.from) - unchanged };
+  }
+
   project(scope: SavedReportScope, lang: AppLang, labels: readonly string[]): SavedVersionReport {
     const selected = [...new Set(scope.versions)].sort((a, b) => a - b);
     const ids = new Map(selected.map((version, index) => [version, index]));
@@ -327,6 +340,7 @@ export class SavedReportAnalysis {
             searchText: [...link.from, ...link.to].filter((range) => within.has(range.version))
               .map((range) => lineageRangeText(this.versions, range)).join("\n"),
           } : {}),
+          ...(includeText ? { characterChanges: this.characterChanges(link) } : {}),
           kind: omitPast ? "added" : candidate.kind,
           reordered: Boolean(link.reordered), alignmentPartial: Boolean(link.alignmentPartial),
           evidence: link.evidence.filter((e) => !omitPast || e !== "past"),

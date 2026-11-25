@@ -632,9 +632,9 @@ comparison sections collapse independently.
 In **Change list**, select the filter button to open **Search change text and comments**. You can search added and removed
 text, text on both sides of a rewrite, and the full text of related Word comments and replies. A saved HTML report searches
 the included change passages and comments. Use the calendar button to filter by the dates of the saved versions in which
-the changes were observed. Search, dates, change type, and tags can be combined. The rows scroll inside the panel. Export checkboxes retain their state when you change filters.
+the changes were observed. Search, dates, change type, and tags can be combined. The heading shows how many changes match and how many are in scope. The rows scroll inside the panel. Export checkboxes retain their state when you change filters.
 
-Select a change to see its passages and related Word comments. Select it again to clear the selection. The speech bubble next
+Select a change to see its passages and related Word comments. The row title and detail heading show the added and deleted character counts for the full change. Select it again to clear the selection. The speech bubble next
 to **Text range** opens and closes the comments panel. Choose **My Word author name** there to distinguish your posts from
 other authors' posts and highlight the latest post when it is yours. **Go to the original passage** shows the location in the
 app. **Open original file** uses the system's associated application and opens a read-only copy for an archived version.
@@ -661,7 +661,7 @@ The saved HTML includes the versions involved in the checked changes, the change
 replies, tags, reference links, and deleted threads. The heading comes from the filenames' common part. The single file opens
 offline in a browser.
 
-Use **Text range** in **Before and after the change** to adjust the visible context from about 20 characters to a full page.
+Use **Text range** in **Change details** to adjust the visible context from about 20 characters to a full page.
 The initial range is about 200 characters. The same menu sets the maximum text range to export. Move the preview slider to its
 highest position to inspect the longest exported excerpt. **Full page** includes body text and headings. Page boundaries derived
 from incomplete Word pagination information are marked as estimated. When boundaries are unavailable, the report shows an excerpt.

@@ -16,8 +16,11 @@ const EN = {
   search: "Search change text and comments", filters: "Search and filters", dates: "Filter by date", startDate: "Start date and time", endDate: "End date and time",
   clearDates: "Clear dates", invalidDates: "The end must be on or after the start.",
   dateBasis: "Dates use the saved version in which the change was observed.",
-  changes: "Change list", difference: "Before and after the change", original: "Original comment passage",
-  pairCount: (before: string, after: string, n: number) => `${before} → ${after} · ${n} changes`,
+  changes: "Change list", difference: "Change details", original: "Original comment passage",
+  changeCounts: (shown: string, total: string) => `${shown} matched / ${total} total`,
+  characterChangeParts: (added: string, deleted: string): [string, string, string, string, string] =>
+    ["Added ", added, " characters · Deleted ", deleted, " characters"],
+  unknownCharacterChanges: "Character counts unavailable",
   chooseChange: "Choose a change to see its passages and comments.", export: "Export", outputRange: "Maximum text range to export",
   resizeBetween: (above: string, below: string) => `Resize ${above} and ${below}`,
   openVersion: "Open original file", author: "My Word author name", noAuthor: "Choose an author", me: "Me", latest: "Latest",
@@ -65,8 +68,10 @@ export const REPORT_LABELS: Record<SavedVersionReport["lang"], typeof EN> = { en
   search: "検索：変更箇所の本文・コメント", filters: "検索とフィルタ", dates: "日時で絞り込む", startDate: "開始日時", endDate: "終了日時",
   clearDates: "日時をクリア", invalidDates: "終了日時は開始日時以降にしてください。",
   dateBasis: "変更を確認できた保存版の日時で絞り込みます。",
-  changes: "変更箇所一覧", difference: "変更箇所の前後", original: "コメントが付いた元の箇所",
-  pairCount: (before, after, n) => `${before}→${after}・${n}件`,
+  changes: "変更箇所一覧", difference: "変更箇所", original: "コメントが付いた元の箇所",
+  changeCounts: (shown, total) => `抽出 ${shown} 件 / 全体 ${total} 件`,
+  characterChangeParts: (added, deleted) => ["追加 ", added, " 文字・削除 ", deleted, " 文字"],
+  unknownCharacterChanges: "追加・削除文字数は未確定",
   chooseChange: "変更箇所を選ぶと、前後の原文とコメントを表示します。", export: "書き出す", outputRange: "書き出す原文の上限",
   resizeBetween: (above, below) => `${above}と${below}の表示高さを調整`,
   openVersion: "元のファイルを開く", author: "自分のWord作成者名", noAuthor: "作成者を選択", me: "自分", latest: "最新",
@@ -243,7 +248,8 @@ export function renderSavedVersionReport(
   const s = REPORT_LABELS[report.lang];
   state.commentsOpen ??= true;
   const drafts = review?.drafts ?? report.drafts;
-  let targets = [...(review?.targets ?? report.initial)];
+  const initialTargets = report.observationTimeline ? report.drafts.map((_, index) => index) : report.initial;
+  let targets = [...(review?.targets ?? initialTargets)];
   let picked = [...(review?.picked ?? report.initial)];
   let range = Math.min(state.range ?? DEFAULT_REPORT_RANGE, report.range);
   let selected = review ? report.pairs.flatMap(pair => pair.changes).find((change) => change.reviewId === state.selected)
@@ -307,10 +313,13 @@ export function renderSavedVersionReport(
     draw(true);
   }
 
-  const summary = el("span", undefined, "report-hint report-accordion-meta");
-  summary.setAttribute("aria-live", "polite");
+  const formatCount = new Intl.NumberFormat(report.lang);
+  const formatSignedCount = new Intl.NumberFormat(report.lang, { signDisplay: "always" });
+  const listCounts = el("span", undefined, "report-hint report-heading-counts report-list-counts");
+  listCounts.setAttribute("aria-live", "polite");
+  list.label.after(listCounts);
   const selectedTitle = el("span", undefined, "report-selected-title report-collapsed-summary");
-  list.toggle.append(summary, selectedTitle);
+  list.toggle.append(selectedTitle);
   const filters = el("div", undefined, "report-filters");
   filters.id = "report-change-filters";
   const kinds = el("select");
@@ -445,6 +454,8 @@ export function renderSavedVersionReport(
     drawPassages();
     originButton?.focus({ preventScroll: true });
   });
+  const characterCounts = el("span", undefined, "report-hint report-heading-counts report-character-counts");
+  detail.label.after(characterCounts);
   const comparisonKind = el("span", undefined, "report-hint report-accordion-meta");
   detail.toggle.append(comparisonKind);
   const commentToggle = button("", () => {
@@ -511,12 +522,9 @@ export function renderSavedVersionReport(
     return left && right && left.heading !== right.heading ? `${rangeLabel(left)} → ${rangeLabel(right)}` : rangeLabel(right ?? left);
   }
 
-  function drawSummary(count: number): void {
-    const text = selected ? changeTitle(selected) : "";
-    selectedTitle.textContent = selectedTitle.title = text;
-    const [before, after] = report.observationTimeline && review ? report.initial : sorted();
-    summary.textContent = !selected && before !== undefined && after !== undefined
-      ? s.pairCount(report.drafts[before].label, report.drafts[after].label, count) : "";
+  function updateSelectedTitle(): void {
+    const title = selected ? changeTitle(selected) : "";
+    selectedTitle.textContent = selectedTitle.title = title;
   }
 
   function avatar(own: boolean): HTMLElement {
@@ -632,15 +640,14 @@ export function renderSavedVersionReport(
     status.hidden = !invalid && Boolean(shown.length && !gap);
     status.textContent = invalid ? s.invalidDates : !pairs.length ? s.choose
       : gap ? s.gap : pairs.every(pair => pair.unavailable) ? s.missing : s.noMatches;
-    shownCount = shown.length;
-    drawSummary(shownCount);
+    listCounts.textContent = s.changeCounts(formatCount.format(shown.length), formatCount.format(entries.length));
+    updateSelectedTitle();
     changeRows.setItems(shown, reset);
     drawPassages();
     drawThreads();
     splitters.update();
   }
 
-  let shownCount = 0;
   function renderChangeRow({ item, pair, observed }: ChangeEntry): HTMLLIElement {
     const title = changeTitle(item);
     const row = button("", () => {
@@ -652,12 +659,26 @@ export function renderSavedVersionReport(
       for (const previous of results.querySelectorAll("li > button")) {
         previous.setAttribute("aria-pressed", String(previous === row && selected === item));
       }
-      drawSummary(shownCount);
+      updateSelectedTitle();
       drawPassages();
       drawThreads();
     });
     row.setAttribute("aria-pressed", String(item === selected));
-    const heading = el("span", title);
+    const heading = el("span", undefined, "report-change-heading");
+    const label = el("span", title, "report-change-title");
+    label.title = title;
+    heading.append(label);
+    if (item.characterChanges) {
+      const added = formatSignedCount.format(item.characterChanges.added);
+      const deleted = formatSignedCount.format(-item.characterChanges.deleted);
+      const counts = el("span", undefined, "report-row-character-counts");
+      counts.title = s.characterChangeParts(added, deleted).join("");
+      counts.append(
+        el("span", added, "report-added-count"),
+        el("span", deleted, "report-deleted-count"),
+      );
+      heading.append(counts);
+    }
     const authors = participants(item);
     if (authors) heading.append(authors);
     const when = observed ? displayDate(observed) : "";
@@ -726,6 +747,17 @@ export function renderSavedVersionReport(
 
   function drawPassages(): void {
     detail.label.textContent = original ? s.original : s.difference;
+    const changes = original ? undefined : selected?.characterChanges;
+    if (changes) {
+      const [prefix, added, join, deleted, suffix] = s.characterChangeParts(
+        formatSignedCount.format(changes.added), formatSignedCount.format(-changes.deleted),
+      );
+      characterCounts.replaceChildren(
+        prefix, el("span", added, "report-added-count"), join, el("span", deleted, "report-deleted-count"), suffix,
+      );
+    } else {
+      characterCounts.textContent = changes === null ? s.unknownCharacterChanges : "";
+    }
     comparisonKind.textContent = selected ? changeName(selected) : "";
     updateRangeVisibility();
     const detailBody = passages;
