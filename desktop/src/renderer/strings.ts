@@ -197,6 +197,7 @@ const en = {
   integrityObserved: "differs from Word's usual output",
   integrityOk: "as usual",
   settingsUpdates: "Updates",
+  branchTimelinePreview: "Compare along inferred branches (preview)",
   reviewCommentWrite: "Write local Word comments from version comparison (preview, applies after restart)",
   checkForUpdates: "Check GitHub Releases for a new version at startup",
   updatesNote:
@@ -516,6 +517,7 @@ const ja: Strings = {
   integrityObserved: "Word の通常の形と違う点あり",
   integrityOk: "通常どおり",
   settingsUpdates: "アップデート",
+  branchTimelinePreview: "推定した枝の経路で保存版を比較する（プレビュー）",
   reviewCommentWrite: "保存版の比較からローカルのWord文書にコメントを追記する（プレビュー、再起動後に反映）",
   checkForUpdates: "起動時に GitHub Releases で新しいバージョンを確認する",
   updatesNote: "確認するのはアプリのバージョンだけで、文書や解析結果は送りません。更新は検証してから入れ替えます。",

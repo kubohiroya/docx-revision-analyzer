@@ -183,6 +183,7 @@ function applyLang(): void {
   setText("tab-comments", S.tabComments);
   setText("tab-lineage", savedVersionsLabel(lang));
   setText("l-lineage-enabled", savedVersionsLabel(lang, true));
+  setText("l-branch-timeline-enabled", S.branchTimelinePreview);
   setText("l-review-comment-write", S.reviewCommentWrite);
   setText("tab-settings", S.tabSettings);
   setText("l-gap", S.gap);
@@ -1372,6 +1373,8 @@ function renderSettings(): void {
   $<HTMLInputElement>("updates").checked = !!settings.checkForUpdates;
   $("tab-lineage").hidden = !versionReviewAvailable();
   $<HTMLInputElement>("lineage-enabled").checked = settings.lineagePreview === true;
+  $<HTMLInputElement>("branch-timeline-enabled").checked = settings.branchTimelinePreview === true;
+  $<HTMLInputElement>("branch-timeline-enabled").disabled = !versionReviewAvailable();
   $<HTMLInputElement>("review-comment-write").checked = settings.reviewCommentWrite === true;
   $<HTMLInputElement>("review-comment-write").disabled = !versionReviewAvailable();
   $<HTMLInputElement>("updates").disabled = !updatesAvailable;
@@ -1499,7 +1502,7 @@ function renderExtensions(): void {
 
 async function main(): Promise<void> {
   settings = await window.app.getSettings();
-  savedVersionsPane = new SavedVersionsPane($("pane-lineage"), batchCtx);
+  savedVersionsPane = new SavedVersionsPane($("pane-lineage"), batchCtx, () => settings.branchTimelinePreview === true);
   initExtensionUi({ lang: () => lang, strings: () => S, onPanelsChanged: () => renderHighlights() });
   extList = await window.app.extensions.list();
   updatesAvailable = await window.app.updatesAvailable();
@@ -1580,6 +1583,10 @@ async function main(): Promise<void> {
       await persist();
       renderSettings();
     });
+  });
+  $("branch-timeline-enabled").addEventListener("change", () => {
+    settings.branchTimelinePreview = $<HTMLInputElement>("branch-timeline-enabled").checked;
+    void persist();
   });
   $("review-comment-write").addEventListener("change", () => {
     void runSafely(async () => {

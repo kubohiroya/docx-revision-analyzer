@@ -218,15 +218,19 @@ interface CommentComposer {
   submit(): void;
 }
 
+interface ReviewProjection {
+  report: SavedVersionReport;
+  sourceIndices: readonly number[];
+  authors: readonly string[];
+}
+
 interface ReviewOptions {
   drafts: readonly ReportDraft[];
   targets: readonly number[];
-  picked: readonly number[];
-  setTargets: (targets: number[]) => void;
-  project: (picked: number[]) => SavedVersionReport;
+  projection: ReviewProjection;
+  project: (targets: readonly number[]) => ReviewProjection;
   included: (id: string) => boolean;
   setIncluded: (id: string, included: boolean, before: number, after: number) => void;
-  authors: string[];
   outputRange: number;
   setOutputRange: (range: number) => void;
   figures: VersionTableFigures;
@@ -250,7 +254,8 @@ export function renderSavedVersionReport(
   const drafts = review?.drafts ?? report.drafts;
   const initialTargets = report.observationTimeline ? report.drafts.map((_, index) => index) : report.initial;
   let targets = [...(review?.targets ?? initialTargets)];
-  let picked = [...(review?.picked ?? report.initial)];
+  let projection = review?.projection;
+  let picked = [...report.initial];
   let range = Math.min(state.range ?? DEFAULT_REPORT_RANGE, report.range);
   let selected = review ? report.pairs.flatMap(pair => pair.changes).find((change) => change.reviewId === state.selected)
     : report.observationTimeline ? report.pairs.flatMap(pair => pair.changes)[initialChange ?? 0]
@@ -304,9 +309,13 @@ export function renderSavedVersionReport(
 
   function changeTargets(next: number[]): void {
     targets = [...next].sort((a, b) => a - b);
-    review?.setTargets(targets);
-    picked = targets.length >= 2 ? [targets[0], targets[targets.length - 1]] : targets;
-    if (review) report = review.project(picked);
+    if (review) {
+      projection = review.project(targets);
+      report = projection.report;
+      picked = [...report.initial];
+    } else {
+      picked = targets.length >= 2 ? [targets[0], targets[targets.length - 1]] : targets;
+    }
     selected = undefined;
     selectedPair = undefined;
     original = undefined;
@@ -693,13 +702,15 @@ export function renderSavedVersionReport(
     const li = el("li");
     li.append(row);
     const id = item.reviewId;
-    if (review && id) {
+    if (review && id && projection) {
+      const before = projection.sourceIndices[pair.before];
+      const after = projection.sourceIndices[pair.after];
       const label = el("label", undefined, "report-include-change");
       const check = el("input");
       check.type = "checkbox";
       check.checked = review.included(id);
       check.setAttribute("aria-label", `${s.export} · ${title}`);
-      check.onchange = () => review.setIncluded(id, check.checked, targets[pair.before], targets[pair.after]);
+      check.onchange = () => review.setIncluded(id, check.checked, before, after);
       label.append(check, s.export);
       li.append(label);
     }
@@ -775,7 +786,6 @@ export function renderSavedVersionReport(
     }
     const change = selected;
     const { before, after } = pair;
-    const chosen = sorted();
     rangeValue.textContent = s.ranges[range];
     rangeToggle.title = `${s.range} · ${s.ranges[range]}`;
     rangeInput.setAttribute("aria-valuetext", s.ranges[range]);
@@ -790,7 +800,7 @@ export function renderSavedVersionReport(
       column.append(el("h3", `${s[side]} · ${report.drafts[version].label}`));
       if (!passages.length) column.append(el("p", s.noPassage, "report-hint"));
       for (const passage of passages) column.append(passageView(passage, change.alignmentPartial ? "match" : side));
-      if (passages.length) addOpenVersion(column, chosen[side === "before" ? 0 : 1]);
+      if (passages.length) addOpenVersion(column, projection?.sourceIndices[version]);
       columns.append(column);
     }
     detailBody.append(columns);
@@ -875,10 +885,10 @@ export function renderSavedVersionReport(
     commentToggle.setAttribute("aria-expanded", String(!sidebar.hidden));
     if (sidebar.hidden) return;
     sidebar.replaceChildren(el("h2", s.comments));
-    if (review?.authors.length) {
+    if (projection?.authors.length) {
       const label = el("label", s.author, "report-my-author");
       const selector = el("select");
-      selector.append(option(s.noAuthor, ""), ...review.authors.map((author) => option(author, author)));
+      selector.append(option(s.noAuthor, ""), ...projection.authors.map((author) => option(author, author)));
       selector.value = state.author ?? "";
       selector.onchange = () => {
         state.author = selector.value;
@@ -907,8 +917,9 @@ export function renderSavedVersionReport(
       for (const id of unlocated) box.append(showThread(report.threads[id], false));
       sidebar.append(box);
     }
-    if (selected?.reviewId && selectedPair && review?.commentComposer) {
-      const compose = review.commentComposer(selected.reviewId, targets[selectedPair.before], targets[selectedPair.after]);
+    if (selected?.reviewId && selectedPair && review?.commentComposer && projection) {
+      const { sourceIndices } = projection;
+      const compose = review.commentComposer(selected.reviewId, sourceIndices[selectedPair.before], sourceIndices[selectedPair.after]);
       sidebar.append(compose ? commentForm(compose) : el("p", s.composeUnavailable, "report-hint"));
     }
   }

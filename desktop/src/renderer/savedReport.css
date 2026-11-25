@@ -352,6 +352,10 @@
 .report-export-actions h2 { margin-inline-end: auto; }
 .report-export-actions button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text, white); }
 .report-export-count { display: block; text-align: end; }
+.report-path-controls { margin-block: 8px; }
+.report-path-controls label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.report-path-controls select { max-width: 100%; }
+.report-path-controls p { margin: 4px 0 0; overflow-wrap: anywhere; }
 .report-export .saved-report { border-radius: 9px; }
 @media (max-width: 680px) {
   .report-layout.report-comments-open { grid-template-columns: minmax(0, 1fr); }

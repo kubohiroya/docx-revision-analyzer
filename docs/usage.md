@@ -642,6 +642,11 @@ to **Text range** opens and closes the comments panel. Choose **My Word author n
 other authors' posts and highlight the latest post when it is yours. **Go to the original passage** shows the location in the
 app. **Open original file** uses the system's associated application and opens a read-only copy for an archived version.
 
+**Compare along a branch (development preview).** In Settings, enable **Compare along inferred branches (preview)** to
+show **Path to compare** in **Review changes and comments**. Choose a path inferred from the versions in scope.
+The change list, comment history and deletion status, and HTML export use the displayed path. If that path becomes
+unavailable, choose a path again before opening the preview.
+
 **Chart and flow for a version.** In **Versions in scope**, select a thumbnail in the **chart** column to open that
 file's chart, or select the filename to open its flow. Click a row to add or remove that version from the comparison.
 **Revisions** counts tracked changes in the document body, including undated changes. The figures show Word's tracked

@@ -57,6 +57,8 @@ export interface AppSettings {
   pages?: PagesSettings;
   /** Enable the saved-version comparison preview. */
   lineagePreview?: boolean;
+  /** Enable path selection in the saved-version comparison preview. */
+  branchTimelinePreview?: boolean;
   /** Enable the local review comment writer on the next launch. */
   reviewCommentWrite?: boolean;
   /** 図のプレビューの設定 (ミニマップの大きさと位置、flow の分割画面の左の幅) */

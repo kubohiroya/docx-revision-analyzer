@@ -1,6 +1,7 @@
 import { DEFAULT_REPORT_RANGE, REPORT_LIMITS, type SavedVersionReport } from "../reportData";
 import { SavedReportAnalysis, type SavedReportScope } from "../savedReport";
 import type { AppLang, SavedLineageVersion } from "../shared";
+import { compareSavedVersionPath, inferSavedVersionPaths } from "../versionReviewPath";
 import { el, modal } from "./extensions";
 import { savedReportHtml } from "./savedReportHtml";
 import { loadSavedVersionChart, savedReportFigures, type FigureKind, type FigureSettings } from "./savedReportFigures";
@@ -13,6 +14,9 @@ const LABELS = {
     openFailed: "Could not open the original file", exportCount: (versions: number, changes: number) => `Export · ${versions} versions / ${changes} changes`,
     previewHint: "This is what will be saved. Open Text range to inspect the full exported excerpt.",
     commentSaved: (backup: string) => `Word comment saved. Copy from before writing: ${backup}`,
+    path: "Path to compare", allPaths: "All versions in scope (by date)",
+    noPaths: "No branch paths could be inferred from the selected versions.",
+    pathUnavailable: "The selected path is unavailable. Choose another path to compare.",
   },
   ja: {
     review: "変更箇所の確認とコメント", preview: "HTMLプレビュー", back: "確認・コメント", save: "HTMLを保存…", close: "閉じる",
@@ -20,6 +24,9 @@ const LABELS = {
     openFailed: "元のファイルを開けませんでした", exportCount: (versions: number, changes: number) => `書き出す内容 · ${versions}版 / ${changes}箇所`,
     previewHint: "保存する内容のプレビューです。「表示範囲」を開くと、収録する原文の全範囲を確認できます。",
     commentSaved: (backup: string) => `Wordコメントを追記しました。追記前のバックアップ: ${backup}`,
+    path: "比較する経路", allPaths: "対象とする版すべて（時刻順）",
+    noPaths: "対象とする版から経路を推定できませんでした。",
+    pathUnavailable: "選択した経路を利用できません。比較する経路を選び直してください。",
   },
 };
 
@@ -27,18 +34,30 @@ export function savedReportExportLabel(lang: AppLang): string { return LABELS[la
 
 export async function showSavedReportExport(
   analysis: SavedReportAnalysis, versions: readonly SavedLineageVersion[], labels: string[],
-  lang: AppLang, figureSettings: FigureSettings, onVersionUpdated?: (index: number, version: SavedLineageVersion) => void,
+  lang: AppLang, figureSettings: FigureSettings, branchTimelineEnabled: boolean,
+  onVersionUpdated?: (index: number, version: SavedLineageVersion) => void,
 ): Promise<void> {
   const s = LABELS[lang];
   const canWrite = await window.app.reviewCommentWriteEnabled?.().catch(() => false) === true;
   const currentVersions = [...versions];
-  const authors = () => [...new Set(currentVersions.flatMap((version) => version.threads.flatMap((thread) => thread.detail.comments
-    .flatMap((comment) => comment.author?.trim() ? [comment.author.trim()] : []))))].sort(new Intl.Collator(lang).compare);
-  const included = new Map<string, [number, number]>();
+  const authors = (indices: readonly number[]) => [...new Set(indices.flatMap(index =>
+    currentVersions[index].threads.flatMap(thread => thread.detail.comments
+      .flatMap(comment => comment.author?.trim() ? [comment.author.trim()] : []))))].sort(new Intl.Collator(lang).compare);
+  type IncludedChanges = Map<string, [number, number]>;
+  const pathSelections = new Map<string, IncludedChanges>();
+  let included: IncludedChanges = new Map();
+  pathSelections.set("", included);
+  let requestedPath = "";
+  let paths = new Map<string, number[]>();
+  let pathIndices: readonly number[] | undefined;
+  let pathAnalysis: SavedReportAnalysis | undefined;
   const reviewState: ReportViewState = {};
   const commentDrafts = new Map<string, ReviewCommentDraft>();
   let targets = currentVersions.map((_, index) => index);
-  let picked = targets.length >= 2 ? [0, targets.length - 1] : [...targets];
+  const activeAnalysis = () => pathAnalysis ?? analysis;
+  const activeTargets = () => pathIndices ? pathIndices.map((_, index) => index) : targets;
+  const originalIndex = (index: number) => pathIndices ? pathIndices[index] : index;
+  const analysisIndex = (index: number) => pathIndices ? pathIndices.indexOf(index) : index;
   let outputRange = DEFAULT_REPORT_RANGE;
   let preview: SavedVersionReport | undefined;
   let saving = false;
@@ -65,6 +84,24 @@ export async function showSavedReportExport(
     const count = el("span", undefined, "hint report-export-count");
     count.setAttribute("aria-live", "polite");
     const content = el("div");
+    const pathBox = el("div", undefined, "report-path-controls");
+    const pathSelect = el("select");
+    const pathLabel = el("label", s.path);
+    pathLabel.append(pathSelect);
+    const pathDescription = el("p", undefined, "hint");
+    pathDescription.setAttribute("role", "status");
+    pathBox.append(pathLabel, pathDescription);
+    pathSelect.onchange = () => {
+      try {
+        applyPath(pathSelect.value);
+        reviewState.selected = undefined;
+        showReview();
+      } catch (error) {
+        pathSelect.value = requestedPath;
+        status.textContent = `${s.failed} · ${String(error)}`;
+      }
+      pathSelect.focus({ preventScroll: true });
+    };
     const hint = el("p", s.previewHint, "hint");
     const action = (label: string, click: () => void, css?: string) => {
       const node = el("button", label, css);
@@ -85,7 +122,7 @@ export async function showSavedReportExport(
       return button;
     };
     actions.append(el("h2", s.review), reviewButton, previewButton, save, closeButton(() => close()));
-    wrapper.append(actions, count, hint, status, content);
+    wrapper.append(actions, count, pathBox, hint, status, content);
     dialog.append(wrapper);
 
     function showFigures(trigger: HTMLButtonElement, index: number, kind: FigureKind): void {
@@ -113,8 +150,46 @@ export async function showSavedReportExport(
       panel.querySelector("select")?.focus({ preventScroll: true });
     }
 
+    function applyPath(key: string, force = false): void {
+      const next = key ? paths.get(key) ?? [] : undefined;
+      if (!force && key === requestedPath && next?.join(":") === pathIndices?.join(":")) return;
+      const nextAnalysis = next && compareSavedVersionPath(currentVersions, next, analysis.level);
+      requestedPath = key;
+      pathIndices = next;
+      pathAnalysis = nextAnalysis;
+      included = pathSelections.get(key) ?? new Map();
+      pathSelections.set(key, included);
+    }
+
+    function refreshPaths(): void {
+      if (!branchTimelineEnabled) return;
+      paths = new Map(inferSavedVersionPaths(currentVersions, targets).map(path => [path.join(":"), path]));
+      applyPath(requestedPath);
+      const option = (value: string, label: string) => {
+        const node = el("option", label);
+        node.value = value;
+        return node;
+      };
+      const choices = [...paths].map(([key, path]) => option(key, `${labels[path[0]]} → ${labels[path[path.length - 1]]}`));
+      if (requestedPath && !paths.has(requestedPath)) choices.push(option(requestedPath, s.pathUnavailable));
+      pathSelect.replaceChildren(option("", s.allPaths), ...choices);
+      pathSelect.value = requestedPath;
+      updatePathDescription();
+    }
+
+    function updatePathDescription(): void {
+      pathDescription.textContent = pathIndices?.length ? pathIndices.map(index => labels[index]).join(" → ")
+        : requestedPath ? s.pathUnavailable : paths.size ? "" : s.noPaths;
+      pathDescription.hidden = !pathDescription.textContent;
+    }
+
+    function endpoints(indices: readonly number[]): number[] {
+      return indices.length >= 2 ? [indices[0], indices[indices.length - 1]] : [...indices];
+    }
+
     function timelinePairs(): [number, number][] {
-      return targets.slice(1).map((after, index) => [targets[index], after]);
+      const indices = activeTargets();
+      return indices.slice(1).map((after, index) => [indices[index], after]);
     }
 
     function exportSelection() {
@@ -125,15 +200,17 @@ export async function showSavedReportExport(
 
     function scope(review: boolean): SavedReportScope {
       const selection = review ? undefined : exportSelection();
-      const versions = review ? targets : selection?.size
-        ? [...new Set([...selection.values()].flat())].sort((a, b) => a - b) : picked;
+      const indices = activeTargets();
+      const includePath = review || (pathIndices !== undefined && !selection?.size);
+      const versions = includePath ? indices : selection?.size
+        ? [...new Set([...selection.values()].flat())].sort((a, b) => a - b) : endpoints(indices);
       const selectedEdges = new Set([...(selection?.values() ?? [])].map(pair => pair.join(":")));
-      const onlyPairs = timelinePairs().filter(pair => review || selectedEdges.has(pair.join(":")));
-      if (!review && !onlyPairs.length && picked.length === 2) onlyPairs.push([picked[0], picked[1]]);
+      const onlyPairs = includePath ? timelinePairs() : timelinePairs().filter(pair => selectedEdges.has(pair.join(":")));
+      if (!review && !pathIndices && !onlyPairs.length && versions.length === 2) onlyPairs.push([versions[0], versions[1]]);
       const excluded = new Set<string>();
       if (selection) {
         for (const [before, after] of onlyPairs) {
-          for (const change of analysis.changes(before, after)) if (!selection.has(change.id)) excluded.add(change.id);
+          for (const change of activeAnalysis().changes(before, after)) if (!selection.has(change.id)) excluded.add(change.id);
         }
       }
       return { versions, initial: [versions[0], versions[versions.length - 1]], onlyPairs, excluded, includeText: true,
@@ -145,20 +222,37 @@ export async function showSavedReportExport(
     function updateMode(): void {
       reviewButton.setAttribute("aria-pressed", String(!preview));
       previewButton.setAttribute("aria-pressed", String(Boolean(preview)));
-      previewButton.disabled = picked.length !== 2 || saving || writing;
+      const indices = activeTargets();
+      previewButton.disabled = indices.length < 2 || saving || writing;
+      pathBox.hidden = !branchTimelineEnabled || Boolean(preview);
+      pathSelect.disabled = saving || writing || (!paths.size && !requestedPath);
       reviewButton.disabled = saving;
       save.hidden = hint.hidden = !preview;
       save.disabled = saving;
       const selection = exportSelection();
-      const countVersions = selection.size ? new Set([...selection.values()].flat()).size : picked.length;
+      const countVersions = selection.size ? new Set([...selection.values()].flat()).size
+        : pathIndices ? indices.length : endpoints(indices).length;
       count.textContent = s.exportCount(countVersions, selection.size);
     }
 
-    function projectReview(versions: number[]): SavedVersionReport {
-      picked = versions;
-      const report = analysis.project(scope(true), lang, labels);
+    function activeLabels(): readonly string[] {
+      return pathIndices?.map(index => labels[index]) ?? labels;
+    }
+
+    function projectReview(selected: readonly number[]) {
+      if (selected !== targets) {
+        targets = [...selected];
+        refreshPaths();
+      }
+      const configuration = scope(true);
+      const report = activeAnalysis().project(configuration, lang, activeLabels());
+      for (const thread of report.threads) {
+        if (thread.reviewVersion !== undefined) thread.reviewVersion = originalIndex(thread.reviewVersion);
+      }
+      const sourceIndices = configuration.versions.map(originalIndex);
+      updatePathDescription();
       updateMode();
-      return report;
+      return { report, sourceIndices, authors: authors(pathIndices ?? currentVersions.map((_, index) => index)) };
     }
 
     function openLink(url: string): void {
@@ -171,14 +265,14 @@ export async function showSavedReportExport(
       preview = undefined;
       status.textContent = "";
       try {
-        renderSavedVersionReport(content, projectReview(picked), {
+        const projection = projectReview(targets);
+        renderSavedVersionReport(content, projection.report, {
           openLink, state: reviewState,
           review: {
-            drafts: analysis.drafts(lang, labels), targets, picked, project: projectReview,
-            setTargets: (selected) => { targets = selected; }, authors: authors(), outputRange,
+            drafts: analysis.drafts(lang, labels), targets, projection, project: projectReview, outputRange,
             included: (id) => included.has(id),
             setIncluded: (id, include, before, after) => {
-              if (include) included.set(id, [before, after]);
+              if (include) included.set(id, [analysisIndex(before), analysisIndex(after)]);
               else included.delete(id);
               updateMode();
             },
@@ -202,14 +296,15 @@ export async function showSavedReportExport(
     function commentComposer(id: string, before: number, after: number) {
       const source = currentVersions[after];
       if (source?.source !== "selected" || !source.openId || source.commentsUnavailable) return;
-      const target = analysis.commentTarget(before, after, id);
+      const target = activeAnalysis().commentTarget(analysisIndex(before), analysisIndex(after), id);
       if (!target) return;
-      let draft = commentDrafts.get(id);
+      const key = `${requestedPath}|${id}`;
+      let draft = commentDrafts.get(key);
       if (!draft) {
         draft = { text: "" };
-        commentDrafts.set(id, draft);
+        commentDrafts.set(key, draft);
       }
-      const local = { id, index: after, openId: source.openId, target, draft };
+      const local = { id: key, index: after, openId: source.openId, target, draft };
       return { filename: source.label, paragraph: target.paragraph, draft, submit: () => void saveComment(local) };
     }
 
@@ -237,6 +332,7 @@ export async function showSavedReportExport(
         const version = { ...result.version, label: currentVersions[index].label };
         currentVersions[index] = version;
         analysis = analysis.withVersions(currentVersions);
+        applyPath(requestedPath, true);
         reviewState.author = author;
         commentDrafts.delete(id);
         onVersionUpdated?.(index, version);
@@ -252,13 +348,13 @@ export async function showSavedReportExport(
     }
 
     function showPreview(): void {
-      if (picked.length !== 2 || saving || writing || preview) return;
+      if (activeTargets().length < 2 || saving || writing || preview) return;
       status.textContent = "";
       try {
         const configuration = scope(false);
-        const candidate = analysis.project(configuration, lang, labels);
+        const candidate = activeAnalysis().project(configuration, lang, activeLabels());
         const selection = exportSelection();
-        const index = configuration.onlyPairs?.flatMap(([before, after]) => analysis.changes(before, after)
+        const index = configuration.onlyPairs?.flatMap(([before, after]) => activeAnalysis().changes(before, after)
           .filter((change) => selection.has(change.id))).findIndex((change) => change.id === reviewState.selected) ?? -1;
         renderSavedVersionReport(content, candidate, { openLink, initialChange: Math.max(0, index), state: {
           range: reviewState.range, commentsOpen: reviewState.commentsOpen,
@@ -291,6 +387,7 @@ export async function showSavedReportExport(
       }
     }
 
+    refreshPaths();
     showReview();
   }, undefined).finally(() => thumbnailView?.abort());
 }
