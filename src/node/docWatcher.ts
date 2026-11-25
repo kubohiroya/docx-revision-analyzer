@@ -119,6 +119,22 @@ export class WatchArchive {
     this.info = info;
   }
 
+  /** Open a previously recorded document without creating or updating its archive. */
+  static find(root: string, location: string, name?: string): WatchArchive | undefined {
+    const abs = /^https?:/i.test(location) ? location : path.resolve(location);
+    const key = watchKey(abs, name);
+    const info = readJson<WatchInfo>(path.join(root, key, INFO));
+    if (info?.path === abs || info?.paths?.includes(abs)) return new WatchArchive(root, key, info);
+
+    const matches: WatchArchive[] = [];
+    for (const entry of fs.existsSync(root) ? fs.readdirSync(root, { withFileTypes: true }) : []) {
+      if (!entry.isDirectory() || entry.name === key) continue;
+      const prior = readJson<WatchInfo>(path.join(root, entry.name, INFO));
+      if (prior?.path === abs || prior?.paths?.includes(abs)) matches.push(new WatchArchive(root, entry.name, prior));
+    }
+    return matches.length === 1 ? matches[0] : undefined;
+  }
+
   /**
    * 文書の記録のフォルダを開く (無ければ作る)。このパスの記録が無くても、同じ識別子 (w15:docId) で最後の版が
    * 同じ内容の記録があれば、移動・改名した文書とみなしてその記録を使う

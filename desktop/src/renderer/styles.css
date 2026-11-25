@@ -755,3 +755,33 @@ table.comments td.state,
 table.comments td.receipt {
   white-space: nowrap;
 }
+.comment-tag-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin: 0.75em 0;
+}
+.comment-passage {
+  margin: 0.75em 0;
+  padding: 0.75em;
+  border-inline-start: 3px solid var(--line);
+}
+.comment-passage,
+.comment-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.comment-observations,
+.comment-references {
+  padding-inline-start: 1.4em;
+}
+.comment-references button {
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.comment-message + .comment-message {
+  border-top: 1px solid var(--line);
+  margin-top: 0.75em;
+  padding-top: 0.75em;
+}

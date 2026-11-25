@@ -624,6 +624,7 @@ app.whenReady().then(() => {
     loadSettings,
     saveSettings,
     lang: () => loadSettings().lang ?? systemLang(),
+    openExternal,
   });
   registerPagesIpc({ window: () => mainWindow, loadSettings, saveSettings, microsoft: () => microsoft });
   pendingOpenPath ??= pathFromArgv(process.argv);

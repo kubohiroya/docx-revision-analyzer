@@ -24,6 +24,7 @@
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
 import type { DocxInput } from "./input";
+import { commentLinkUrl, type CommentLink } from "./commentReferences";
 
 type XmlNode = Record<string, unknown>;
 
@@ -34,15 +35,22 @@ const RECEIPT_INITIALS = "DRA";
 /** 引用の前後に残す文字数 */
 const CONTEXT_CHARS = 32;
 
-export interface CommentAnchor {
+export interface CommentPassage {
+  prefix: string;
+  quote: string;
+  suffix: string;
+}
+
+export interface CommentAnchor extends CommentPassage {
   /** 範囲の始まりの段落の w14:paraId */
   paraId?: string;
-  /** 範囲の文字列 (削除された文字を除いた、すべての変更を反映した状態) と、その前後 */
-  quote: string;
-  prefix: string;
-  suffix: string;
   /** 範囲に重なる変更 (種類|作成者|日時|本文のハッシュ値) */
   revisions: string[];
+}
+
+export interface CommentLocations {
+  passages: Map<string, CommentPassage>;
+  find?: (anchor: CommentAnchor) => CommentPassage | undefined;
 }
 
 export interface DocxComment {
@@ -62,6 +70,7 @@ export interface DocxComment {
   /** commentsExtensible.xml の UTC の日時 */
   dateUtc?: string;
   text: string;
+  links?: CommentLink[];
   /** 解決済み (commentsExtended.xml の w15:done) */
   done: boolean;
   /** 本文の中の範囲 (範囲の印が無いコメントは undefined) */
@@ -117,27 +126,31 @@ async function partTree(zip: JSZip, name: string): Promise<XmlNode[] | undefined
 }
 
 /** 要素の中の文字 (w:t / w:delText) */
-function innerText(nodes: XmlNode[], withDeleted = true): string {
+function innerText(nodes: XmlNode[], withDeleted = true, withBreaks = false): string {
   let s = "";
   for (const n of nodes) {
     const tag = tagOf(n);
     if (tag === undefined) continue;
     if (tag === "t" || (withDeleted && tag === "delText")) {
       for (const c of childrenOf(n, tag)) if ("#text" in c) s += String(c["#text"]);
+    } else if (withBreaks && (tag === "br" || tag === "cr" || tag === "tab")) {
+      s += tag === "tab" ? "\t" : "\n";
     } else {
-      s += innerText(childrenOf(n, tag), withDeleted);
+      s += innerText(childrenOf(n, tag), withDeleted, withBreaks);
     }
   }
   return s;
 }
 
 /** 本文を文書順にたどり、コメントの範囲の文字列・段落・重なる変更を集める */
-function collectAnchors(docTree: XmlNode[]): Map<string, CommentAnchor> {
+function collectAnchors(docTree: XmlNode[], locations?: CommentLocations): Map<string, CommentAnchor> {
   let text = "";
   let paraId: string | undefined;
   const open = new Map<string, { start: number; paraId?: string; revisions: Set<string> }>();
   const ranges = new Map<string, { start: number; end: number; paraId?: string; revisions: Set<string> }>();
   const points = new Map<string, { at: number; paraId?: string }>();
+  const ambiguous = new Set<string>();
+  const paragraphs: { id: string; start: number; end: number }[] = [];
   const walk = (nodes: XmlNode[]) => {
     for (const n of nodes) {
       const tag = tagOf(n);
@@ -147,7 +160,9 @@ function collectAnchors(docTree: XmlNode[]): Map<string, CommentAnchor> {
         case "p": {
           const prev = paraId;
           paraId = attr(n, "paraId")?.toUpperCase();
+          const start = text.length;
           walk(kids);
+          if (locations && paraId) paragraphs.push({ id: paraId, start, end: text.length });
           text += "\n";
           paraId = prev;
           break;
@@ -179,7 +194,10 @@ function collectAnchors(docTree: XmlNode[]): Map<string, CommentAnchor> {
         }
         case "commentRangeStart": {
           const id = attr(n, "id");
-          if (id !== undefined) open.set(id, { start: text.length, paraId, revisions: new Set() });
+          if (id !== undefined) {
+            if (open.has(id) || ranges.has(id)) ambiguous.add(id);
+            open.set(id, { start: text.length, paraId, revisions: new Set() });
+          }
           break;
         }
         case "commentRangeEnd": {
@@ -193,7 +211,10 @@ function collectAnchors(docTree: XmlNode[]): Map<string, CommentAnchor> {
         }
         case "commentReference": {
           const id = attr(n, "id");
-          if (id !== undefined && !points.has(id)) points.set(id, { at: text.length, paraId });
+          if (id !== undefined) {
+            if (points.has(id) && !ranges.has(id)) ambiguous.add(id);
+            if (!points.has(id)) points.set(id, { at: text.length, paraId });
+          }
           break;
         }
         default:
@@ -202,22 +223,49 @@ function collectAnchors(docTree: XmlNode[]): Map<string, CommentAnchor> {
     }
   };
   walk(docTree);
+  function passage(start: number, end: number): CommentPassage {
+    const lineStart = start === 0 ? 0 : text.lastIndexOf("\n", start - 1) + 1;
+    const newline = text.indexOf("\n", end);
+    return { prefix: text.slice(lineStart, start), quote: text.slice(start, end), suffix: text.slice(end, newline < 0 ? text.length : newline) };
+  }
+  if (locations) {
+    locations.find = (anchor) => {
+      if (!anchor.quote.trim()) return undefined;
+      const sameParagraph = paragraphs.filter((p) => p.id === anchor.paraId);
+      const candidates: { start: number; end: number; context: boolean }[] = [];
+      for (let start = text.indexOf(anchor.quote); start >= 0; start = text.indexOf(anchor.quote, start + 1)) {
+        const end = start + anchor.quote.length;
+        if (sameParagraph.length && !sameParagraph.some((p) => start >= p.start && start < p.end)) continue;
+        const context = Boolean(anchor.prefix || anchor.suffix)
+          && text.slice(Math.max(0, start - anchor.prefix.length), start) === anchor.prefix
+          && text.slice(end, end + anchor.suffix.length) === anchor.suffix;
+        if (sameParagraph.length || context) candidates.push({ start, end, context });
+      }
+      const contextual = candidates.filter((candidate) => candidate.context);
+      const match = contextual.length === 1 ? contextual[0] : candidates.length === 1 ? candidates[0] : undefined;
+      return match && passage(match.start, match.end);
+    };
+  }
   const out = new Map<string, CommentAnchor>();
-  const anchor = (start: number, end: number, p: string | undefined, revisions: string[]): CommentAnchor => ({
-    paraId: p,
-    quote: text.slice(start, end),
-    prefix: text.slice(Math.max(0, start - CONTEXT_CHARS), start),
-    suffix: text.slice(end, end + CONTEXT_CHARS),
-    revisions,
-  });
-  for (const [id, r] of ranges) out.set(id, anchor(r.start, r.end, r.paraId, [...r.revisions].sort()));
+  const record = (id: string, start: number, end: number, p: string | undefined, revisions: string[]): void => {
+    const quote = text.slice(start, end);
+    out.set(id, {
+      paraId: p,
+      quote,
+      prefix: text.slice(Math.max(0, start - CONTEXT_CHARS), start),
+      suffix: text.slice(end, end + CONTEXT_CHARS),
+      revisions,
+    });
+    if (!ambiguous.has(id) && !open.has(id)) locations?.passages.set(id, passage(start, end));
+  };
+  for (const [id, r] of ranges) record(id, r.start, r.end, r.paraId, [...r.revisions].sort());
   // 範囲の印が無いコメントは、参照の位置 (文字を持たない範囲) にする
-  for (const [id, p] of points) if (!out.has(id)) out.set(id, anchor(p.at, p.at, p.paraId, []));
+  for (const [id, p] of points) if (!out.has(id)) record(id, p.at, p.at, p.paraId, []);
   return out;
 }
 
 /** 文書のコメントを読む (comments.xml の順) */
-export async function extractComments(input: DocxInput): Promise<DocxComment[]> {
+export async function extractComments(input: DocxInput, locations?: CommentLocations): Promise<DocxComment[]> {
   const zip = await JSZip.loadAsync(input);
   const tree = await partTree(zip, "word/comments.xml");
   const root = tree?.find((n) => tagOf(n) === "comments");
@@ -247,7 +295,26 @@ export async function extractComments(input: DocxInput): Promise<DocxComment[]> 
     if (tagOf(n) === "commentExtensible" && d && at) utc.set(d, at);
   }
   const docTree = await partTree(zip, "word/document.xml");
-  const anchors = docTree ? collectAnchors(docTree) : new Map<string, CommentAnchor>();
+  const anchors = docTree ? collectAnchors(docTree, locations) : new Map<string, CommentAnchor>();
+  const linksById = new Map<string, string>();
+  const rels = (await partTree(zip, "word/_rels/comments.xml.rels"))?.find((n) => tagOf(n) === "Relationships");
+  for (const rel of rels ? childrenOf(rels, "Relationships") : []) {
+    const id = attr(rel, "Id");
+    if (tagOf(rel) !== "Relationship" || !id || attr(rel, "TargetMode") !== "External") continue;
+    if (!attr(rel, "Type")?.endsWith("/hyperlink")) continue;
+    const url = commentLinkUrl(attr(rel, "Target"));
+    if (url) linksById.set(id, url);
+  }
+  function readLinks(nodes: XmlNode[]): CommentLink[] {
+    return nodes.flatMap((node) => {
+      const tag = tagOf(node);
+      if (!tag) return [];
+      const kids = childrenOf(node, tag);
+      if (tag !== "hyperlink") return readLinks(kids);
+      const url = linksById.get(attr(node, "id") ?? "");
+      return url ? [{ url, label: innerText(kids, false) }] : [];
+    });
+  }
 
   const comments: DocxComment[] = [];
   for (const n of childrenOf(root, "comments")) {
@@ -261,10 +328,13 @@ export async function extractComments(input: DocxInput): Promise<DocxComment[]> 
     const id = attr(n, "id") ?? "";
     const author = attr(n, "author");
     const date = attr(n, "date");
-    const text = paras.map((p) => innerText(childrenOf(p, "p"), false)).join("\n");
+    const text = paras.map((p) => innerText(childrenOf(p, "p"), false, true)).join("\n");
+    // Keep the archive keys created before line breaks within runs were extracted.
+    const keyText = durableId ? text : paras.map((p) => innerText(childrenOf(p, "p"), false)).join("\n");
+    const links = linksById.size ? readLinks(paras) : [];
     comments.push({
       id,
-      key: durableId ? `d:${durableId}` : `h:${textHash(`${author ?? ""}\u0000${date ?? ""}\u0000${text}`)}`,
+      key: durableId ? `d:${durableId}` : `h:${textHash(`${author ?? ""}\u0000${date ?? ""}\u0000${keyText}`)}`,
       durableId,
       paraId,
       author,
@@ -272,6 +342,7 @@ export async function extractComments(input: DocxInput): Promise<DocxComment[]> 
       date,
       dateUtc: durableId ? utc.get(durableId) : undefined,
       text,
+      ...(links.length ? { links } : {}),
       done: paraId ? ex.get(paraId)?.done ?? false : false,
       anchor: anchors.get(id),
     });
@@ -380,7 +451,9 @@ export function diffComments(
       continue;
     }
     if (!s.present) out.push({ at: iso, type: "reappeared", key: c.key, sha256, comment: c });
-    else if (s.comment.text !== c.text) out.push({ at: iso, type: "edited", key: c.key, sha256, comment: c });
+    else if (s.comment.text !== c.text || JSON.stringify(s.comment.links) !== JSON.stringify(c.links)) {
+      out.push({ at: iso, type: "edited", key: c.key, sha256, comment: c });
+    }
     if (s.comment.done !== c.done) out.push({ at: iso, type: c.done ? "resolved" : "reopened", key: c.key, sha256 });
   }
   for (const s of state.values()) {

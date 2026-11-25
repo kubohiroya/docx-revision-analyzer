@@ -6,7 +6,7 @@
  * 文書や解析結果をネットワークへ送る経路は無い (main.ts で外部への通信を遮断している)。
  */
 
-import type { CommentEvent, CommentState } from "../../src/lib/docxComments";
+import type { CommentAnchor, CommentEvent, CommentPassage, CommentState, DocxComment } from "../../src/lib/docxComments";
 import type {
   AnalysisResult,
   CategorySpec,
@@ -308,6 +308,29 @@ export interface WatchReceiptsMessage {
   skipped: number;
 }
 
+export type CommentHistoryTarget = Pick<OpenedFile, "path" | "name">;
+
+export interface CommentHistoryRow extends CommentState {
+  members: string[];
+  tags: string[];
+}
+
+export interface CommentObservation {
+  type: "resolved" | "reopened" | "removed" | "reappeared";
+  at: string;
+  version?: number;
+}
+
+export interface CommentHistoryDetail {
+  version?: { n: number; archivedAt: string };
+  versionUnavailable: boolean;
+  passage?: CommentPassage;
+  locatedByContext?: boolean;
+  recordedAnchor?: CommentAnchor;
+  comments: DocxComment[];
+  observations: CommentObservation[];
+}
+
 export interface WatchApi {
   /** 文書の監視を始める (ほかの文書の監視はやめる) */
   start(target: WatchTarget): Promise<WatchUpdateMessage>;
@@ -317,6 +340,9 @@ export interface WatchApi {
   chooseRecordsDir(reset?: boolean): Promise<WatchStatus>;
   /** 記録のフォルダを開く */
   openRecordsDir(): Promise<void>;
+  commentHistory(target: CommentHistoryTarget): Promise<CommentHistoryRow[]>;
+  commentDetail(target: CommentHistoryTarget, key: string): Promise<CommentHistoryDetail | undefined>;
+  openCommentLink(url: string): Promise<void>;
   onUpdate(cb: (msg: WatchUpdateMessage) => void): void;
   onReceipts(cb: (msg: WatchReceiptsMessage) => void): void;
   onError(cb: (message: string) => void): void;

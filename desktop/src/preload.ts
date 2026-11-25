@@ -35,6 +35,9 @@ const api: AppApi = {
     status: () => ipcRenderer.invoke("watch:status"),
     chooseRecordsDir: (reset) => ipcRenderer.invoke("watch:choose-records-dir", reset),
     openRecordsDir: () => ipcRenderer.invoke("watch:open-records"),
+    commentHistory: (target) => ipcRenderer.invoke("watch:comment-history", target),
+    commentDetail: (target, key) => ipcRenderer.invoke("watch:comment-detail", target, key),
+    openCommentLink: (url) => ipcRenderer.invoke("watch:open-comment-link", url),
     onUpdate: (cb) => {
       ipcRenderer.on("watch:update", (_e, msg) => cb(msg));
     },
