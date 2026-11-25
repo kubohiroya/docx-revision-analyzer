@@ -5,9 +5,11 @@ import {
 } from "../../../src/lib/lineage";
 import { commentReferences } from "../../../src/lib/commentReferences";
 import { LineageComments, type VersionThreadOccurrence } from "../lineageComments";
+import { SavedReportAnalysis } from "../savedReport";
 import type { AppLang, CommentHistoryTarget, SavedLineageVersion } from "../shared";
 import { el } from "./extensions";
 import { showCommentHistory } from "./commentHistory";
+import { savedReportExportLabel, showSavedReportExport } from "./savedReportExport";
 import { STRINGS } from "./strings";
 
 const EN = {
@@ -273,9 +275,14 @@ export class SavedVersionsPane {
       this.pane.querySelector<HTMLInputElement>("#lineage-unchanged")?.focus();
     };
     showLabel.append(show, s.unchanged);
-    controls.append(pairLabel, levelLabel, showLabel);
-    this.pane.append(controls);
     const pair = result.comparisons[this.pair];
+    controls.append(pairLabel, levelLabel, showLabel, action(savedReportExportLabel(this.lang), () => {
+      void showSavedReportExport(
+        new SavedReportAnalysis(this.versions, result, this.level),
+        this.versions.map((_, index) => this.name(index)), [pair.before, pair.after], this.lang,
+      );
+    }, this.busy));
+    this.pane.append(controls);
     this.drawVersionComments(pair.before, pair.after);
     if (pair.unavailable) {
       this.pane.append(el("p", s.missing, "hint"));

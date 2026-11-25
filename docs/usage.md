@@ -612,6 +612,19 @@ and archive times describe the available versions. They cannot identify the time
 that appeared and disappeared between saves. Gaps and unreadable saves are marked. The comparison reads each available
 version locally.
 
+**Share a saved-version comparison as HTML**: After comparing, choose **Export HTML**. Select the drafts to share, the
+changes for each pair of drafts, and the maximum amount of surrounding text to include. You can opt in to Word comments,
+replies, tags, deleted threads, reference URLs, and comments without a confirmed location. Choose **Preview what readers
+receive**, then **Save HTML…**. Viewing filters and sharing options are independent. To let readers jump back to a
+comment's original passage, include the draft where it was observed and an excerpt that contains its range.
+
+The single HTML file opens offline in a browser. In **Trace across saved versions**, choose two drafts, then filter the
+change list by type or tag. The text range starts at about 200 characters, or at the sharing limit if it is lower, and
+can be adjusted from about 20 characters up to the shared limit. **Full page** includes body text and headings from the
+page containing the change. It does not embed a page image. Page boundaries derived from incomplete Word pagination
+information are marked as estimated. If boundaries cannot be established, the report shows an excerpt instead. Before
+sharing, move the preview slider to its highest position to inspect all the surrounding text you are including.
+
 **Saved pages**: the buttons at the top of the flow's right pane switch between "Schematic" (the page as this app draws
 it) and "Saved pages": the real pages, as a PDF, of the version saved at that column's point in time — the last
 version saved after the column's last change and before the next one. ↑ ↓ move through the pages of that version, ← →
