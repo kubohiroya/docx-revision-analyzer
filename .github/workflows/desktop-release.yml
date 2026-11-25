@@ -69,7 +69,12 @@ jobs:
           # 証明書が無いときに、キーチェーンの証明書を探しに行かない
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CSC_LINK != '' && 'true' || 'false' }}
         # 配布物を作るだけ (GitHub Releases への添付は release のジョブがまとめて行う)
-        run: npx electron-builder --config electron-builder.config.cjs --publish never
+        run: |
+          # electron-builder treats an empty certificate link as a file path.
+          if [[ "$RUNNER_OS" == macOS && -z "$CSC_LINK" ]]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
+          fi
+          npx electron-builder --config electron-builder.config.cjs --publish never
       - name: Verify the complete macOS app signature
         if: runner.os == 'macOS'
         run: |
