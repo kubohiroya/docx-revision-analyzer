@@ -133,10 +133,9 @@ Download the desktop app using the installers below. The automatic update feed s
 | Version | macOS (Apple Silicon / Intel) | Windows (x64 / ARM64) |
 |---|---|---|
 | [v0.3.0 (regular release)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) |
-| [v0.4.0 (prerelease)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.0) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-0.4.0-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-Setup-0.4.0.exe) |
+| [v0.4.1 (prerelease)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.1) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-0.4.1-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-Setup-0.4.1.exe) |
 
-To try the new workspace for reviewing saved-version changes, exporting HTML, and adding Word comments, download v0.4.0 manually.
-See the [usage guide](usage.md#desktop-app-preview) for settings and steps.
+Download v0.4.1 manually to use the [saved-version branch timeline](usage.md#saved-version-branch-timeline) and export
+selected changes as HTML. The [usage guide](usage.md#desktop-app-preview) covers the comparison and optional Word comment writing.
 
-To use the [saved-version branch timeline](usage.md#saved-version-branch-timeline), run the development build from source
-using [desktop/README.md](../desktop/README.md). For packaging instructions, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md).
+To run from source, see [desktop/README.md](../desktop/README.md). For packaging instructions, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md).

@@ -589,9 +589,9 @@ Settings). They are not put next to the document, so they are not shared with co
 Watching is meant for keeping an eye on your own document, not for constantly monitoring other people's. No replies
 are written to documents opened from a URL (they are opened with read-only access).
 
-For the v0.3.0 and v0.4.0 releases, see [Export a saved-version comparison as HTML](#export-a-saved-version-comparison-as-html).
+See [Export a saved-version comparison as HTML](#export-a-saved-version-comparison-as-html) for steps by version.
 The **Versions in scope** table, the `--versions` option, per-version charts and flows, search and date filters, and the
-[branch timeline](#saved-version-branch-timeline) are features of the development build.
+[branch timeline](#saved-version-branch-timeline) are available in the v0.4.1 prerelease.
 
 **Compare saved versions (preview)**: Turn on **Compare saved versions (preview)** in Settings and open **Saved versions**.
 Select **Choose DOCX files** or **Choose folders** to open the **Versions in scope** table. Folders are scanned recursively
@@ -702,7 +702,7 @@ Word closes the document or after the idle gap; those of any other version when 
 
 ### Saved-version branch timeline
 
-In the development build, **Review changes and comments** shows **Version branches** by default. Turn off
+In v0.4.1, **Review changes and comments** shows **Version branches** by default. Turn off
 **Compare along inferred branches (preview)** in Settings to hide the timeline and use chronological comparison. The app
 remembers an explicit off setting after restart.
 
@@ -722,7 +722,9 @@ the selected path unavailable, choose a path again before opening the preview.
 
 ### Export a saved-version comparison as HTML
 
-#### Development build screenshots
+#### Export in the v0.4.1 prerelease
+
+The screenshots use a development build.
 
 1. In **Settings**, enable **Compare saved versions (preview)**. In **Saved versions**, select **Choose DOCX files** or **Choose folders**.
 
@@ -738,7 +740,7 @@ the selected path unavailable, choose a path again before opening the preview.
 
    ![Development build HTML preview showing two changes across three versions and the Save HTML button](images/html-export/en-preview.png)
 
-#### Enable and run the comparison in the released builds
+#### Enable and run the comparison in v0.3.0 and v0.4.0
 
 1. Open **Settings** in the desktop app and turn on **Compare saved versions (preview)**. The **Saved versions** tab appears at the top.
 2. In **Saved versions**, select **Choose DOCX files** and pick at least two saved versions of the same document. Use the arrows to order them from earliest to latest, then select **Compare**. For versions archived while watching a document, open that document and choose **Use the open document’s saved record** before comparing.

@@ -5,31 +5,30 @@ English | [日本語](./README.ja.md)
 
 ## Download the desktop app
 
-| Your computer | v0.3.0 (regular release) | v0.4.0 (prerelease download) |
+| Your computer | v0.3.0 (regular release) | v0.4.1 (prerelease download) |
 |---|---|---|
-| macOS (Apple Silicon / Intel) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-0.4.0-universal.dmg) |
-| Windows (x64 / ARM64) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-Setup-0.4.0.exe) |
+| macOS (Apple Silicon / Intel) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-0.4.1-universal.dmg) |
+| Windows (x64 / ARM64) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-Setup-0.4.1.exe) |
 
 Open or drop a .docx to use the app. It runs without Node.js or the command line.
-The v0.4.0 prerelease lets you review changes between saved versions and export them as standalone HTML. You can enable Word comment writing in Settings.
+The v0.4.1 prerelease shows the saved-version branch timeline by default. You can review changes, export standalone HTML,
+and enable Word comment writing in Settings. [Release notes](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.1)
 The automatic update feed serves v0.3.0. [Installation guide](docs/installation.md#desktop-app)
 
 ### Export a saved-version comparison as HTML
 
+In v0.4.1, follow these steps.
+
 1. In **Settings**, turn on **Compare saved versions (preview)**.
-2. In **Saved versions**, select **Choose DOCX files** and pick at least two versions of the same document. Put them in chronological order and select **Compare**.
-3. Use the button above the comparison results.
-   - In **v0.4.0**, open **Review changes and comments** and check **Export** for the changes to include. Select **HTML preview**, then **Save HTML…**.
-   - In **v0.3.0**, open **Export HTML**, select the content, then choose **Preview what readers receive** and **Save HTML…**.
+2. In **Saved versions**, choose files or folders to open **Review changes and comments**.
+3. Use **Version branches** to select a branch and interval if needed. In **Change list**, check **Export** for the changes to include.
+4. Select **HTML preview**, then **Save HTML…**.
 
 The screenshot shows the development build.
 
 ![Development build review with versions in scope, chart thumbnails, matched and total changes, and added and deleted character counts](docs/images/html-export/en-review.png)
 
-[Step-by-step instructions with screenshots (usage guide)](docs/usage.md#export-a-saved-version-comparison-as-html)
-
-In the development build, choose files or folders in **Saved versions** to open **Review changes and comments** with
-**Version branches** visible by default. Choose a branch and interval to narrow the change list and HTML export.
+[Step-by-step instructions for v0.4.1 and earlier versions](docs/usage.md#export-a-saved-version-comparison-as-html) ·
 [Using the saved-version branch timeline](docs/usage.md#saved-version-branch-timeline)
 
 ## Download the CLI (v2.0.0)

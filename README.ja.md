@@ -5,31 +5,30 @@
 
 ## デスクトップ版をダウンロード
 
-| お使いのパソコン | v0.3.0（通常配布） | v0.4.0（プレビュー・手動入手） |
+| お使いのパソコン | v0.3.0（通常配布） | v0.4.1（プレビュー・手動入手） |
 |---|---|---|
-| macOS (Apple Silicon / Intel 共通) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-0.4.0-universal.dmg) |
-| Windows (x64 / ARM64 共通) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-Setup-0.4.0.exe) |
+| macOS (Apple Silicon / Intel 共通) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-0.4.1-universal.dmg) |
+| Windows (x64 / ARM64 共通) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-Setup-0.4.1.exe) |
 
 .docx を開くかドロップして使えます。Node.js やコマンドラインの操作は不要です。
-v0.4.0 プレビューでは、保存版の変更箇所を確認し、HTML に書き出し、設定を有効にすると Word コメントを追記できます。
+v0.4.1 プレビューでは、保存版の分岐タイムラインが既定で表示されます。変更箇所をHTMLに書き出せます。
+設定を有効にするとWordコメントを追記できます。 [リリースノート](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.1)
 自動更新を有効にした場合の配信対象は v0.3.0 です。[インストールガイド](docs/installation.ja.md#デスクトップアプリ)
 
 ### 保存版の比較を HTML に書き出す
 
+v0.4.1 では次の手順で書き出せます。
+
 1. 「設定」で「保存版を比較（プレビュー）」を有効にします。
-2. 「保存版の比較」タブで「DOCXファイルを選ぶ」を押し、同じ文書の版を2つ以上選びます。古い順に並べて「比較する」を押します。
-3. 比較結果の上にあるボタンから書き出します。
-   - **v0.4.0** は「変更箇所の確認とコメント」を開き、保存したい行の「書き出す」にチェックを入れます。「HTMLプレビュー」で確認して「HTMLを保存…」を押します。
-   - **v0.3.0** は「HTMLを書き出す」を開いて内容を選び、「受け取る人の画面を確認」→「HTMLを保存…」と進みます。
+2. 「保存版の比較」タブでファイルやフォルダを選び、「変更箇所の確認とコメント」を開きます。
+3. 必要に応じて「保存版の分岐」で枝と区間を選びます。「変更箇所一覧」で収録する行の「書き出す」にチェックを入れます。
+4. 「HTMLプレビュー」で収録内容を確認し、「HTMLを保存…」を押します。
 
 以下は開発版の画面です。
 
 ![開発版の変更箇所の確認とコメント。対象版、チャート、抽出・全体件数、追加・削除文字数](docs/images/html-export/ja-review.png)
 
-[画面ごとの操作手順（利用ガイド）](docs/usage.ja.md#保存版の比較を-html-に書き出す)
-
-開発版では「保存版の比較」タブでファイルやフォルダを選ぶと、「変更箇所の確認とコメント」が開き、既定で「保存版の分岐」が表示されます。
-枝と区間を選んで、変更箇所一覧とHTML書き出しの対象を絞れます。
+[v0.4.1 と以前の版の操作手順](docs/usage.ja.md#保存版の比較を-html-に書き出す) ·
 [保存版の分岐タイムラインの使い方](docs/usage.ja.md#保存版の分岐タイムライン)
 
 ## CLI をダウンロード (v2.0.0)
