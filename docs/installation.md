@@ -128,5 +128,9 @@ Existing settings filenames (such as `docx-revision-chart.yml`) and the analysis
 
 ## Desktop app
 
-The desktop app (Electron, preview) has installers in [desktop-v0.2.0](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.2.0). Choose the `.dmg` for Mac or `Setup-0.2.0.exe` for Windows. These are separate from the CLI.
+The desktop app (Electron, preview) has installers in [desktop-v0.3.0](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0). These are separate from the CLI.
+
+- [macOS (.dmg, Apple Silicon / Intel)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg)
+- [Windows (.exe, x64 / ARM64)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe)
+
 To run from source, see [desktop/README.md](../desktop/README.md); to package it, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md). Its features are described in [Usage](usage.md#desktop-app-preview).

@@ -129,5 +129,9 @@ npm と単体バイナリの公開コマンドを1つに統合しました。呼
 
 ## デスクトップアプリ
 
-デスクトップアプリ (Electron、プレビュー) のインストーラは、[desktop-v0.2.0](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.2.0) で配布しています。Mac は `.dmg`、Windows は `Setup-0.2.0.exe` を選んでください。CLI とは別の配布物です。
+デスクトップアプリ (Electron、プレビュー) のインストーラは [desktop-v0.3.0](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0) で配布しています。CLI とは別の配布物です。
+
+- [macOS 版 (.dmg、Apple Silicon / Intel 共通)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg)
+- [Windows 版 (.exe、x64 / ARM64 共通)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe)
+
 ソースからの起動は [desktop/README.md](../desktop/README.md)、パッケージの作成は [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md)、機能は[使い方](usage.ja.md#デスクトップアプリ-プレビュー)を参照してください。
