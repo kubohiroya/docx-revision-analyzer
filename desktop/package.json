@@ -11,7 +11,7 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node test-pages.mjs && node test-comment-history.mjs && node test-saved-versions.mjs && node test-lineage-comments.mjs",
+    "test": "node test-pages.mjs && node test-comment-history.mjs && node test-saved-versions.mjs && node test-lineage-comments.mjs && node test-saved-report.mjs",
     "start": "npm run build && electron .",
     "smoke": "npm run build && node smoke.mjs",
     "smoke:watch": "npm run build && node smoke-watch.mjs",

@@ -3,6 +3,12 @@ export interface CommentLink {
   label: string;
 }
 
+const uri = /[a-z][a-z\d+.-]*:\/\/[^\s<>"'「」『』【】、。！？]+/gi;
+
+export function omitCommentUrls(text: string): string {
+  return text.replace(uri, "");
+}
+
 export function commentLinkUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !/^https?:\/\//i.test(value)) return undefined;
   try {
@@ -20,7 +26,7 @@ export function commentReferences(text: string, wordLinks: CommentLink[] = []): 
     if (url) links.set(url, { url, label: link.label || url });
   }
   // Remove URI spans first so that their fragments cannot become tags.
-  const withoutLinks = text.replace(/[a-z][a-z\d+.-]*:\/\/[^\s<>"'「」『』【】、。！？]+/gi, (match) => {
+  const withoutLinks = text.replace(uri, (match) => {
     let value = match.replace(/[.,;:!?]+$/, "");
     while (value.endsWith(")") && (value.match(/\)/g)?.length ?? 0) > (value.match(/\(/g)?.length ?? 0)) {
       value = value.slice(0, -1);

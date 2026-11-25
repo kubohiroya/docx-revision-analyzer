@@ -70,6 +70,11 @@ export class LineageComments {
     return (this.threadIndex.get(key) ?? []).filter((entry) => entry.thread.ranges.some((mark) => intersects(mark, range, length)));
   }
 
+  atRanges(ranges: readonly LineageRange[]): VersionThreadOccurrence[] {
+    const entries = ranges.flatMap((range) => this.at(range));
+    return [...new Map(entries.map((entry) => [entry.thread, entry])).values()];
+  }
+
   private directRanges(link: LineageLink): LineageRange[] {
     return link.kind === "ambiguous" ? link.to : [...link.from, ...link.to];
   }

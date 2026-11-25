@@ -228,13 +228,27 @@ function registerIpc(): void {
     return r.canceled || r.filePaths.length === 0 ? null : readRules(r.filePaths[0]);
   });
   ipcMain.handle("read-rules", (_e, p: string) => readRules(p));
-  ipcMain.handle("save-file", async (_e, defaultName: string, data: Uint8Array | string, kind: "svg" | "png") => {
+  ipcMain.handle("save-file", async (_e, defaultName: string, data: Uint8Array | string, kind: "svg" | "png" | "html") => {
+    if (kind === "html" && (typeof data !== "string" || loadSettings().lineagePreview !== true)) return null;
     const r = await dialog.showSaveDialog(mainWindow!, {
       defaultPath: defaultName,
-      filters: [kind === "svg" ? { name: "SVG", extensions: ["svg"] } : { name: "PNG", extensions: ["png"] }],
+      filters: [{ name: kind.toUpperCase(), extensions: [kind] }],
     });
     if (r.canceled || !r.filePath) return null;
-    await fs.promises.writeFile(r.filePath, typeof data === "string" ? data : Buffer.from(data));
+    if (kind === "html") {
+      if (path.extname(r.filePath).toLowerCase() !== ".html") throw new Error("Choose a filename ending in .html.");
+      // Replace the selected directory entry without following a symlink or overwriting a hard-linked original.
+      const temporary = await fs.promises.mkdtemp(path.join(path.dirname(r.filePath), ".dra-report-"));
+      try {
+        const file = path.join(temporary, "report.html");
+        await fs.promises.writeFile(file, data);
+        await fs.promises.rename(file, r.filePath);
+      } finally {
+        await fs.promises.rm(temporary, { recursive: true, force: true });
+      }
+    } else {
+      await fs.promises.writeFile(r.filePath, typeof data === "string" ? data : Buffer.from(data));
+    }
     // 開けなくても保存はできているので、保存の結果は変えない
     if (kind === "svg" && loadSettings().openSvgInBrowser) void openFileInBrowser(r.filePath).catch((err) => console.error(err));
     return r.filePath;

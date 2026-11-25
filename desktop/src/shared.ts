@@ -410,7 +410,7 @@ export interface AppApi {
    */
   saveLockedDocx(bytes: Uint8Array, defaultName: string, password: string): Promise<LockSaveResult | null>;
   /** 保存ダイアログを出してバイト列を書き出す。保存したパス (キャンセルなら null) を返す */
-  saveFile(defaultName: string, data: Uint8Array | string, kind: "svg" | "png"): Promise<string | null>;
+  saveFile(defaultName: string, data: Uint8Array | string, kind: "svg" | "png" | "html"): Promise<string | null>;
   getSettings(): Promise<AppSettings>;
   setSettings(settings: AppSettings): Promise<void>;
   /** OS の言語 */

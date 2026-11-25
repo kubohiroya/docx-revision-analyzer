@@ -23,8 +23,13 @@ export interface VersionParagraph {
   paraId?: string;
 }
 
+export interface SavedPageMap {
+  breaks: { paragraph: number; offset: number }[];
+  estimated: boolean;
+}
+
 export type SavedTextVersion = VersionIdentity & (
-  | { paragraphs: VersionParagraph[]; trackedChanges: boolean; unavailable?: false }
+  | { paragraphs: VersionParagraph[]; trackedChanges: boolean; pageMap?: SavedPageMap; unavailable?: false }
   | { unavailable: true }
 );
 
@@ -75,12 +80,15 @@ export async function readSavedTextVersion(
   const rawMarks = commentRanges && new Map<number, LayoutCommentMark[]>();
   const model = await parseDocxLayout(input, rawMarks);
   const paragraphs: VersionParagraph[] = [];
+  const pageBreaks: SavedPageMap["breaks"] = [];
+  let pendingBreak = false;
+  let renderedBreaks = 0;
   const marks = new Map<string, Array<{ kind: LayoutCommentMark["kind"]; paragraph: number; offset: number }>>();
   let trackedChanges = false;
   for (const p of model.paras) {
     const pending = rawMarks?.get(p.index);
     if (p.kind === "table" && !pending) continue;
-    const { text, offsets } = visibleText(p, pending);
+    const { text, offsets, breaks, rendered } = visibleText(p, pending);
     pending?.forEach((mark, index) => {
       const existing = marks.get(mark.id) ?? [];
       existing.push({ kind: mark.kind, paragraph: p.index, offset: offsets[index] });
@@ -88,7 +96,19 @@ export async function readSavedTextVersion(
     });
     if (p.kind === "table") continue;
     trackedChanges ||= Boolean(p.markIns || p.markDel || p.segs.some((s) => s.ins || s.del));
-    if (text.trim()) paragraphs.push({ index: p.index, kind: p.kind, text, paraId: p.paraId });
+    if (text.trim()) {
+      if (paragraphs.length && (pendingBreak || p.pageBreakBefore || breaks.includes(0))) {
+        pageBreaks.push({ paragraph: p.index, offset: 0 });
+      }
+      for (const offset of breaks) {
+        if (offset > 0 && offset < text.length) pageBreaks.push({ paragraph: p.index, offset });
+      }
+      paragraphs.push({ index: p.index, kind: p.kind, text, paraId: p.paraId });
+      renderedBreaks += rendered;
+      pendingBreak = p.sectionBreakAfter || breaks.includes(text.length);
+    } else {
+      pendingBreak ||= p.pageBreakBefore || p.sectionBreakAfter || breaks.length > 0;
+    }
   }
   if (commentRanges) {
     const byIndex = new Map(paragraphs.map((p) => [p.index, p]));
@@ -115,21 +135,35 @@ export async function readSavedTextVersion(
       }
     }
   }
-  return { ...identity, paragraphs, trackedChanges };
+  // Word also uses rendered break marks for columns. Do not turn those marks into pages.
+  const oneColumn = model.sections.every((s) => s.props.columns.num === 1 && s.props.start !== "nextColumn");
+  const tableBreaks = model.paras.some((p) => p.kind === "table" && p.renderedBreaks?.length);
+  const count = model.savedPageCount;
+  const matchesCount = count === pageBreaks.length + 1;
+  const pageMap = oneColumn && !tableBreaks && (matchesCount || (count === undefined && pageBreaks.length > 0))
+    ? { breaks: pageBreaks, estimated: !matchesCount || (pageBreaks.length > 0 && !renderedBreaks) }
+    : undefined;
+  return { ...identity, paragraphs, trackedChanges, pageMap };
 }
 
 /** Use the same visible text and offsets for comparison ranges and Word comment marks. */
-function visibleText(p: Para, marks: LayoutCommentMark[] = []): { text: string; offsets: number[] } {
+function visibleText(p: Para, marks: LayoutCommentMark[] = []) {
   let text = "";
   const offsets: number[] = [];
+  const breaks = new Set<number>();
+  const renderedAt = new Set(p.renderedBreaks);
   for (let i = 0; i <= p.segs.length; i++) {
     while (marks[offsets.length]?.segment === i) offsets.push(text.length);
+    if (renderedAt.has(i)) breaks.add(text.length);
     const seg = p.segs[i];
     if (!seg || seg.del) continue;
     if (seg.kind === "text") text += seg.text;
-    else if (seg.kind === "lineBreak" || seg.kind === "pageBreak") text += "\n";
+    else if (seg.kind === "lineBreak" || seg.kind === "pageBreak") {
+      text += "\n";
+      if (seg.kind === "pageBreak") breaks.add(text.length);
+    }
   }
-  return { text, offsets };
+  return { text, offsets, breaks: [...breaks].sort((a, b) => a - b), rendered: renderedAt.size };
 }
 
 export function compareSavedVersions(versions: readonly SavedTextVersion[], options: LineageOptions = {}): SavedVersionLineage {

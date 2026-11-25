@@ -49,6 +49,16 @@ await esbuild.build({
   target: "chrome130",
 });
 fs.copyFileSync(path.join(dir, "src/ext-host/index.html"), path.join(out, "ext-host/index.html"));
+const report = await esbuild.build({
+  ...common,
+  entryPoints: [path.join(dir, "src/renderer/savedReportEntry.ts")],
+  platform: "browser",
+  format: "iife",
+  target: "es2022",
+  minify: true,
+  write: false,
+});
+const reportCss = fs.readFileSync(path.join(dir, "src/renderer/savedReport.css"), "utf8");
 await esbuild.build({
   ...common,
   entryPoints: [path.join(dir, "src/renderer/app.ts")],
@@ -56,8 +66,12 @@ await esbuild.build({
   platform: "browser",
   format: "iife",
   target: "chrome130",
+  define: {
+    __DRA_SAVED_REPORT_SCRIPT__: JSON.stringify(report.outputFiles[0].text),
+    __DRA_SAVED_REPORT_CSS__: JSON.stringify(reportCss),
+  },
 });
-for (const f of ["index.html", "styles.css"]) {
+for (const f of ["index.html", "styles.css", "savedReport.css"]) {
   fs.copyFileSync(path.join(dir, "src/renderer", f), path.join(out, "renderer", f));
 }
 // 保存時のページを描く pdf.js (pages/pdfHost.ts の非表示のウィンドウ)。必要なファイルだけを写す
