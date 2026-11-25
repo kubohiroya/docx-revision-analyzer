@@ -21,10 +21,10 @@ import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules,
 import { MicrosoftClient, MicrosoftConfig, MicrosoftError } from "./microsoft";
 import { EXT_SCHEME, ExtensionManager } from "./extensions";
 import { NetMediator } from "./sendLog";
-import { isSourceLink, registerBatchIpc, rememberSource } from "./batchMain";
+import { isSourceLink, listVersionInputFiles, registerBatchIpc, rememberSource } from "./batchMain";
 import { openFileInBrowser } from "./openInBrowser";
 import { registerWatchIpc, stopWatching } from "./watchMain";
-import { addSavedVersionComment, readSelectedSavedVersions, savedVersionFile } from "./savedLineage";
+import { addSavedVersionComment, readSavedVersionFigureSource, readSelectedSavedVersions, savedVersionFile } from "./savedLineage";
 import { disposePages, registerPagesIpc } from "./pages/pagesMain";
 import { PDF_SCHEME } from "./pages/pdfHost";
 import type { AnalysisResult, ClassifierContext, FigureContext } from "./extension-api";
@@ -100,8 +100,11 @@ let nextUiRequest = 1;
 /** 起動時の拡張の起動が終わったら解決する (ファイルを開くのはその後) */
 let extensionsReady: Promise<void> = Promise.resolve();
 const uiRequests = new Map<number, (value: unknown) => void>();
-/** 起動前に Finder から渡されたファイル (macOS の open-file) */
-let pendingOpenPath: string | undefined;
+let rendererReady = false;
+let versionInputSession = false;
+const pendingOpenPaths: string[] = [];
+let pendingAsVersions = false;
+let openPathTimer: ReturnType<typeof setTimeout> | undefined;
 
 function settingsPath(): string {
   return path.join(app.getPath("userData"), "settings.json");
@@ -156,9 +159,17 @@ function lockDown(): void {
   });
 }
 
+function versionReviewEnabled(): boolean {
+  return versionInputSession || loadSettings().lineagePreview === true;
+}
+
+async function loadVersionInputs(paths: readonly string[]) {
+  return readSelectedSavedVersions(await listVersionInputFiles(paths), true);
+}
+
 function registerIpc(): void {
   const reviewCommentWriteAtLaunch = loadSettings().reviewCommentWrite === true;
-  const reviewCommentWriteEnabled = () => reviewCommentWriteAtLaunch && loadSettings().lineagePreview === true;
+  const reviewCommentWriteEnabled = () => reviewCommentWriteAtLaunch && versionReviewEnabled();
   ipcMain.handle("open-docx-dialog", async () => {
     const r = await dialog.showOpenDialog(mainWindow!, {
       properties: ["openFile"],
@@ -167,17 +178,34 @@ function registerIpc(): void {
     return r.canceled || r.filePaths.length === 0 ? null : readDocx(r.filePaths[0]);
   });
   ipcMain.handle("choose-saved-versions", async () => {
-    if (loadSettings().lineagePreview !== true) return null;
+    if (!versionReviewEnabled()) return null;
     const r = await dialog.showOpenDialog(mainWindow!, {
       properties: ["openFile", "multiSelections"],
       filters: [{ name: "Word", extensions: ["docx"] }],
     });
-    return r.canceled ? null : readSelectedSavedVersions(r.filePaths, true);
+    return r.canceled ? null : loadVersionInputs(r.filePaths);
+  });
+  ipcMain.handle("choose-saved-version-folders", async () => {
+    if (!versionReviewEnabled()) return null;
+    const r = await dialog.showOpenDialog(mainWindow!, { properties: ["openDirectory", "multiSelections"] });
+    return r.canceled ? null : loadVersionInputs(r.filePaths);
+  });
+  ipcMain.handle("load-saved-version-paths", (event, paths: unknown) => {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame ||
+        !Array.isArray(paths) || !paths.length || !paths.every((input): input is string => typeof input === "string" && input !== "")) return [];
+    versionInputSession = true;
+    return loadVersionInputs(paths);
   });
   ipcMain.handle("open-saved-version", async (_e, id: unknown) => {
-    if (loadSettings().lineagePreview !== true) return;
+    if (!versionReviewEnabled()) return;
     const failure = await shell.openPath(await savedVersionFile(id));
     if (failure) throw new Error(failure);
+  });
+  ipcMain.handle("read-saved-version-figure-source", (event, id: unknown) => {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame || !versionReviewEnabled()) {
+      return { ok: false, reason: "unavailable" };
+    }
+    return readSavedVersionFigureSource(id);
   });
   ipcMain.handle("review-comment-write-enabled", () => reviewCommentWriteEnabled());
   ipcMain.handle("add-saved-version-comment", (event, id: unknown, comment: unknown) => {
@@ -243,7 +271,7 @@ function registerIpc(): void {
   });
   ipcMain.handle("read-rules", (_e, p: string) => readRules(p));
   ipcMain.handle("save-file", async (_e, defaultName: string, data: Uint8Array | string, kind: "svg" | "png" | "html") => {
-    if (kind === "html" && (typeof data !== "string" || loadSettings().lineagePreview !== true)) return null;
+    if (kind === "html" && (typeof data !== "string" || !versionReviewEnabled())) return null;
     const r = await dialog.showSaveDialog(mainWindow!, {
       defaultPath: defaultName,
       filters: [{ name: kind.toUpperCase(), extensions: [kind] }],
@@ -318,7 +346,9 @@ function registerIpc(): void {
   });
   ipcMain.handle("system-lang", () => systemLang());
   ipcMain.handle("version", () => app.getVersion());
-  ipcMain.on("renderer-ready", () => {
+  ipcMain.on("renderer-ready", (event) => {
+    if (event.sender !== mainWindow?.webContents) return;
+    rendererReady = true;
     // スモークテスト: フォルダの一括処理 (DRA_SMOKE_BATCH にローカルのフォルダ、または SharePoint の URL)
     if (process.env.DRA_SMOKE_BATCH) {
       const b = process.env.DRA_SMOKE_BATCH;
@@ -331,10 +361,14 @@ function registerIpc(): void {
       setTimeout(() => void captureStart(), 800);
       return;
     }
-    const p = process.env.DRA_SMOKE_FILE ?? pendingOpenPath;
-    pendingOpenPath = undefined;
-    if (p) void extensionsReady.then(() => mainWindow?.webContents.send("open-path", path.resolve(p)));
-    else if (process.env.DRA_SMOKE_URL) void extensionsReady.then(() => mainWindow?.webContents.send("open-url", process.env.DRA_SMOKE_URL));
+    if (process.env.DRA_SMOKE_FILE) {
+      const p = path.resolve(process.env.DRA_SMOKE_FILE);
+      void extensionsReady.then(() => mainWindow?.webContents.send("open-path", p));
+    } else if (process.env.DRA_SMOKE_URL) {
+      void extensionsReady.then(() => mainWindow?.webContents.send("open-url", process.env.DRA_SMOKE_URL));
+    } else {
+      void extensionsReady.then(flushOpenPaths);
+    }
   });
   ipcMain.on("smoke-batch-done", () => void captureStart("smoke-batch.png"));
   ipcMain.on("smoke-analyzed", (_e, summary: { ok: boolean; message: string }) => void runSmokeCapture(summary));
@@ -591,6 +625,7 @@ function checkForUpdates(): void {
 }
 
 function createWindow(): void {
+  rendererReady = false;
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -610,38 +645,59 @@ function createWindow(): void {
   mainWindow.on("closed", () => (mainWindow = undefined));
 }
 
-// macOS: Finder でアプリのアイコンへドロップされたファイル
-app.on("open-file", (e, p) => {
-  e.preventDefault();
-  if (mainWindow) mainWindow.webContents.send("open-path", p);
-  else pendingOpenPath = p;
+function flushOpenPaths(): void {
+  if (!rendererReady || !mainWindow || pendingOpenPaths.length === 0) return;
+  const paths = [...new Set(pendingOpenPaths.splice(0))];
+  const asVersions = pendingAsVersions || paths.length > 1;
+  pendingAsVersions = false;
+  if (asVersions) mainWindow.webContents.send("open-version-paths", paths);
+  else mainWindow.webContents.send("open-path", paths[0]);
+}
+
+function queueOpenPaths(paths: string[], asVersions = false): void {
+  if (!paths.length) return;
+  pendingOpenPaths.push(...paths);
+  pendingAsVersions ||= asVersions;
+  if (openPathTimer) clearTimeout(openPathTimer);
+  if (rendererReady) openPathTimer = setTimeout(flushOpenPaths, 75);
+}
+
+// Finder delivers a separate open-file event for each document.
+app.on("open-file", (event, file) => {
+  event.preventDefault();
+  queueOpenPaths([file]);
 });
 
-/**
- * 起動時の引数で渡されたファイル・フォルダ (Windows でアイコンへドロップしたとき・「送る」など)。
- * 開発中の起動 (electron .) の引数は対象にしない
- */
-function pathFromArgv(argv: string[]): string | undefined {
-  if (!app.isPackaged) return undefined;
-  return argv
-    .slice(1)
-    .filter((a) => !a.startsWith("-"))
-    .find((a) => {
+function queueLaunchArguments(argv: string[], cwd: string): void {
+  const args = argv.slice(app.isPackaged ? 1 : 2);
+  const option = args.indexOf("--versions");
+  if (option !== -1) {
+    const candidates: string[] = [];
+    for (const argument of args.slice(option + 1)) {
+      if (argument.startsWith("--")) break;
+      candidates.push(path.resolve(cwd, argument));
+    }
+    queueOpenPaths(candidates, true);
+    return;
+  }
+  if (!app.isPackaged) return;
+  const candidates = args.filter(argument => !argument.startsWith("-")).map(argument => path.resolve(cwd, argument))
+    .filter(candidate => {
       try {
-        const st = fs.statSync(a);
-        return st.isDirectory() || /\.docx$/i.test(a);
+        const stat = fs.statSync(candidate);
+        return stat.isDirectory() || (stat.isFile() && /\.docx$/i.test(candidate));
       } catch {
         return false;
       }
     });
+  queueOpenPaths(candidates);
 }
 
-// 2つ目の起動 (すでに開いているアプリのアイコンへドロップしたなど) は、開いているウィンドウで受け取る
-if (!process.env.DRA_SMOKE_FILE && !process.env.DRA_SMOKE_URL && !process.env.DRA_SMOKE_START && !process.env.DRA_SMOKE_BATCH) {
+// Additional instances pass their files to the existing window.
+if (!isSmokeRun()) {
   if (!app.requestSingleInstanceLock()) app.exit(0);
-  app.on("second-instance", (_e, argv) => {
-    const p = pathFromArgv(argv);
-    if (p && mainWindow) mainWindow.webContents.send("open-path", path.resolve(p));
+  app.on("second-instance", (_event, argv, cwd) => {
+    queueLaunchArguments(argv, cwd);
     if (mainWindow?.isMinimized()) mainWindow.restore();
     mainWindow?.focus();
   });
@@ -661,10 +717,11 @@ app.whenReady().then(() => {
     loadSettings,
     saveSettings,
     lang: () => loadSettings().lang ?? systemLang(),
+    versionReviewEnabled,
     openExternal,
   });
   registerPagesIpc({ window: () => mainWindow, loadSettings, saveSettings, microsoft: () => microsoft });
-  pendingOpenPath ??= pathFromArgv(process.argv);
+  queueLaunchArguments(process.argv, process.cwd());
   mediator = new NetMediator({
     dir: path.join(app.getPath("userData"), "extensions"),
     confirmByDefault: (id) => loadSettings().extensionConfirmSends?.[id] !== false,

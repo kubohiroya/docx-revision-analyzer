@@ -587,9 +587,18 @@ Settings). They are not put next to the document, so they are not shared with co
 Watching is meant for keeping an eye on your own document, not for constantly monitoring other people's. No replies
 are written to documents opened from a URL (they are opened with read-only access).
 
-**Compare saved versions (preview)**: Turn on **Compare saved versions (preview)** in Settings, then open the **Saved
-versions** tab. Choose two or more local DOCX files for one document, use the arrows to put them from earliest to latest,
-and select **Compare**. With a document already open, you can also load its locally archived saves in archive order.
+**Compare saved versions (preview)**: Turn on **Compare saved versions (preview)** in Settings and open **Saved versions**.
+Select **Choose DOCX files** or **Choose folders** to open the **Versions in scope** table. Folders are scanned recursively
+for DOCX files. You can also drop multiple paths on the window or drop a file or folder on the **Saved versions** tab.
+
+To supply paths at launch, pass `--versions` followed by DOCX files or folders to the desktop executable.
+
+```sh
+"/Applications/Docx Revision Analyzer.app/Contents/MacOS/Docx Revision Analyzer" --versions ./draft-1.docx ./drafts/
+```
+
+The launch option and dropping multiple files make the table available for the current session. To use the open document's
+locally archived saves, select **Use the open document’s saved record**, then **Compare**.
 
 Choose a pair of versions and switch between paragraphs and sentences. Select a relationship to see the source and
 target passages, what changed and the evidence for the match. The related occurrences let you follow the passage
@@ -612,14 +621,31 @@ and archive times describe the available versions. They cannot identify the time
 that appeared and disappeared between saves. Gaps and unreadable saves are marked. The comparison reads each available
 version locally.
 
-**Review changes and comments**: After comparing, open **Review changes and comments**. In **Versions to compare**, choose
-two versions using the filenames, dates, sizes, and visible text and heading counts. Select a column header to sort the table
-or drag a column boundary to resize it. The three comparison sections collapse independently.
+**Review changes and comments**: After comparing, open **Review changes and comments**. In **Versions in scope**, choose
+versions using the filenames, dates, sizes, and visible text and heading counts. All loaded versions are selected initially.
+Select a row or its checkbox to toggle it,
+or use the header checkbox to select or clear all versions. The oldest and newest selected versions mark the ends of the review. The change list shows changes between consecutive selected versions. Select a column header to sort the table
+or drag a column boundary to resize it. For a version with tracked changes, a count like `1,000(+200)` gives the current count and
+the change since the text reconstructed by rejecting all remaining tracked changes. Sorting uses the current count. The three
+comparison sections collapse independently.
+
+In **Change list**, select the filter button to open **Search change text and comments**. You can search added and removed
+text, text on both sides of a rewrite, and the full text of related Word comments and replies. A saved HTML report searches
+the included change passages and comments. Use the calendar button to filter by the dates of the saved versions in which
+the changes were observed. Search, dates, change type, and tags can be combined. The rows scroll inside the panel. Export checkboxes retain their state when you change filters.
 
 Select a change to see its passages and related Word comments. Select it again to clear the selection. The speech bubble next
 to **Text range** opens and closes the comments panel. Choose **My Word author name** there to distinguish your posts from
 other authors' posts and highlight the latest post when it is yours. **Go to the original passage** shows the location in the
 app. **Open original file** uses the system's associated application and opens a read-only copy for an archived version.
+
+**Chart and flow for a version.** In **Versions in scope**, select a thumbnail in the **chart** column to open that
+file's chart, or select the filename to open its flow. Click a row to add or remove that version from the comparison.
+**Revisions** counts tracked changes in the document body, including undated changes. The figures show Word's tracked
+changes in that DOCX. Select **Back to comparison** or the × at the top right to return with your selections and draft intact.
+
+When adjacent panels are expanded, drag the divider between them to adjust their relative heights. With the divider
+focused, use the Up and Down arrow keys to resize. Double-click the divider to restore the original heights.
 
 **Add a Word comment from the comparison (preview)**: Enable saved-version comparison and **Write local Word comments from
 version comparison** in Settings, then restart the app. Compare local DOCX files and choose a change with one corresponding
@@ -631,7 +657,7 @@ After a successful save, the comments panel refreshes. A `.backup-timestamp.docx
 copy. To restore it, close Word, keep the current file under a different name, and save a copy of the backup under the original name.
 
 **Export HTML**: Check **Export** on each change you want to include, open **HTML preview**, then choose **Save HTML…**.
-The saved HTML includes the two compared versions, the selected changes and their excerpts, and their related Word comments,
+The saved HTML includes the versions involved in the checked changes, the change excerpts, and the related Word comments,
 replies, tags, reference links, and deleted threads. The heading comes from the filenames' common part. The single file opens
 offline in a browser.
 

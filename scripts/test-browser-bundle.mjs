@@ -44,11 +44,13 @@ const scenario = `(async () => {
     const ctx = DRA.createAnalysisContext(model, positioned, 1);
     const cls = await DRA.runClassifiers(DRA.defaultClassifiers(rules), ctx);
     DRA.applyClassification(data.events, cls);
-    const chart = data.events.length
-      ? DRA.renderRevisionChart(DRA.buildBuckets(data.events, data.baselineCharCount, "auto"), {
-          title: name,
-          categories: cls.categories,
-        })
+    const buckets = data.events.length ? DRA.buildBuckets(data.events, data.baselineCharCount, "auto") : [];
+    const chartOptions = { title: name, categories: cls.categories };
+    const chart = buckets.length ? DRA.renderRevisionChart(buckets, chartOptions) : "";
+    const plotOptions = { ...chartOptions, plotOnly: true, note: "omitted note" };
+    const plot = buckets.length ? DRA.renderRevisionChart(buckets, plotOptions) : "";
+    const sessionPlot = data.events.length
+      ? DRA.renderSessionedRevisionChart(DRA.splitIntoSessions(data.events, 1), data.baselineCharCount, "auto", plotOptions)
       : "";
     const flow = DRA.buildFlow(model, {
       gapThresholdHours: 1,
@@ -64,6 +66,8 @@ const scenario = `(async () => {
       settings: data.settings,
       preserveChanged: preserved.changed,
       chart,
+      plot,
+      sessionPlot,
       flowSvg,
     };
   }
@@ -119,7 +123,16 @@ const nodeResult = JSON.parse(await vm.runInContext(scenario, nodeContext));
 
 let checked = 0;
 for (const [name, r] of Object.entries(browserResult)) {
-  if (r.events > 0 && !r.chart.startsWith("<svg")) fail(`${name}: no chart SVG`);
+  if (r.events > 0) {
+    if (!r.chart.startsWith("<svg") || !r.chart.includes("<text")) fail(`${name}: no complete chart SVG`);
+    for (const plot of [r.plot, r.sessionPlot]) {
+      const shapes = plot.replace(/<defs[\s\S]*?<\/defs>/gu, "");
+      if (!shapes.startsWith("<svg") || !shapes.includes("<rect") || !shapes.includes("<polyline") ||
+          !shapes.includes("<circle") || /<(text|title|line)[ >]/u.test(shapes)) {
+        fail(`${name}: thumbnail did not contain only the bars and total trace`);
+      }
+    }
+  }
   if (r.events > 0 && !r.flowSvg.startsWith("<svg")) fail(`${name}: no flow SVG`);
   if (JSON.stringify(r) !== JSON.stringify(nodeResult[name])) fail(`${name}: browser and Node.js results differ`);
   console.log(

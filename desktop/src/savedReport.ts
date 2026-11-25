@@ -11,6 +11,7 @@ import {
   type ReportMessage, type ReportPair, type ReportPassage, type ReportText, type ReportThread, type SavedVersionReport,
 } from "./reportData";
 import type { AppLang, SavedLineageVersion, SavedVersionThread } from "./shared";
+import { countVersionText } from "./versionTextCounts";
 
 export interface SavedReportScope {
   versions: number[];
@@ -24,6 +25,8 @@ export interface SavedReportScope {
   includeUnlocated: boolean;
   includeRelatedSources?: boolean;
   review?: boolean;
+  onlyPairs?: readonly (readonly [number, number])[];
+  observationTimeline?: boolean;
 }
 
 export interface SavedReportCandidate {
@@ -141,7 +144,7 @@ export class SavedReportAnalysis {
   private adjacentComments: LineageComments;
   private candidates = new Map<string, { pair: VersionComparison; changes: SavedReportCandidate[] }>();
   private sources = new Map<number, SourceText>();
-  private counts = new Map<AppLang, Array<{ characters: number; words: number } | undefined>>();
+  private counts = new Map<AppLang, Array<Pick<ReportDraft, "characters" | "words" | "characterDelta" | "wordDelta"> | undefined>>();
 
   constructor(
     private versions: readonly SavedLineageVersion[],
@@ -204,22 +207,17 @@ export class SavedReportAnalysis {
 
   private draft(index: number, lang: AppLang, labels: readonly string[], unlocated: number[] = []): ReportDraft {
     if (!this.counts.has(lang)) {
-      const segmenter = new Intl.Segmenter(lang, { granularity: "word" });
       this.counts.set(lang, this.versions.map((version) => {
         if (version.unavailable) return;
-        let characters = 0;
-        let words = 0;
-        for (const paragraph of version.paragraphs) {
-          characters += Array.from(paragraph.text).length;
-          for (const segment of segmenter.segment(paragraph.text)) if (segment.isWordLike) words++;
-        }
-        return { characters, words };
+        const counts = countVersionText(version.paragraphs, lang);
+        const original = version.originalTextCounts?.[lang];
+        return original ? { ...counts, characterDelta: counts.characters - original.characters, wordDelta: counts.words - original.words } : counts;
       }));
     }
     const version = this.versions[index];
     return {
       label: labels[index], filename: version.label, createdAt: version.fileCreatedAt, archivedAt: version.archivedAt,
-      modifiedAt: version.sourceModified, size: version.fileSize, ...this.counts.get(lang)?.[index],
+      modifiedAt: version.sourceModified, size: version.fileSize, revisionCount: version.revisionCount, ...this.counts.get(lang)?.[index],
       unavailable: Boolean(version.unavailable), unlocated,
     };
   }
@@ -311,19 +309,24 @@ export class SavedReportAnalysis {
       }
       view.excerpt = {
         clip: clip.number, focus: Math.max(0, Math.min(right - left, focus - left)),
+        passage: [Math.max(start, left) - left, Math.min(end, right) - left],
         marks: marks.filter(([a, b]) => a < right && b > left).map(([a, b]) => [Math.max(left, a) - left, Math.min(right, b) - left]),
       };
       return view;
     };
 
-    const pairs: ReportPair[] = reportPairs(selected).map(([before, after]) => {
+    const pairs: ReportPair[] = (scope.onlyPairs ?? reportPairs(selected)).map(([before, after]) => {
       const { pair, changes } = this.analyze(before, after);
       const included = changes.filter((candidate) => !scope.excluded.has(candidate.id)).map((candidate): ReportChange => {
         const { link } = candidate;
         const within = new Set([before, after]);
         const omitPast = link.kind === "reappeared" && link.from.some((r) => !ids.has(r.version));
         const item: ReportChange = {
-          ...(scope.review ? { reviewId: candidate.id } : {}),
+          ...(scope.review ? {
+            reviewId: candidate.id,
+            searchText: [...link.from, ...link.to].filter((range) => within.has(range.version))
+              .map((range) => lineageRangeText(this.versions, range)).join("\n"),
+          } : {}),
           kind: omitPast ? "added" : candidate.kind,
           reordered: Boolean(link.reordered), alignmentPartial: Boolean(link.alignmentPartial),
           evidence: link.evidence.filter((e) => !omitPast || e !== "past"),
@@ -394,6 +397,7 @@ export class SavedReportAnalysis {
       // Watched copies include an archive hash and sequence number after the document's filename.
       return version.source === "archive" ? version.label.replace(/-[0-9a-f]{10}-s\d+\.docx$/iu, "") : version.label;
     }));
-    return { title, lang, level: this.level, initial, range: scope.range, includeText, drafts, clips, threads, pairs };
+    return { title, lang, level: this.level, initial, range: scope.range, includeText, drafts, clips, threads, pairs,
+      ...(scope.observationTimeline ? { observationTimeline: true } : {}) };
   }
 }

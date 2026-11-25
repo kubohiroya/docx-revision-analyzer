@@ -20,6 +20,8 @@ import { parseDocxLayout } from "./docxLayout";
 import type { DocxInput } from "./input";
 
 type XmlNode = Record<string, unknown>;
+const BEFORE_TRACKED_CHANGES = Symbol("beforeTrackedChanges");
+type RevisionCutoff = number | typeof BEFORE_TRACKED_CHANGES;
 
 const XML_OPTIONS = {
   preserveOrder: true,
@@ -72,7 +74,8 @@ function dateOf(node: XmlNode): number | undefined {
 }
 
 /** 日時の無い変更は「最初から反映済み」とみなす */
-function happenedBy(node: XmlNode, at: number): boolean {
+function happenedBy(node: XmlNode, at: RevisionCutoff): boolean {
+  if (at === BEFORE_TRACKED_CHANGES) return false;
   const d = dateOf(node);
   return d === undefined || d <= at;
 }
@@ -126,7 +129,7 @@ function undeleteText(nodes: XmlNode[]): XmlNode[] {
 }
 
 /** 段落記号・表の行が T の時点で存在するか (w:ins / w:del の印から判断する) */
-function presentAt(props: XmlNode[], at: number): boolean {
+function presentAt(props: XmlNode[], at: RevisionCutoff): boolean {
   const ins = props.find((n) => INSERTS.has(localName(tagOf(n) ?? "")));
   const del = props.find((n) => DELETES.has(localName(tagOf(n) ?? "")));
   return (!ins || happenedBy(ins, at)) && !(del && happenedBy(del, at));
@@ -135,7 +138,7 @@ function presentAt(props: XmlNode[], at: number): boolean {
 /** T の時点で段落記号が無い段落 (次の段落とつながる) に付ける印 */
 const JOIN_NEXT = Symbol("joinNext");
 
-function transformProperties(node: XmlNode, tag: string, at: number): XmlNode {
+function transformProperties(node: XmlNode, tag: string, at: RevisionCutoff): XmlNode {
   const name = localName(tag);
   const kids = childrenOf(node, tag);
   const change = findChild(kids, `${name}Change`);
@@ -154,7 +157,7 @@ function transformProperties(node: XmlNode, tag: string, at: number): XmlNode {
   return withChildren(node, tag, transformChildren([...keep(spec.keepFirst), ...oldKids, ...keep(spec.keepLast)], at));
 }
 
-function transformParagraph(node: XmlNode, tag: string, at: number): XmlNode {
+function transformParagraph(node: XmlNode, tag: string, at: RevisionCutoff): XmlNode {
   const kids = childrenOf(node, tag);
   const pPr = findChild(kids, "pPr");
   const rPr = pPr ? findChild(childrenOf(pPr, tagOf(pPr)!), "rPr") : undefined;
@@ -203,12 +206,12 @@ function joinParagraphs(nodes: XmlNode[]): XmlNode[] {
 }
 
 /** 要素の子を時刻 at の版に変換する */
-function transformChildren(nodes: XmlNode[], at: number): XmlNode[] {
+function transformChildren(nodes: XmlNode[], at: RevisionCutoff): XmlNode[] {
   return joinParagraphs(transformNodes(nodes, at));
 }
 
 /** 要素の列を変換する。挿入・削除の要素はほどくか取り除くので、結果は親の子の列に直接入る */
-function transformNodes(nodes: XmlNode[], at: number): XmlNode[] {
+function transformNodes(nodes: XmlNode[], at: RevisionCutoff): XmlNode[] {
   const out: XmlNode[] = [];
   for (const n of nodes) {
     const tag = tagOf(n);
@@ -244,10 +247,19 @@ function transformNodes(nodes: XmlNode[], at: number): XmlNode[] {
   return out;
 }
 
-/** 1つのパートの XML を、時刻 at の版に変換する */
-export function versionPartXml(xml: string, at: number): string {
+function transformVersionPart(xml: string, at: RevisionCutoff): string {
   const tree = parser.parse(xml) as XmlNode[];
   return builder.build(transformChildren(tree, at)) as string;
+}
+
+/** 1つのパートの XML を、時刻 at の版に変換する */
+export function versionPartXml(xml: string, at: number): string {
+  return transformVersionPart(xml, at);
+}
+
+/** Reject all surviving revisions in a document part, including undated revisions. */
+export function revertTrackedChangesXml(xml: string): string {
+  return transformVersionPart(xml, BEFORE_TRACKED_CHANGES);
 }
 
 /** 読み込んだ .docx から、複数の時刻の版を作るためのもの (パートの読み込みを1回で済ませる) */

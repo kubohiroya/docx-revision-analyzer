@@ -2,17 +2,24 @@ import { commentLinkUrl } from "../../../src/lib/commentReferences";
 import { el } from "./extensions";
 import {
   DEFAULT_REPORT_RANGE, REPORT_LIMITS, reportWindow, type ReportChange, type ReportDraft, type ReportMessage,
-  type ReportPassage, type ReportThread, type SavedVersionReport,
+  type ReportPair, type ReportPassage, type ReportThread, type SavedVersionReport,
 } from "../reportData";
-import { reportVersionTable, type VersionTableState } from "./savedReportVersions";
+import { reportChangeScroller } from "./reportChangeScroller";
+import { reportAccordionSplitters } from "./reportAccordionSplitters";
+import { reportVersionTable, reportWordIcon, type VersionTableFigures, type VersionTableState } from "./savedReportVersions";
 import type { SavedVersionCommentError } from "../shared";
 
 const EN = {
-  tracking: "Versions to compare", inferred: "Inferred from saved text",
-  choose: "Choose two versions to compare.", chooseGroup: "Choose up to two versions", before: "Before", after: "After", selected: "Selected",
-  changes: "Version changes", difference: "Before and after the change", original: "Original comment passage",
+  targets: "Versions in scope",
+  moreVersions: (count: number) => `${count} more`, tracking: "Versions to compare", inferred: "Inferred from saved text",
+  choose: "Choose two versions to compare.", before: "Before", after: "After",
+  search: "Search change text and comments", filters: "Search and filters", dates: "Filter by date", startDate: "Start date and time", endDate: "End date and time",
+  clearDates: "Clear dates", invalidDates: "The end must be on or after the start.",
+  dateBasis: "Dates use the saved version in which the change was observed.",
+  changes: "Change list", difference: "Before and after the change", original: "Original comment passage",
   pairCount: (before: string, after: string, n: number) => `${before} → ${after} · ${n} changes`,
   chooseChange: "Choose a change to see its passages and comments.", export: "Export", outputRange: "Maximum text range to export",
+  resizeBetween: (above: string, below: string) => `Resize ${above} and ${below}`,
   openVersion: "Open original file", author: "My Word author name", noAuthor: "Choose an author", me: "Me", latest: "Latest",
   participantCount: (n: number) => `${n} comment author${n === 1 ? "" : "s"}`, others: "Other authors",
   compose: "Add a Word comment", writeComment: "Add to Word", commentText: "Comment", commentAuthor: "Author name in Word",
@@ -52,11 +59,16 @@ const EN = {
 };
 
 export const REPORT_LABELS: Record<SavedVersionReport["lang"], typeof EN> = { en: EN, ja: {
-  tracking: "比較する版", inferred: "保存版の比較から推定",
-  choose: "比較する版を2つ選んでください。", chooseGroup: "比較する版を最大2つ選択", before: "比較前", after: "比較後", selected: "選択中",
-  changes: "版の変更箇所", difference: "変更箇所の前後", original: "コメントが付いた元の箇所",
+  targets: "対象とする版",
+  moreVersions: (count) => `ほか ${count} 版`, tracking: "比較する版", inferred: "保存版の比較から推定",
+  choose: "比較する版を2つ選んでください。", before: "比較前", after: "比較後",
+  search: "検索：変更箇所の本文・コメント", filters: "検索とフィルタ", dates: "日時で絞り込む", startDate: "開始日時", endDate: "終了日時",
+  clearDates: "日時をクリア", invalidDates: "終了日時は開始日時以降にしてください。",
+  dateBasis: "変更を確認できた保存版の日時で絞り込みます。",
+  changes: "変更箇所一覧", difference: "変更箇所の前後", original: "コメントが付いた元の箇所",
   pairCount: (before, after, n) => `${before}→${after}・${n}件`,
   chooseChange: "変更箇所を選ぶと、前後の原文とコメントを表示します。", export: "書き出す", outputRange: "書き出す原文の上限",
+  resizeBetween: (above, below) => `${above}と${below}の表示高さを調整`,
   openVersion: "元のファイルを開く", author: "自分のWord作成者名", noAuthor: "作成者を選択", me: "自分", latest: "最新",
   participantCount: (n) => `${n}人がコメント`, others: "他の投稿者",
   compose: "コメントを追記", writeComment: "Wordに追記", commentText: "コメント", commentAuthor: "Wordに記録する作成者名",
@@ -145,15 +157,22 @@ function rangeIcon(): SVGSVGElement {
   return icon;
 }
 
-function reportIcon(type: "comment" | "comments" | "avatar"): SVGSVGElement {
+function reportIcon(type: "comment" | "comments" | "avatar" | "calendar" | "filter" | "search"): SVGSVGElement {
   const namespace = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(namespace, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("aria-hidden", "true");
   svg.classList.add("report-icon");
   const path = document.createElementNS(namespace, "path");
-  path.setAttribute("d", type === "avatar" ? "M16 8a4 4 0 1 0-8 0 4 4 0 0 0 8 0ZM4 21a8 6 0 0 1 16 0Z"
-    : type === "comment" ? "M4 5h16v11H9l-5 4V5Z" : "M3 3h14v10H8l-5 4V3Zm8 13h5l5 4V8h-2");
+  const paths = {
+    avatar: "M16 8a4 4 0 1 0-8 0 4 4 0 0 0 8 0ZM4 21a8 6 0 0 1 16 0Z",
+    calendar: "M4 5h16v15H4zM8 3v4m8-4v4M4 10h16m-12 4h2m4 0h2m-8 3h2",
+    comment: "M4 5h16v11H9l-5 4V5Z",
+    comments: "M3 3h14v10H8l-5 4V3Zm8 13h5l5 4V8h-2",
+    filter: "M4 5h16l-6 7v5l-4 2v-7Z",
+    search: "M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Zm-1.8 4.2L20 20",
+  };
+  path.setAttribute("d", paths[type]);
   svg.append(path);
   return svg;
 }
@@ -170,8 +189,14 @@ export interface ReportViewState {
   author?: string;
   table?: VersionTableState;
   expanded?: boolean[];
+  accordionHeights?: (number | undefined)[];
   kind?: string;
   tag?: string;
+  query?: string;
+  filtersOpen?: boolean;
+  datesOpen?: boolean;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface ReviewCommentDraft {
@@ -190,16 +215,19 @@ interface CommentComposer {
 
 interface ReviewOptions {
   drafts: readonly ReportDraft[];
+  targets: readonly number[];
   picked: readonly number[];
+  setTargets: (targets: number[]) => void;
   project: (picked: number[]) => SavedVersionReport;
   included: (id: string) => boolean;
-  setIncluded: (id: string, included: boolean) => void;
+  setIncluded: (id: string, included: boolean, before: number, after: number) => void;
   authors: string[];
   outputRange: number;
   setOutputRange: (range: number) => void;
+  figures: VersionTableFigures;
   openVersion: (index: number) => void;
   canOpenVersion: (index: number) => boolean;
-  commentComposer?: (id: string) => CommentComposer | undefined;
+  commentComposer?: (id: string, before: number, after: number) => CommentComposer | undefined;
 }
 
 interface ReportViewOptions {
@@ -215,16 +243,21 @@ export function renderSavedVersionReport(
   const s = REPORT_LABELS[report.lang];
   state.commentsOpen ??= true;
   const drafts = review?.drafts ?? report.drafts;
+  let targets = [...(review?.targets ?? report.initial)];
   let picked = [...(review?.picked ?? report.initial)];
   let range = Math.min(state.range ?? DEFAULT_REPORT_RANGE, report.range);
-  let selected = review ? report.pairs[0]?.changes.find((change) => change.reviewId === state.selected)
+  let selected = review ? report.pairs.flatMap(pair => pair.changes).find((change) => change.reviewId === state.selected)
+    : report.observationTimeline ? report.pairs.flatMap(pair => pair.changes)[initialChange ?? 0]
     : report.pairs.find((pair) => pair.before === picked[0] && pair.after === picked[1])?.changes[initialChange ?? 0];
+  let selectedPair = report.pairs.find((pair) => selected && pair.changes.includes(selected));
   let original: ReportThread | undefined;
   let originButton: HTMLButtonElement | undefined;
 
   const rootHeader = el("header");
-  const title = el("h1", report.title);
-  rootHeader.append(title, el("p", s.tracked, "report-hint"));
+  const title = el("span", report.title);
+  const heading = el("h1");
+  heading.append(reportWordIcon(), title);
+  rootHeader.append(heading, el("p", s.tracked, "report-hint"));
   const layout = el("div", undefined, "report-layout");
   const main = el("div", undefined, "report-main");
   const sidebar = el("aside", undefined, "report-block report-comments");
@@ -232,32 +265,54 @@ export function renderSavedVersionReport(
   sidebar.setAttribute("aria-label", s.comments);
   state.expanded ??= [true, true, true];
   const expanded = state.expanded;
-  const trace = accordion(s.tracking, "report-trace", () => { expanded[0] = !trace.body.hidden; });
-  const list = accordion(s.changes, "report-change-list", () => { expanded[1] = !list.body.hidden; });
-  const detail = accordion(s.difference, "report-passages", () => { expanded[2] = !detail.body.hidden; updateRangeVisibility(); });
-  main.append(list.section, detail.section);
+  const updateExpanded = (index: number, panel: ReturnType<typeof accordion>) => {
+    expanded[index] = !panel.body.hidden;
+    splitters.update();
+  };
+  const traceTitle = review ? s.targets : s.tracking;
+  const trace = accordion(traceTitle, "report-trace", () => updateExpanded(0, trace));
+  const list = accordion(s.changes, "report-change-list", () => {
+    updateExpanded(1, list);
+    searchPanel.update();
+    datePanel.update();
+  });
+  const detail = accordion(s.difference, "report-passages", () => {
+    updateExpanded(2, detail);
+    updateRangeVisibility();
+  });
+  const panels = [trace, list, detail];
+  const splitters = reportAccordionSplitters(panels, state.accordionHeights ??= [], s.resizeBetween);
+  const [versionsSplitter, passagesSplitter] = splitters.handles;
+  main.append(list.section, passagesSplitter, detail.section);
   layout.append(main, sidebar);
-  root.replaceChildren(rootHeader, trace.section, layout);
+  root.replaceChildren(rootHeader, trace.section, versionsSplitter, layout);
   root.classList.add("saved-report");
 
   trace.section.classList.add("report-versions");
   const selectedNames = el("span", undefined, "report-selected-names report-collapsed-summary");
   trace.toggle.append(selectedNames);
   state.table ??= { sort: "modifiedAt", descending: false, widths: [] };
-  const table = reportVersionTable(drafts, report.lang, s.tracking, state.table, review || drafts.length > 2 ? (index) => {
-    picked = picked.includes(index) ? picked.filter((item) => item !== index) : [...picked.slice(-1), index];
+  const table = reportVersionTable(drafts, report.lang, traceTitle, state.table,
+    review || drafts.length > 2 ? changeTargets : undefined, review?.figures);
+  trace.body.append(table.wrapper);
+
+  function changeTargets(next: number[]): void {
+    targets = [...next].sort((a, b) => a - b);
+    review?.setTargets(targets);
+    picked = targets.length >= 2 ? [targets[0], targets[targets.length - 1]] : targets;
     if (review) report = review.project(picked);
     selected = undefined;
+    selectedPair = undefined;
     original = undefined;
-    draw();
-  } : undefined);
-  trace.body.append(table.wrapper);
+    draw(true);
+  }
 
   const summary = el("span", undefined, "report-hint report-accordion-meta");
   summary.setAttribute("aria-live", "polite");
   const selectedTitle = el("span", undefined, "report-selected-title report-collapsed-summary");
   list.toggle.append(summary, selectedTitle);
   const filters = el("div", undefined, "report-filters");
+  filters.id = "report-change-filters";
   const kinds = el("select");
   const kindLabel = el("label", s.changeType);
   kindLabel.append(kinds);
@@ -265,9 +320,97 @@ export function renderSavedVersionReport(
   const tagLabel = el("label", s.tags);
   tagLabel.append(tags);
   const status = el("p", undefined, "report-hint");
+  status.setAttribute("role", "status");
   const results = el("ul", undefined, "report-changes");
-  filters.append(kindLabel, tagLabel);
-  list.body.append(filters, status, results);
+  const changeScroll = el("div", undefined, "report-change-scroll");
+  changeScroll.tabIndex = 0;
+  changeScroll.setAttribute("role", "region");
+  changeScroll.setAttribute("aria-label", s.changes);
+  changeScroll.append(results);
+  const search = el("input");
+  search.type = "search";
+  search.value = state.query ?? "";
+  search.placeholder = s.search;
+  search.setAttribute("aria-label", s.search);
+  const searchLabel = el("label", undefined, "report-change-search");
+  searchLabel.append(reportIcon("search"), search);
+  filters.append(searchLabel, kindLabel, tagLabel);
+
+  const period = el("div", undefined, "report-date-period");
+  period.id = "report-date-period";
+  const fromDate = el("input");
+  const toDate = el("input");
+  fromDate.type = toDate.type = "datetime-local";
+  fromDate.step = toDate.step = "1";
+  fromDate.value = state.startDate ?? "";
+  toDate.value = state.endDate ?? "";
+  const fromLabel = el("label", s.startDate);
+  const toLabel = el("label", s.endDate);
+  fromLabel.append(fromDate);
+  toLabel.append(toDate);
+  const resetDates = button(s.clearDates, () => {
+    fromDate.value = toDate.value = "";
+    applyDates();
+  });
+  const dateBasis = el("span", s.dateBasis);
+  dateBasis.id = "report-date-basis";
+  dateBasis.hidden = true;
+  for (const field of [fromDate, toDate]) {
+    field.title = s.dateBasis;
+    field.setAttribute("aria-describedby", dateBasis.id);
+  }
+  period.append(fromLabel, toLabel, resetDates, dateBasis);
+
+  const searchPanel = changePanel(filters, search, "filtersOpen", "filter", s.filters, "report-filter-toggle");
+  const datePanel = changePanel(period, fromDate, "datesOpen", "calendar", s.dates, "report-date-toggle");
+  const changeTools = el("div", undefined, "report-change-tools");
+  changeTools.append(searchPanel.toggle, datePanel.toggle);
+  list.header.append(changeTools);
+  list.body.append(filters, period, status, changeScroll);
+  const changeRows = reportChangeScroller<ChangeEntry>(changeScroll, results, renderChangeRow);
+  const searchIndex = new WeakMap<ReportChange, { tags: Set<string>; text: string }>();
+
+  function changePanel(
+    panel: HTMLElement, field: HTMLInputElement, key: "filtersOpen" | "datesOpen",
+    icon: "filter" | "calendar", label: string, className: string,
+  ) {
+    const toggle = button("", () => {
+      state[key] = list.body.hidden || panel.hidden;
+      if (list.body.hidden) list.setExpanded(true);
+      update();
+      if (state[key]) field.focus({ preventScroll: true });
+    }, className);
+    toggle.append(reportIcon(icon));
+    toggle.setAttribute("aria-label", label);
+    toggle.setAttribute("aria-controls", panel.id);
+    toggle.title = label;
+    panel.onkeydown = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      state[key] = false;
+      update();
+      toggle.focus({ preventScroll: true });
+    };
+
+    function update(): void {
+      panel.hidden = !state[key] || toggle.disabled;
+      toggle.setAttribute("aria-expanded", String(!panel.hidden && !list.body.hidden));
+    }
+
+    return { toggle, update };
+  }
+
+  function applyDates(): void {
+    state.startDate = fromDate.value;
+    state.endDate = toDate.value;
+    draw(true);
+  }
+  fromDate.oninput = toDate.oninput = applyDates;
+  search.oninput = () => {
+    state.query = search.value;
+    draw(true);
+  };
 
   const rangeMenu = el("details", undefined, "report-range-menu");
   const rangeToggle = el("summary", undefined, "report-range-toggle");
@@ -316,7 +459,7 @@ export function renderSavedVersionReport(
   tools.append(rangeMenu, commentToggle);
   const detailToolbar = el("div", undefined, "report-detail-toolbar");
   detailToolbar.append(back, tools);
-  const passages = el("div");
+  const passages = el("div", undefined, "report-passage-content");
   detail.body.append(detailToolbar, passages);
 
   rangeMenu.ontoggle = () => {
@@ -338,7 +481,7 @@ export function renderSavedVersionReport(
   rootHeader.onpointerdown = closeRangeOnOutsidePress;
   layout.onpointerdown = closeRangeOnOutsidePress;
 
-  const changeFilters = () => { state.kind = kinds.value; state.tag = tags.value; original = undefined; draw(); };
+  const changeFilters = () => { state.kind = kinds.value; state.tag = tags.value; original = undefined; draw(true); };
   kinds.onchange = changeFilters;
   tags.onchange = changeFilters;
   rangeInput.oninput = () => {
@@ -349,7 +492,8 @@ export function renderSavedVersionReport(
   const sorted = () => [...picked].sort((a, b) => a - b);
   const pairFor = () => {
     const [before, after] = sorted();
-    return review ? report.pairs[0] : report.pairs.find((pair) => pair.before === before && pair.after === after);
+    return selectedPair ?? (report.observationTimeline ? report.pairs[0]
+      : report.pairs.find((pair) => pair.before === before && pair.after === after));
   };
   const rangeLabel = (p: ReportPassage) => [p.heading, `${s.paragraph} ${p.paragraph}`].filter(Boolean).join(" · ");
   const threadLabel = (thread: ReportThread) => thread.draft === undefined ? thread.sourceLabel ?? "" : report.drafts[thread.draft].label;
@@ -368,10 +512,11 @@ export function renderSavedVersionReport(
   }
 
   function drawSummary(count: number): void {
-    const pair = pairFor();
     const text = selected ? changeTitle(selected) : "";
     selectedTitle.textContent = selectedTitle.title = text;
-    summary.textContent = !selected && pair ? s.pairCount(report.drafts[pair.before].label, report.drafts[pair.after].label, count) : "";
+    const [before, after] = report.observationTimeline && review ? report.initial : sorted();
+    summary.textContent = !selected && before !== undefined && after !== undefined
+      ? s.pairCount(report.drafts[before].label, report.drafts[after].label, count) : "";
   }
 
   function avatar(own: boolean): HTMLElement {
@@ -397,82 +542,147 @@ export function renderSavedVersionReport(
     return node;
   }
 
-  function draw(): void {
+  type ChangeEntry = { item: ReportChange; pair: ReportPair; observed?: string };
+
+  function searchText(text: string): string {
+    return text.normalize("NFKC").toLocaleLowerCase(report.lang);
+  }
+
+  function indexChange(item: ReportChange) {
+    const cached = searchIndex.get(item);
+    if (cached) return cached;
+    const messages = item.threads.flatMap(id => report.threads[id].messages);
+    const tags = new Set(messages.flatMap(message => message.tags));
+    let normalized: string | undefined;
+    const indexed = {
+      tags,
+      get text(): string {
+        if (normalized !== undefined) return normalized;
+        const content = item.searchText ?? [...item.before, ...item.after].flatMap(passage => {
+          const excerpt = passage.excerpt;
+          if (!excerpt) return [];
+          const text = report.clips[excerpt.clip].text;
+          return [excerpt.passage ? text.slice(...excerpt.passage) : text];
+        }).join("\n");
+        normalized = searchText([changeTitle(item), content, ...messages.map(message => message.text), ...tags].join("\n"));
+        return normalized;
+      },
+    };
+    searchIndex.set(item, indexed);
+    return indexed;
+  }
+
+  function draw(reset = false): void {
     rangeMenu.open = false;
-    const compared = sorted();
     if (report.title) title.textContent = report.title;
-    table.update(compared, s.before, s.after, s.selected);
-    selectedNames.replaceChildren(...compared.map((index) => {
+    table.update(targets);
+    const visibleNames = targets.slice(0, 2).map((index) => {
       const name = drafts[index].filename ?? drafts[index].label;
       const chip = el("span", name);
       chip.title = name;
       return chip;
-    }));
-    const pair = pairFor();
+    });
+    if (targets.length > 2) visibleNames.push(el("span", s.moreVersions(targets.length - 2)));
+    selectedNames.replaceChildren(...visibleNames);
+    const [before, after] = sorted();
+    const pairs = report.observationTimeline
+      ? report.pairs.filter(pair => review || (targets.includes(pair.before) && targets.includes(pair.after)))
+      : report.pairs.filter(pair => pair.before === (review ? report.initial[0] : before) && pair.after === (review ? report.initial[1] : after));
+    const entries: ChangeEntry[] = pairs.flatMap(pair => {
+      const version = report.drafts[pair.after];
+      const observed = version.archivedAt ?? version.modifiedAt ?? version.createdAt;
+      return pair.changes.map(item => ({ item, pair, observed }));
+    });
     let kind = state.kind ?? "";
     let tag = state.tag ?? "";
-    const changes = pair?.changes ?? [];
-    const availableKinds = new Map(changes.map((change) => [kindValue(change), changeName(change)]));
-    const availableTags = new Set(changes.flatMap((change) => change.threads.flatMap((id) =>
-      report.threads[id].messages.flatMap((message) => message.tags))));
+    const availableKinds = new Map(entries.map(({ item }) => [kindValue(item), changeName(item)]));
+    const availableTags = new Set(entries.flatMap(({ item }) => [...indexChange(item).tags]));
     if (!availableKinds.has(kind)) kind = "";
     if (!availableTags.has(tag)) tag = "";
     kinds.replaceChildren(option(s.all, ""), ...[...availableKinds].map(([value, label]) => option(label, value)));
     tags.replaceChildren(option(s.all, ""), ...[...availableTags].map((value) => option(`#${value}`, value)));
-    kinds.value = kind;
-    tags.value = tag;
-    state.kind = kind;
-    state.tag = tag;
-    const shown = changes.filter((item) => (!kind || kindValue(item) === kind) && (!tag || item.threads.some((id) =>
-      report.threads[id].messages.some((message) => message.tags.includes(tag)))));
-    if (selected && !shown.includes(selected)) selected = undefined;
-    state.selected = selected?.reviewId;
-    filters.hidden = !pair || !changes.length;
-    status.hidden = Boolean(shown.length && !pair?.gap);
-    status.textContent = !pair ? s.choose : pair.unavailable ? s.missing : pair.gap ? s.gap : s.noMatches;
-    drawSummary(shown.length);
-    results.replaceChildren();
-    for (const item of shown) {
-      const label = changeTitle(item);
-      const row = button("", () => {
-        rangeMenu.open = false;
-        selected = selected === item ? undefined : item;
-        state.selected = selected?.reviewId;
-        original = undefined;
-        for (const previous of results.querySelectorAll("button")) previous.setAttribute("aria-pressed", String(previous === row && selected === item));
-        drawSummary(shown.length);
-        drawPassages();
-        drawThreads();
-      });
-      row.setAttribute("aria-pressed", String(item === selected));
-      const heading = el("span", label);
-      const authors = participants(item);
-      if (authors) heading.append(authors);
-      row.append(heading, el("small", changeName(item)));
-      const first = item.after[0] ?? item.before[0];
-      const excerpt = first.excerpt;
-      if (excerpt) {
-        const text = report.clips[excerpt.clip].text;
-        const [start, end] = reportWindow(text, excerpt.focus, 44);
-        row.append(el("span", (start ? "…" : "") + text.slice(start, end).replace(/\s+/gu, " ") + (end < text.length ? "…" : ""), "report-row-text"));
-      }
-      const li = el("li");
-      li.append(row);
-      const id = item.reviewId;
-      if (review && id) {
-        const label = el("label", undefined, "report-include-change");
-        const check = el("input");
-        check.type = "checkbox";
-        check.checked = review.included(id);
-        check.setAttribute("aria-label", `${s.export} · ${changeTitle(item)}`);
-        check.onchange = () => review.setIncluded(id, check.checked);
-        label.append(check, s.export);
-        li.append(label);
-      }
-      results.append(li);
+    kinds.value = state.kind = kind;
+    tags.value = state.tag = tag;
+    const terms = searchText(state.query ?? "").trim().split(/\s+/u).filter(Boolean);
+    const from = state.startDate ? Date.parse(state.startDate) : -Infinity;
+    const to = state.endDate ? Date.parse(state.endDate) : Infinity;
+    const dateActive = Boolean(state.startDate || state.endDate);
+    searchPanel.toggle.dataset.active = String(Boolean(terms.length || kind || tag));
+    datePanel.toggle.dataset.active = String(dateActive);
+    const invalid = from > to;
+    fromDate.setAttribute("aria-invalid", String(invalid));
+    toDate.setAttribute("aria-invalid", String(invalid));
+    const shown = invalid ? [] : entries.filter(({ item, observed }) => {
+      const date = Date.parse(observed ?? "");
+      const indexed = indexChange(item);
+      return (!kind || kindValue(item) === kind) && (!tag || indexed.tags.has(tag)) &&
+        (!dateActive || (date >= from && date <= to)) && terms.every(term => indexed.text.includes(term));
+    });
+    if (selected && !shown.some(({ item }) => item === selected)) {
+      selected = undefined;
+      selectedPair = undefined;
+      original = undefined;
     }
+    state.selected = selected?.reviewId;
+    searchPanel.toggle.disabled = datePanel.toggle.disabled = !pairs.length;
+    searchPanel.update();
+    datePanel.update();
+    changeScroll.hidden = !shown.length;
+    const gap = pairs.some(pair => pair.gap);
+    status.hidden = !invalid && Boolean(shown.length && !gap);
+    status.textContent = invalid ? s.invalidDates : !pairs.length ? s.choose
+      : gap ? s.gap : pairs.every(pair => pair.unavailable) ? s.missing : s.noMatches;
+    shownCount = shown.length;
+    drawSummary(shownCount);
+    changeRows.setItems(shown, reset);
     drawPassages();
     drawThreads();
+    splitters.update();
+  }
+
+  let shownCount = 0;
+  function renderChangeRow({ item, pair, observed }: ChangeEntry): HTMLLIElement {
+    const title = changeTitle(item);
+    const row = button("", () => {
+      rangeMenu.open = false;
+      selected = selected === item ? undefined : item;
+      selectedPair = selected ? pair : undefined;
+      state.selected = selected?.reviewId;
+      original = undefined;
+      for (const previous of results.querySelectorAll("li > button")) {
+        previous.setAttribute("aria-pressed", String(previous === row && selected === item));
+      }
+      drawSummary(shownCount);
+      drawPassages();
+      drawThreads();
+    });
+    row.setAttribute("aria-pressed", String(item === selected));
+    const heading = el("span", title);
+    const authors = participants(item);
+    if (authors) heading.append(authors);
+    const when = observed ? displayDate(observed) : "";
+    row.append(heading, el("small", [changeName(item), when].filter(Boolean).join(" · ")));
+    const first = item.after[0] ?? item.before[0];
+    const excerpt = first.excerpt;
+    if (excerpt) {
+      const text = report.clips[excerpt.clip].text;
+      const [start, end] = reportWindow(text, excerpt.focus, 44);
+      row.append(el("span", (start ? "…" : "") + text.slice(start, end).replace(/\s+/gu, " ") + (end < text.length ? "…" : ""), "report-row-text"));
+    }
+    const li = el("li");
+    li.append(row);
+    const id = item.reviewId;
+    if (review && id) {
+      const label = el("label", undefined, "report-include-change");
+      const check = el("input");
+      check.type = "checkbox";
+      check.checked = review.included(id);
+      check.setAttribute("aria-label", `${s.export} · ${title}`);
+      check.onchange = () => review.setIncluded(id, check.checked, targets[pair.before], targets[pair.after]);
+      label.append(check, s.export);
+      li.append(label);
+    }
+    return li;
   }
 
   function passageView(passage: ReportPassage, mode: "before" | "after" | "original" | "match"): HTMLElement {
@@ -626,7 +836,7 @@ export function renderSavedVersionReport(
   }
 
   function drawThreads(): void {
-    const reportVersions = review ? report.initial : sorted();
+    const reportVersions = selectedPair ? [selectedPair.before, selectedPair.after] : review ? report.initial : sorted();
     const unlocated = reportVersions.flatMap((id) => report.drafts[id]?.unlocated ?? []);
     sidebar.hidden = state.commentsOpen === false;
     layout.classList.toggle("report-comments-open", !sidebar.hidden);
@@ -665,8 +875,8 @@ export function renderSavedVersionReport(
       for (const id of unlocated) box.append(showThread(report.threads[id], false));
       sidebar.append(box);
     }
-    if (selected?.reviewId && review?.commentComposer) {
-      const compose = review.commentComposer(selected.reviewId);
+    if (selected?.reviewId && selectedPair && review?.commentComposer) {
+      const compose = review.commentComposer(selected.reviewId, targets[selectedPair.before], targets[selectedPair.after]);
       sidebar.append(compose ? commentForm(compose) : el("p", s.composeUnavailable, "report-hint"));
     }
   }
@@ -709,5 +919,6 @@ export function renderSavedVersionReport(
   }
 
   draw();
-  for (const [index, section] of [trace, list, detail].entries()) section.setExpanded(expanded[index]);
+  for (const [index, section] of panels.entries()) section.setExpanded(expanded[index]);
+  requestAnimationFrame(splitters.update);
 }

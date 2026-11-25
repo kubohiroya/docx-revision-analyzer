@@ -4,15 +4,25 @@ import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { addWordComment, extractComments, replayCommentEvents, type CommentEvent, type CommentLocations, type DocxComment } from "../../src/lib/docxComments";
+import { countRecordedRevisions } from "../../src/lib/integrity";
 import { readSavedTextVersion, type SavedParagraphRange, type VersionIdentity } from "../../src/lib/lineage";
+import { revertTrackedChangesXml } from "../../src/lib/versions";
+import { countVersionText } from "./versionTextCounts";
 import type { WatchArchive } from "../../src/node/docWatcher";
 import { checkNotOpenElsewhere, replaceWithBackup } from "../../src/node/historyFile";
 import { readArchivedSnapshot, type SnapshotEntry } from "../../src/node/snapshotArchive";
 import { commentObservations, commentThreads, observedVersion } from "./commentHistory";
 import type { CommentObservation, SavedLineageVersion, SavedVersionCommentError, SavedVersionCommentRequest,
-  SavedVersionCommentResult, SavedVersionThread } from "./shared";
+  SavedVersionCommentResult, SavedVersionFigureSource, SavedVersionThread } from "./shared";
 
-const versionFiles = new Map<string, () => Promise<string>>();
+interface VersionFile {
+  path(): Promise<string>;
+  read(): Promise<Uint8Array>;
+}
+
+class VersionFileChanged extends Error {}
+
+const versionFiles = new Map<string, VersionFile>();
 const localVersions = new Map<string, { file: string; sha: string; dev: number; ino: number }>();
 const pendingCommentWrites = new Map<string, Promise<void>>();
 
@@ -22,26 +32,44 @@ function digest(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-function rememberVersionFile(resolve: () => Promise<string>): string {
+function rememberVersionFile(file: VersionFile): string {
   const id = randomUUID();
-  versionFiles.set(id, resolve);
+  versionFiles.set(id, file);
   return id;
 }
 
 export async function savedVersionFile(id: unknown): Promise<string> {
-  const resolve = typeof id === "string" ? versionFiles.get(id) : undefined;
-  if (!resolve) throw new Error("The saved version is no longer available.");
-  return resolve();
+  const file = typeof id === "string" ? versionFiles.get(id) : undefined;
+  if (!file) throw new Error("The saved version is no longer available.");
+  return file.path();
+}
+
+export async function readSavedVersionFigureSource(id: unknown): Promise<SavedVersionFigureSource> {
+  const file = typeof id === "string" ? versionFiles.get(id) : undefined;
+  if (!file) return { ok: false, reason: "unavailable" };
+  try {
+    return { ok: true, bytes: await file.read() };
+  } catch (error) {
+    return { ok: false, reason: error instanceof VersionFileChanged ? "changed" : "unavailable" };
+  }
 }
 
 function rememberLocalVersion(file: string, stat: Stats, sha: string): string {
   const source = { file, sha, dev: stat.dev, ino: stat.ino };
-  const id = rememberVersionFile(async () => {
+  const changed = () => new VersionFileChanged("The DOCX has changed since it was compared. Load the versions again.");
+  const read = async () => {
     const actual = await fs.lstat(file);
-    if (!actual.isFile() || actual.dev !== stat.dev || actual.ino !== stat.ino || digest(await fs.readFile(file)) !== sha) {
-      throw new Error("The DOCX has changed since it was compared. Load the versions again.");
-    }
-    return file;
+    if (!actual.isFile() || actual.dev !== stat.dev || actual.ino !== stat.ino) throw changed();
+    const bytes = await fs.readFile(file);
+    if (digest(bytes) !== sha) throw changed();
+    return bytes;
+  };
+  const id = rememberVersionFile({
+    read,
+    path: async () => {
+      await read();
+      return file;
+    },
   });
   localVersions.set(id, source);
   return id;
@@ -91,13 +119,23 @@ async function readVersion(
   bytes: Uint8Array, identity: VersionIdentity, observations: ReadonlyMap<string, CommentObservation[]> = new Map(),
 ): Promise<SavedLineageVersion> {
   const ranges = new Map<string, SavedParagraphRange[]>();
-  const version = await readSavedTextVersion(bytes, identity, ranges);
+  const [version, revisionCount] = await Promise.all([
+    readSavedTextVersion(bytes, identity, ranges),
+    countRecordedRevisions(bytes).catch(() => undefined),
+  ]);
+  const original = !version.unavailable && (revisionCount || version.trackedChanges)
+    ? await readSavedTextVersion(bytes, identity, undefined, revertTrackedChangesXml).catch(() => undefined)
+    : undefined;
+  const originalTextCounts = original && !original.unavailable
+    ? { ja: countVersionText(original.paragraphs, "ja"), en: countVersionText(original.paragraphs, "en") }
+    : undefined;
+  const metadata = { ...version, revisionCount, originalTextCounts, fileSize: bytes.byteLength };
   const locations: CommentLocations = { passages: new Map() };
   try {
     const comments = await extractComments(bytes, locations);
-    return { ...version, fileSize: bytes.byteLength, threads: makeThreads(comments, identity, observations, locations, ranges) };
+    return { ...metadata, threads: makeThreads(comments, identity, observations, locations, ranges) };
   } catch {
-    return { ...version, fileSize: bytes.byteLength, threads: [], commentsUnavailable: true };
+    return { ...metadata, threads: [], commentsUnavailable: true };
   }
 }
 
@@ -209,18 +247,22 @@ export async function readSavedVersionArchive(archive: WatchArchive, allowOpen =
       gapBefore: resumed.has(entry.n) || Boolean(previous && entry.n !== previous.n + 1),
     };
     try {
-      const version = await readVersion(await readArchivedSnapshot(archive.dir, entry), identity, observations);
-      const openId = allowOpen ? rememberVersionFile(async () => {
-        const bytes = await readArchivedSnapshot(archive.dir, entry);
-        const folder = await fs.mkdtemp(path.join(tmpdir(), "dra-saved-version-"));
-        const copy = path.join(folder, entry.file);
-        try {
-          await fs.writeFile(copy, bytes, { flag: "wx", mode: 0o400 });
-          return copy;
-        } catch (error) {
-          await fs.rm(folder, { recursive: true, force: true });
-          throw error;
-        }
+      const read = () => readArchivedSnapshot(archive.dir, entry);
+      const version = await readVersion(await read(), identity, observations);
+      const openId = allowOpen ? rememberVersionFile({
+        read,
+        path: async () => {
+          const bytes = await read();
+          const folder = await fs.mkdtemp(path.join(tmpdir(), "dra-saved-version-"));
+          const copy = path.join(folder, entry.file);
+          try {
+            await fs.writeFile(copy, bytes, { flag: "wx", mode: 0o400 });
+            return copy;
+          } catch (error) {
+            await fs.rm(folder, { recursive: true, force: true });
+            throw error;
+          }
+        },
       }) : undefined;
       result.push({ ...version, openId });
     } catch {

@@ -17,7 +17,7 @@ export type ReportInterval = [start: number, end: number];
 export interface ReportPassage {
   paragraph: number;
   heading?: string;
-  excerpt?: { clip: number; focus: number; marks: ReportInterval[]; point?: boolean };
+  excerpt?: { clip: number; focus: number; marks: ReportInterval[]; passage?: ReportInterval; point?: boolean };
 }
 
 export interface ReportMessage {
@@ -41,6 +41,7 @@ export interface ReportThread {
 
 export interface ReportChange {
   reviewId?: string;
+  searchText?: string;
   kind: LineageKind | "comment";
   reordered: boolean;
   evidence: MatchEvidence[];
@@ -60,6 +61,9 @@ export interface ReportDraft {
   size?: number;
   characters?: number;
   words?: number;
+  characterDelta?: number;
+  wordDelta?: number;
+  revisionCount?: number;
   unavailable: boolean;
   unlocated: number[];
 }
@@ -77,6 +81,7 @@ export interface SavedVersionReport {
   lang: AppLang;
   level: LineageLevel;
   initial: number[];
+  observationTimeline?: boolean;
   range: number;
   includeText: boolean;
   drafts: ReportDraft[];

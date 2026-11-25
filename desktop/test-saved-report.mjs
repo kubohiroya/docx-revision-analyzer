@@ -23,9 +23,11 @@ const dangerous = '</script><img src="https://example.org/report-pixel">';
 const pageContext = "授業の記録を調べ、対象校について学期ごとの出欠を照合した。".repeat(17);
 const anchor = (text) => `<w:commentRangeStart w:id="0"/>${run(text)}<w:commentRangeEnd w:id="0"/><w:r><w:commentReference w:id="0"/></w:r>`;
 
-async function fixture(index) {
+async function fixture(index, withUndatedRevision = false) {
   const zip = new JSZip();
-  const focus = para("00000001", run(index >= 2 ? "制度導入後、" : "制度によって") + (index === 1 ? anchor(quote) : run(quote)) + run("。"));
+  const prefix = run(index >= 2 ? "制度導入後、" : "制度によって");
+  const initial = withUndatedRevision ? '<w:ins w:id="91">' + prefix + '</w:ins>' : prefix;
+  const focus = para("00000001", initial + (index === 1 ? anchor(quote) : run(quote)) + run("。"));
   const context = para("00000002", run(pageContext + "第一ページの周辺情報。"));
   const secret = para("00000003", `<w:r><w:lastRenderedPageBreak/></w:r>${run("第二ページの収録対象外。")}`);
   const unsafe = para("00000004", run(index >= 2 ? dangerous : "安全な原文から始める。"));
@@ -106,6 +108,27 @@ try {
   assert.equal(savedReportTitle(["初稿.docx", "中間稿.docx", "最終稿.docx"]), "初稿 / 中間稿 / 最終稿");
   const info = await fs.stat(fixtures[0]);
   assert.equal(manual[0].fileSize, info.size);
+  const undatedFile = path.join(temp, "undated.docx");
+  await fs.writeFile(undatedFile, await fixture(0, true));
+  const [undatedVersion] = await readSelectedSavedVersions([undatedFile]);
+  assert.equal(undatedVersion.revisionCount, 1);
+  const undatedReport = new SavedReportAnalysis([undatedVersion], compareSavedVersions([undatedVersion]), "paragraph");
+  assert.equal(undatedReport.drafts("ja", ["undated"])[0].characterDelta, Array.from("制度によって").length);
+  assert.equal(typeof undatedReport.drafts("en", ["undated"])[0].wordDelta, "number");
+  const shortenedFile = path.join(temp, "shortened.docx");
+  const shortened = new JSZip();
+  shortened.file("word/document.xml", `<w:document xmlns:w="${W}"><w:body>${para("00000001",
+    '<w:del w:id="1" w:date="2026-01-02T00:00:00Z"><w:r><w:delText xml:space="preserve">A long </w:delText></w:r></w:del>' +
+    run("draft"))}</w:body></w:document>`);
+  await fs.writeFile(shortenedFile, await shortened.generateAsync({ type: "nodebuffer" }));
+  const [shortenedVersion] = await readSelectedSavedVersions([shortenedFile]);
+  const shortenedReport = new SavedReportAnalysis([shortenedVersion], compareSavedVersions([shortenedVersion]), "paragraph");
+  const shortenedDraft = shortenedReport.drafts("en", ["shortened"])[0];
+  assert.deepEqual([shortenedDraft.characters, shortenedDraft.words, shortenedDraft.characterDelta, shortenedDraft.wordDelta],
+    [5, 1, -7, -2]);
+  assert.equal(manual[0].revisionCount, 0);
+  assert.equal(manual[1].revisionCount, 0);
+  assert.equal(archived[0].revisionCount, 0);
   assert.equal(manual[0].fileCreatedAt, info.birthtimeMs > 0 ? info.birthtime.toISOString() : undefined);
   assert.equal(archived[0].fileSize, info.size);
   assert.equal(archived[0].fileCreatedAt, undefined);
@@ -122,6 +145,8 @@ try {
     const labels = ["初稿", "中間稿", "最終稿", "収録対象外の稿"];
     const report = analysis.project(scope, "ja", labels);
     assert.equal(report.title, versions === manual ? "draft" : "original");
+    assert.deepEqual(report.drafts.map((draft) => draft.revisionCount), [0, 0, 0]);
+    assert(report.drafts.every((draft) => draft.characterDelta === undefined && draft.wordDelta === undefined));
     assert.deepEqual(report.pairs.map((pair) => [pair.before, pair.after]), [[0, 1], [0, 2], [1, 2]]);
     assert(report.pairs[0].changes.some((row) => row.kind === "comment"));
     assert(report.pairs[1].changes.some((row) => row.kind === "rewritten" && row.evidence.includes("paragraphId")));

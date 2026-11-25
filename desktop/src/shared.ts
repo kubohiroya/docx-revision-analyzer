@@ -342,13 +342,23 @@ export interface SavedVersionThread {
   detail: CommentHistoryDetail;
 }
 
+export interface VersionTextCounts {
+  characters: number;
+  words: number;
+}
+
 export type SavedLineageVersion = SavedTextVersion & {
   threads: SavedVersionThread[];
   commentsUnavailable?: boolean;
   fileCreatedAt?: string;
   fileSize?: number;
+  revisionCount?: number;
+  originalTextCounts?: Record<AppLang, VersionTextCounts>;
   openId?: string;
 };
+
+export type SavedVersionFigureSource = { ok: true; bytes: Uint8Array }
+  | { ok: false; reason: "unavailable" | "changed" };
 
 export type SavedVersionCommentRequest = import("../../src/lib/docxComments").NewWordComment;
 export type SavedVersionCommentError = "disabled" | "unavailable" | "changed" | "locked" | "readOnly" | "unsupported" | "saveFailed";
@@ -380,7 +390,10 @@ export interface AppApi {
   /** ファイルを開くダイアログ。キャンセルなら null */
   openDocxDialog(): Promise<OpenedFile | null>;
   chooseSavedVersions(): Promise<SavedLineageVersion[] | null>;
+  chooseSavedVersionFolders(): Promise<SavedLineageVersion[] | null>;
+  loadSavedVersionPaths(paths: string[]): Promise<SavedLineageVersion[]>;
   openSavedVersion(id: string): Promise<void>;
+  readSavedVersionFigureSource(id: string): Promise<SavedVersionFigureSource>;
   reviewCommentWriteEnabled(): Promise<boolean>;
   addSavedVersionComment(id: string, comment: SavedVersionCommentRequest): Promise<SavedVersionCommentResult>;
   /** パスのファイルを読む (ドロップされたファイルなど) */
@@ -430,6 +443,7 @@ export interface AppApi {
   systemLang(): Promise<AppLang>;
   /** メインプロセスから「このファイルを開いて」と指示されたとき (Finder からのドロップ・スモークテスト) */
   onOpenPath(cb: (path: string) => void): void;
+  onOpenVersionPaths(cb: (paths: string[]) => void): void;
   /** アプリのバージョン */
   version(): Promise<string>;
   /** 自動更新が使えるか (配布物として起動している場合だけ true) */

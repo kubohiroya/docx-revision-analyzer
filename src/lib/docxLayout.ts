@@ -1352,11 +1352,14 @@ async function parseNotes(zip: JSZip, part: string, tag: "footnote" | "endnote")
   return out;
 }
 
-export async function parseDocxLayout(input: DocxInput, commentMarks?: Map<number, LayoutCommentMark[]>): Promise<DocxLayoutModel> {
+export async function parseDocxLayout(
+  input: DocxInput, commentMarks?: Map<number, LayoutCommentMark[]>, transformDocumentXml?: (xml: string) => string,
+): Promise<DocxLayoutModel> {
   const zip = await JSZip.loadAsync(input);
   const docFile = zip.file("word/document.xml");
   if (!docFile) throw new Error(t("errNoDocumentXml"));
-  const docRoot = parser.parse(await docFile.async("string")) as XmlNode[];
+  const documentXml = await docFile.async("string");
+  const docRoot = parser.parse(transformDocumentXml ? transformDocumentXml(documentXml) : documentXml) as XmlNode[];
   const stylesRoot = await partXml(zip, "word/styles.xml");
   const styles = parseStyles(stylesRoot);
   const themeFile = Object.keys(zip.files).find((n) => /^word\/theme\/theme\d*\.xml$/.test(n));

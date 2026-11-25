@@ -61,7 +61,10 @@ const api: AppApi = {
   },
   openDocxDialog: () => ipcRenderer.invoke("open-docx-dialog"),
   chooseSavedVersions: () => ipcRenderer.invoke("choose-saved-versions"),
+  chooseSavedVersionFolders: () => ipcRenderer.invoke("choose-saved-version-folders"),
+  loadSavedVersionPaths: (paths) => ipcRenderer.invoke("load-saved-version-paths", paths),
   openSavedVersion: (id) => ipcRenderer.invoke("open-saved-version", id),
+  readSavedVersionFigureSource: (id) => ipcRenderer.invoke("read-saved-version-figure-source", id),
   reviewCommentWriteEnabled: () => ipcRenderer.invoke("review-comment-write-enabled"),
   addSavedVersionComment: (id, comment) => ipcRenderer.invoke("add-saved-version-comment", id, comment),
   readDocx: (p) => ipcRenderer.invoke("read-docx", p),
@@ -93,6 +96,9 @@ const api: AppApi = {
   systemLang: () => ipcRenderer.invoke("system-lang"),
   onOpenPath: (cb) => {
     ipcRenderer.on("open-path", (_e, p: string) => cb(p));
+  },
+  onOpenVersionPaths: (cb) => {
+    ipcRenderer.on("open-version-paths", (_e, paths: string[]) => cb(paths));
   },
   version: () => ipcRenderer.invoke("version"),
   updatesAvailable: () => ipcRenderer.invoke("updates-available"),
