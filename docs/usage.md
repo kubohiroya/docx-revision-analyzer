@@ -591,7 +591,7 @@ are written to documents opened from a URL (they are opened with read-only acces
 
 See [Export a saved-version comparison as HTML](#export-a-saved-version-comparison-as-html) for steps by version.
 The **Versions in scope** table, the `--versions` option, per-version charts and flows, search and date filters, and the
-[branch timeline](#saved-version-branch-timeline) are available in the v0.4.1 prerelease.
+[branch timeline](#saved-version-branch-timeline) are available in the v0.4.1 and v0.4.2 prereleases.
 
 **Compare saved versions (preview)**: Turn on **Compare saved versions (preview)** in Settings and open **Saved versions**.
 Select **Choose DOCX files** or **Choose folders** to open the **Versions in scope** table. Folders are scanned recursively
@@ -702,7 +702,7 @@ Word closes the document or after the idle gap; those of any other version when 
 
 ### Saved-version branch timeline
 
-In v0.4.1, **Review changes and comments** shows **Version branches** by default. Turn off
+In v0.4.1 and later, **Review changes and comments** shows **Version branches** by default. Turn off
 **Compare along inferred branches (preview)** in Settings to hide the timeline and use chronological comparison. The app
 remembers an explicit off setting after restart.
 
@@ -722,7 +722,7 @@ the selected path unavailable, choose a path again before opening the preview.
 
 ### Export a saved-version comparison as HTML
 
-#### Export in the v0.4.1 prerelease
+#### Export in the v0.4.1 and v0.4.2 prereleases
 
 The screenshots use a development build.
 

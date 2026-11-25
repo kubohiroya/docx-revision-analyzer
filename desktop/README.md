@@ -19,9 +19,9 @@ its text are never sent anywhere (the app blocks all network access).
   same as `--preserve-history`. / ファイルを開く・ドロップ。日時が削除される設定なら修正を案内 (バックアップを残す)
 - Chart and Flow tabs; change the idle-gap threshold, period, bulk-insertion size, and time step. /
   チャートとフローのタブ。区間のしきい値・期間・一括挿入の文字数・時間の刻みを変更できる
-- v0.4.1 shows the branch timeline by default in saved-version review. Select a branch and interval to
+- The branch timeline is shown by default in saved-version review starting with v0.4.1. Select a branch and interval to
   review changes and export them as HTML. [Usage](../docs/usage.md#saved-version-branch-timeline) /
-  v0.4.1 の保存版比較画面には分岐図が既定で表示されます。枝と区間を選んで変更箇所を確認し、HTMLに書き出せます。
+  v0.4.1 以降の保存版比較画面には分岐図が既定で表示されます。枝と区間を選んで変更箇所を確認し、HTMLに書き出せます。
   [使い方](../docs/usage.ja.md#保存版の分岐タイムライン)
 - Highlights tab: the classifiers' highlights with reasons and the inserted text; click to show where they are in
   the figures. / ハイライトの一覧 (理由・本文)。クリックで図の該当箇所を示す

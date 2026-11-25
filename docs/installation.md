@@ -133,9 +133,12 @@ Download the desktop app using the installers below. The automatic update feed s
 | Version | macOS (Apple Silicon / Intel) | Windows (x64 / ARM64) |
 |---|---|---|
 | [v0.3.0 (regular release)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) |
-| [v0.4.1 (prerelease)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.1) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-0.4.1-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-Setup-0.4.1.exe) |
+| [v0.4.2 (prerelease)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.2) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.2/Docx-Revision-Analyzer-0.4.2-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.2/Docx-Revision-Analyzer-Setup-0.4.2.exe) |
 
-Download v0.4.1 manually to use the [saved-version branch timeline](usage.md#saved-version-branch-timeline) and export
+Download v0.4.2 manually to use the [saved-version branch timeline](usage.md#saved-version-branch-timeline) and export
 selected changes as HTML. The [usage guide](usage.md#desktop-app-preview) covers the comparison and optional Word comment writing.
+
+The v0.4.2 macOS app and its bundled helpers are ad-hoc signed. This preview is unnotarized, so macOS may require
+individual approval on first launch.
 
 To run from source, see [desktop/README.md](../desktop/README.md). For packaging instructions, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md).
