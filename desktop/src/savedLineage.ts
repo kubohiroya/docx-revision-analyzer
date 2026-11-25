@@ -56,25 +56,29 @@ async function readVersion(
   const locations: CommentLocations = { passages: new Map() };
   try {
     const comments = await extractComments(bytes, locations);
-    return { ...version, threads: makeThreads(comments, identity, observations, locations, ranges) };
+    return { ...version, fileSize: bytes.byteLength, threads: makeThreads(comments, identity, observations, locations, ranges) };
   } catch {
-    return { ...version, threads: [], commentsUnavailable: true };
+    return { ...version, fileSize: bytes.byteLength, threads: [], commentsUnavailable: true };
   }
 }
 
 export async function readSelectedSavedVersions(files: string[]): Promise<SavedLineageVersion[]> {
   const result: SavedLineageVersion[] = [];
   for (const file of files) {
-    const identity: VersionIdentity = { label: path.basename(file), source: "selected" };
+    const stat = await fs.stat(file).catch(() => undefined);
+    const identity: VersionIdentity = {
+      label: path.basename(file), source: "selected", sourceModified: stat?.mtime.toISOString(),
+    };
+    const fileCreatedAt = stat && stat.birthtimeMs > 0 ? stat.birthtime.toISOString() : undefined;
     try {
-      const [bytes, stat] = await Promise.all([fs.readFile(file), fs.stat(file)]);
-      result.push(await readVersion(bytes, {
+      const bytes = await fs.readFile(file);
+      const version = await readVersion(bytes, {
         ...identity,
         sha256: createHash("sha256").update(bytes).digest("hex"),
-        sourceModified: stat.mtime.toISOString(),
-      }));
+      });
+      result.push({ ...version, fileCreatedAt });
     } catch {
-      result.push({ ...identity, unavailable: true, threads: [] });
+      result.push({ ...identity, fileCreatedAt, fileSize: stat?.size, unavailable: true, threads: [] });
     }
   }
   return result;

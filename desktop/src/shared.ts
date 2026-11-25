@@ -343,6 +343,8 @@ export interface SavedVersionThread {
 export type SavedLineageVersion = SavedTextVersion & {
   threads: SavedVersionThread[];
   commentsUnavailable?: boolean;
+  fileCreatedAt?: string;
+  fileSize?: number;
 };
 
 export interface WatchApi {

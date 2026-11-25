@@ -6,22 +6,22 @@ import {
 } from "../reportData";
 
 const EN = {
-  title: "Saved version report", tracking: "Trace across saved versions", inferred: "Inferred from saved text",
+  tracking: "Trace across saved versions", inferred: "Inferred from saved text",
   choose: "Choose two drafts to compare.", chooseGroup: "Choose up to two drafts", before: "Before", after: "After", selected: "Selected",
   changes: "Changes between selected drafts", difference: "Before and after the change", original: "Original comment passage",
   gap: "There is a gap in the saved record. The comparison uses the available endpoints.",
   missing: "A selected draft could not be read.", tracked: "Observed changes between saves, not exact edit times.",
-  changeType: "Change type", tags: "Comment tag", all: "All", noMatches: "No shared changes match this selection.",
+  changeType: "Change type", tags: "Comment tag", all: "All", noMatches: "No changes match this selection.",
   evidence: "Matching evidence", candidates: (n: number) => `${n} possible sources`,
   limited: "The highlighted text shows matching edges. The middle of the passage was not fully aligned.",
   range: "Text range", ranges: ["About 20 characters", "About 80 characters", "About 200 characters", "About 400 characters", "Full page"],
   estimated: "Estimated page", page: "Page", noPage: "Page boundaries are unavailable. Showing surrounding text.",
-  noPassage: "There is no corresponding passage on this side.", noText: "Text excerpts were not shared.",
-  paragraph: "Paragraph", sentence: "Sentence", comments: "Word comments", noComments: "No Word comments were shared for this change.",
+  noPassage: "There is no corresponding passage on this side.", noText: "Text excerpts are not included.",
+  paragraph: "Paragraph", sentence: "Sentence", comments: "Word comments", noComments: "This report contains no Word comments for this change.",
   unlocated: "Comments without a confirmed location", threadMissing: "This saved draft is unavailable.",
-  commentAbsent: "Absent from the latest shared readable draft", commentResolved: "Resolved in this draft",
+  commentAbsent: "Absent from the latest readable draft in this report", commentResolved: "Resolved in this draft",
   showOriginal: "Go to the original passage", closeOriginal: "Back to the comparison",
-  noOriginal: "The original range could not be located within the shared text.",
+  noOriginal: "The original range could not be located within the included text.",
   reply: "Reply", unnamed: "Unnamed author", point: "Comment position", archived: "Archived", modified: "File modified",
   moved: "Moved",
   kinds: {
@@ -37,22 +37,22 @@ const EN = {
 };
 
 export const REPORT_LABELS: Record<SavedVersionReport["lang"], typeof EN> = { en: EN, ja: {
-  title: "保存版レポート", tracking: "文章の追跡", inferred: "保存版の比較から推定",
+  tracking: "文章の追跡", inferred: "保存版の比較から推定",
   choose: "比較する稿を2つ選んでください。", chooseGroup: "比較する稿を最大2つ選択", before: "比較前", after: "比較後", selected: "選択中",
   changes: "選んだ2稿の変更箇所", difference: "変更箇所の前後", original: "コメントが付いた元の箇所",
   gap: "この区間には保全記録の空白があります。確認できた両端を比較しています。",
   missing: "選んだ稿の一方を読み込めませんでした。", tracked: "保存版の間で観測した変化を示します。個々の編集時刻は分かりません。",
-  changeType: "変更の種類", tags: "コメントのタグ", all: "すべて", noMatches: "条件に一致する共有済みの変更箇所はありません。",
+  changeType: "変更の種類", tags: "コメントのタグ", all: "すべて", noMatches: "条件に一致する変更箇所はありません。",
   evidence: "対応の手掛かり", candidates: (n) => `元の箇所の候補 ${n} 件`,
   limited: "一致する先頭と末尾を強調しています。中間部の細かな差分は特定できません。",
   range: "表示範囲", ranges: ["約20字", "約80字", "40字×5行相当", "40字×10行相当", "1ページ全体"],
   estimated: "推定ページ", page: "ページ", noPage: "ページ境界を取得できないため、前後の抜粋を表示しています。",
-  noPassage: "この側に対応する箇所はありません。", noText: "原文は共有されていません。",
-  paragraph: "段落", sentence: "文", comments: "Wordコメント", noComments: "この箇所のWordコメントは共有されていません。",
+  noPassage: "この側に対応する箇所はありません。", noText: "原文は収録されていません。",
+  paragraph: "段落", sentence: "文", comments: "Wordコメント", noComments: "この箇所のWordコメントは収録されていません。",
   unlocated: "位置を特定できないコメント", threadMissing: "元の保存版を読み込めません。",
-  commentAbsent: "共有された最新の確認可能な稿では消失", commentResolved: "この稿で解決済み",
+  commentAbsent: "収録された最新の確認可能な稿では消失", commentResolved: "この稿で解決済み",
   showOriginal: "元の保存版の該当箇所へ", closeOriginal: "前後の比較に戻る",
-  noOriginal: "共有された原文の中で元の範囲を特定できません。",
+  noOriginal: "収録された原文の中で元の範囲を特定できません。",
   reply: "返信", unnamed: "作成者不明", point: "コメント位置", archived: "保管日時", modified: "ファイル更新日時",
   moved: "移動",
   kinds: {
@@ -80,6 +80,43 @@ function option(label: string, value: string): HTMLOptionElement {
   return result;
 }
 
+function accordion(title: string, id: string, expandedChanged?: () => void) {
+  const section = el("section", undefined, "report-block");
+  const header = el("div", undefined, "report-header report-accordion-header");
+  const body = el("div", undefined, "report-accordion-body");
+  body.id = id;
+  const label = el("span", title);
+  const toggle = button("", () => setExpanded(body.hidden), "report-accordion-toggle");
+  const indicator = el("span", undefined, "report-accordion-chevron");
+  indicator.setAttribute("aria-hidden", "true");
+  toggle.id = id + "-toggle";
+  toggle.setAttribute("aria-expanded", "true");
+  toggle.setAttribute("aria-controls", body.id);
+  toggle.append(indicator, label);
+  const heading = el("h2");
+  heading.append(toggle);
+  header.append(heading);
+  section.append(header, body);
+  section.setAttribute("aria-labelledby", toggle.id);
+  function setExpanded(expanded: boolean): void {
+    body.hidden = !expanded;
+    toggle.setAttribute("aria-expanded", String(expanded));
+    expandedChanged?.();
+  }
+  return { section, header, body, label, setExpanded };
+}
+
+function rangeIcon(): SVGSVGElement {
+  const namespace = "http://www.w3.org/2000/svg";
+  const icon = document.createElementNS(namespace, "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("aria-hidden", "true");
+  const arrows = document.createElementNS(namespace, "path");
+  arrows.setAttribute("d", "M3 6v12m18-12v12M7 12h10m-7-3-3 3 3 3m4-6 3 3-3 3");
+  icon.append(arrows);
+  return icon;
+}
+
 export function reportChangeLabel(labels: typeof EN, kind: ReportChange["kind"], moved: boolean): string {
   return moved ? kind === "retained" ? labels.moved : `${labels.moved} · ${labels.kinds[kind]}` : labels.kinds[kind];
 }
@@ -95,24 +132,23 @@ export function renderSavedVersionReport(
   let originButton: HTMLButtonElement | undefined;
 
   const rootHeader = el("header");
-  rootHeader.append(el("h1", s.title), el("p", s.tracked, "report-hint"));
+  rootHeader.append(el("h1", report.title), el("p", s.tracked, "report-hint"));
   const layout = el("div", undefined, "report-layout");
   const main = el("div", undefined, "report-main");
   const sidebar = el("aside", undefined, "report-block");
-  const trace = el("section", undefined, "report-block");
-  const list = el("section", undefined, "report-block");
-  const detail = el("section", undefined, "report-block");
-  main.append(trace, list, detail);
+  const trace = accordion(s.tracking, "report-trace");
+  const list = accordion(s.changes, "report-change-list");
+  const detail = accordion(s.difference, "report-passages", updateRangeVisibility);
+  main.append(trace.section, list.section, detail.section);
   layout.append(main, sidebar);
   root.replaceChildren(rootHeader, layout);
   root.classList.add("saved-report");
 
-  const traceHead = el("div", undefined, "report-header");
-  traceHead.append(el("h2", s.tracking), el("span", s.inferred, "report-hint"));
+  trace.header.append(el("span", s.inferred, "report-hint"));
   const draftChoices = el("div", undefined, "report-drafts");
   draftChoices.setAttribute("role", "group");
   draftChoices.setAttribute("aria-label", s.chooseGroup);
-  trace.append(traceHead, draftChoices);
+  trace.body.append(draftChoices);
   const draftButtons = report.drafts.map((draft, index) => {
     const tone = el("span");
     const meta = draft.archivedAt ?? draft.modifiedAt;
@@ -130,10 +166,9 @@ export function renderSavedVersionReport(
     return { node, tone, location, status };
   });
 
-  const listHead = el("div", undefined, "report-header");
   const summary = el("span", undefined, "report-hint");
   summary.setAttribute("aria-live", "polite");
-  listHead.append(el("h2", s.changes), summary);
+  list.header.append(summary);
   const filters = el("div", undefined, "report-filters");
   const kinds = el("select");
   const kindLabel = el("label", s.changeType);
@@ -144,10 +179,12 @@ export function renderSavedVersionReport(
   const status = el("p", undefined, "report-hint");
   const results = el("ul", undefined, "report-changes");
   filters.append(kindLabel, tagLabel);
-  list.append(listHead, filters, status, results);
+  list.body.append(filters, status, results);
 
-  const detailHead = el("div", undefined, "report-header");
-  const heading = el("h2", s.difference);
+  const rangeMenu = el("details", undefined, "report-range-menu");
+  const rangeToggle = el("summary", undefined, "report-range-toggle");
+  rangeToggle.setAttribute("aria-label", s.range);
+  rangeToggle.append(rangeIcon());
   const context = el("div", undefined, "report-range");
   const rangeInput = el("input");
   rangeInput.type = "range";
@@ -162,8 +199,32 @@ export function renderSavedVersionReport(
   const endpoints = el("div", undefined, "report-header report-hint");
   endpoints.append(el("span", s.ranges[0]), el("span", report.range ? s.ranges[report.range] : ""));
   context.append(rangeControl, endpoints);
-  const detailBody = el("div");
-  detail.append(detailHead, context, detailBody);
+  rangeMenu.append(rangeToggle, context);
+  const back = button(s.closeOriginal, () => {
+    original = undefined;
+    drawPassages();
+    originButton?.focus({ preventScroll: true });
+  });
+  detail.header.append(rangeMenu, back);
+
+  rangeMenu.ontoggle = () => {
+    if (rangeMenu.open && !rangeInput.disabled) rangeInput.focus({ preventScroll: true });
+  };
+  rangeMenu.onkeydown = (event) => {
+    if (event.key !== "Escape" || !rangeMenu.open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    rangeMenu.open = false;
+    rangeToggle.focus({ preventScroll: true });
+  };
+  rangeMenu.addEventListener("focusout", (event) => {
+    if (event.relatedTarget instanceof Node && !rangeMenu.contains(event.relatedTarget)) rangeMenu.open = false;
+  });
+  const closeRangeOnOutsidePress = (event: PointerEvent) => {
+    if (event.target instanceof Node && !rangeMenu.contains(event.target)) rangeMenu.open = false;
+  };
+  rootHeader.onpointerdown = closeRangeOnOutsidePress;
+  layout.onpointerdown = closeRangeOnOutsidePress;
 
   const changeFilters = () => { selected = undefined; original = undefined; draw(); };
   kinds.onchange = changeFilters;
@@ -184,6 +245,7 @@ export function renderSavedVersionReport(
   }
 
   function draw(): void {
+    rangeMenu.open = false;
     const [before, after] = sorted();
     for (const [index, { node, tone }] of draftButtons.entries()) {
       const chosen = picked.includes(index);
@@ -217,6 +279,7 @@ export function renderSavedVersionReport(
       const label = left && right && left.heading !== right.heading
         ? `${rangeLabel(left)} → ${rangeLabel(right)}` : rangeLabel(right ?? left);
       const row = button("", () => {
+        rangeMenu.open = false;
         selected = item;
         original = undefined;
         for (const previous of results.querySelectorAll("button")) previous.setAttribute("aria-pressed", String(previous === row));
@@ -291,19 +354,13 @@ export function renderSavedVersionReport(
   }
 
   function drawPassages(): void {
-    detail.hidden = !selected && !original;
-    if (detail.hidden) return;
-    heading.textContent = original ? s.original : s.difference;
-    detailHead.replaceChildren(heading);
-    context.hidden = Boolean(original) || !report.includeText;
+    detail.section.hidden = !selected && !original;
+    updateRangeVisibility();
+    if (detail.section.hidden) return;
+    detail.label.textContent = original ? s.original : s.difference;
+    const detailBody = detail.body;
     detailBody.replaceChildren();
     if (original) {
-      const back = button(s.closeOriginal, () => {
-        original = undefined;
-        drawPassages();
-        originButton?.focus({ preventScroll: true });
-      });
-      detailHead.append(back);
       detailBody.append(el("h3", report.drafts[original.draft].label));
       for (const passage of original.original ?? []) detailBody.append(passageView(passage, "original"));
       return;
@@ -311,6 +368,7 @@ export function renderSavedVersionReport(
     const change = selected!;
     const [before, after] = sorted();
     rangeValue.textContent = s.ranges[range];
+    rangeToggle.title = `${s.range} · ${s.ranges[range]}`;
     rangeInput.setAttribute("aria-valuetext", s.ranges[range]);
     rangeInput.disabled = !report.range;
     const evidence = change.evidence.map((clue) => s.clues[clue]).join(" / ");
@@ -326,6 +384,12 @@ export function renderSavedVersionReport(
       columns.append(column);
     }
     detailBody.append(columns);
+  }
+
+  function updateRangeVisibility(): void {
+    rangeMenu.hidden = Boolean(original) || !report.includeText || detail.section.hidden || detail.body.hidden;
+    if (rangeMenu.hidden) rangeMenu.open = false;
+    back.hidden = !original || detail.body.hidden;
   }
 
   function showThread(thread: ReportThread, allowTagFilter: boolean): HTMLElement {
@@ -366,9 +430,10 @@ export function renderSavedVersionReport(
       const show = button(s.showOriginal, () => {
         original = thread;
         originButton = show;
+        detail.setExpanded(true);
         drawPassages();
-        detailHead.querySelector("button")?.focus({ preventScroll: true });
-        detail.scrollIntoView({ block: "nearest" });
+        back.focus({ preventScroll: true });
+        detail.section.scrollIntoView({ block: "nearest" });
       }, "report-original");
       node.append(show);
     } else {

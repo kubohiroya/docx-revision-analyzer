@@ -43,6 +43,30 @@ export function reportPairs(versions: readonly number[]): [number, number][] {
   return versions.flatMap((before, index) => versions.slice(index + 1).map((after): [number, number] => [before, after]));
 }
 
+function commonStart(names: string[]): string {
+  const prefix = Array.from(names[0] ?? "");
+  for (const name of names.slice(1)) {
+    const points = Array.from(name);
+    const end = prefix.findIndex((point, index) => point !== points[index]);
+    if (end !== -1) prefix.length = end;
+  }
+  return prefix.join("");
+}
+
+export function savedReportTitle(filenames: string[]): string {
+  const stems = filenames.map((name) => name.replace(/\.docx$/iu, "").normalize("NFC").trim() || name);
+  const versions = stems.map((stem) => stem.replace(/[\s._-]+(?:(?:s|v|rev)\s*)?\d+(?:[._-]\d+)*$/iu, "") || stem);
+  if (versions.every((name) => name === versions[0])) return versions[0] ?? "";
+  const trim = (name: string) => name.replace(/^[\s._()-]+|[\s._()-]+$/gu, "");
+  const prefix = trim(commonStart(versions));
+  const reverse = (name: string) => Array.from(name).reverse().join("");
+  const suffix = trim(reverse(commonStart(versions.map(reverse))));
+  for (const part of [prefix, suffix]) {
+    if (Array.from(part).length > 1 && !/^\d[\d\s.-]*$/u.test(part)) return part;
+  }
+  return [...new Set(stems)].join(" / ");
+}
+
 const threadContent = (thread: SavedVersionThread) => JSON.stringify(thread.detail.comments.map((c) =>
   [c.key, c.author, c.dateUtc ?? c.date, c.done, c.text, c.links]));
 
@@ -310,6 +334,11 @@ export class SavedReportAnalysis {
       return { label: labels[version], archivedAt: item.archivedAt, modifiedAt: item.archivedAt ? undefined : item.sourceModified,
         unavailable: Boolean(item.unavailable), unlocated };
     });
-    return { lang, level: this.level, initial, range: scope.range, includeText, drafts, clips, threads, pairs };
+    const title = savedReportTitle(selected.map((index) => {
+      const version = this.versions[index];
+      // Watched copies include an archive hash and sequence number after the document's filename.
+      return version.source === "archive" ? version.label.replace(/-[0-9a-f]{10}-s\d+\.docx$/iu, "") : version.label;
+    }));
+    return { title, lang, level: this.level, initial, range: scope.range, includeText, drafts, clips, threads, pairs };
   }
 }

@@ -65,6 +65,7 @@ export interface ReportPair {
 }
 
 export interface SavedVersionReport {
+  title: string;
   lang: AppLang;
   level: LineageLevel;
   initial: [number, number];

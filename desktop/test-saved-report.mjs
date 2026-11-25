@@ -63,7 +63,7 @@ try {
       __DRA_SAVED_REPORT_CSS__: JSON.stringify(css),
     },
     stdin: { resolveDir: here, contents: `
-      export { SavedReportAnalysis } from "./src/savedReport";
+      export { SavedReportAnalysis, savedReportTitle } from "./src/savedReport";
       export { savedReportHtml } from "./src/renderer/savedReportHtml";
       export { readSelectedSavedVersions, readSavedVersionArchive } from "./src/savedLineage";
       export { compareSavedVersions } from "../src/lib/lineage";
@@ -72,7 +72,7 @@ try {
     ` },
     bundle: true, platform: "node", format: "cjs", outfile: bundle,
   });
-  const { SavedReportAnalysis, savedReportHtml, readSelectedSavedVersions, readSavedVersionArchive,
+  const { SavedReportAnalysis, savedReportTitle, savedReportHtml, readSelectedSavedVersions, readSavedVersionArchive,
     compareSavedVersions, extractComments, diffComments, WatchArchive } = createRequire(import.meta.url)(bundle);
   const source = path.join(temp, "original.docx");
   const archive = WatchArchive.open(path.join(temp, "watch"), source);
@@ -90,6 +90,15 @@ try {
   const protectedBytes = await Promise.all(protectedPaths.map((file) => fs.readFile(file)));
   const manual = await readSelectedSavedVersions(fixtures);
   const archived = await readSavedVersionArchive(archive);
+  assert.equal(savedReportTitle(["出席支援制度の評価報告-初稿.docx", "出席支援制度の評価報告-中間稿.DOCX"]), "出席支援制度の評価報告");
+  assert.equal(savedReportTitle(["報告-s01.docx", "報告-s12.docx"]), "報告");
+  assert.equal(savedReportTitle(["2026-11-24_report.docx", "2026-11-25_report.docx"]), "report");
+  assert.equal(savedReportTitle(["初稿.docx", "中間稿.docx", "最終稿.docx"]), "初稿 / 中間稿 / 最終稿");
+  const info = await fs.stat(fixtures[0]);
+  assert.equal(manual[0].fileSize, info.size);
+  assert.equal(manual[0].fileCreatedAt, info.birthtimeMs > 0 ? info.birthtime.toISOString() : undefined);
+  assert.equal(archived[0].fileSize, info.size);
+  assert.equal(archived[0].fileCreatedAt, undefined);
 
   for (const versions of [manual, archived]) {
     assert.deepEqual(versions[1].pageMap, { breaks: [{ paragraph: 3, offset: 0 }], estimated: false });
@@ -102,6 +111,7 @@ try {
     };
     const labels = ["初稿", "中間稿", "最終稿", "収録対象外の稿"];
     const report = analysis.project(scope, "ja", labels);
+    assert.equal(report.title, versions === manual ? "draft" : "original");
     assert.deepEqual(report.pairs.map((pair) => [pair.before, pair.after]), [[0, 1], [0, 2], [1, 2]]);
     assert(report.pairs[0].changes.some((row) => row.kind === "comment"));
     assert(report.pairs[1].changes.some((row) => row.kind === "rewritten" && row.evidence.includes("paragraphId")));
@@ -120,6 +130,8 @@ try {
       assert(!JSON.stringify(report).includes(value), value);
     }
     const html = savedReportHtml(report);
+    assert(html.includes("<title>" + report.title + "</title>"));
+    assert(savedReportHtml({ ...report, title: "A </title> & B" }).includes("<title>A &lt;/title&gt; &amp; B</title>"));
     assert(!html.includes(dangerous));
     assert(!html.includes('<img src="https://example.org/report-pixel"'));
     assert(html.includes("default-src 'none'"));
