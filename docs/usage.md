@@ -698,7 +698,21 @@ Word closes the document or after the idle gap; those of any other version when 
 
 ### Export a saved-version comparison as HTML
 
-#### Enable and run the comparison
+#### Development build screenshots
+
+1. In **Settings**, enable **Compare saved versions (preview)**. In **Saved versions**, select **Choose DOCX files** or **Choose folders**.
+
+   ![Development build Saved versions tab with file and folder buttons](images/html-export/en-comparison.png)
+
+2. Confirm the files under **Versions in scope**. In **Change list**, review the passages and check **Export** on the rows to include. Use the filter button to open search.
+
+   ![Development build review with version checkboxes, chart thumbnails, search, and export checkboxes](images/html-export/en-review.png)
+
+3. Open **HTML preview** to check the exported versions and changes, then select **Save HTML…**.
+
+   ![Development build HTML preview showing a selected change and the Save HTML button](images/html-export/en-preview.png)
+
+#### Enable and run the comparison in the released builds
 
 1. Open **Settings** in the desktop app and turn on **Compare saved versions (preview)**. The **Saved versions** tab appears at the top.
 2. In **Saved versions**, select **Choose DOCX files** and pick at least two saved versions of the same document. Use the arrows to order them from earliest to latest, then select **Compare**. For versions archived while watching a document, open that document and choose **Use the open document’s saved record** before comparing.
@@ -707,17 +721,11 @@ Word closes the document or after the idle gap; those of any other version when 
 
 1. Select **Review changes and comments** above the comparison results.
 
-   ![The Saved versions tab after comparison, with the Review changes and comments button above the results](images/html-export/en-comparison.png)
-
 2. In **Versions to compare**, confirm the two selected versions or click filenames to change the selection. In **Version changes**, click a row's title to inspect the before and after text. Check **Export** at the right of each row you want to save.
 3. To set how much text goes into the file, open **Text range** in **Before and after the change** and set **Maximum text range to export**.
 
-   ![The review workspace showing the two versions, the Export checkboxes, and the Text range button](images/html-export/en-review.png)
-
 4. Select **HTML preview** at the top. Review the included versions, changes, and comments. Open **Text range** and move the slider all the way to the right to inspect the full exported excerpt. Select **Review and comments** to revise your selection.
 5. Select **Save HTML…** and choose the file name and location.
-
-   ![HTML preview showing one selected change and the Save HTML button at the top](images/html-export/en-preview.png)
 
 The standalone HTML includes the two selected versions, excerpts for checked changes, and related Word comments, replies, tags,
 reference links, and deleted threads. Its heading comes from the filenames' common part. The file opens offline in a browser.

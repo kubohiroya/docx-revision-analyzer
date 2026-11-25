@@ -22,7 +22,9 @@ The automatic update feed serves v0.3.0. [Installation guide](docs/installation.
    - In **v0.4.0**, open **Review changes and comments** and check **Export** for the changes to include. Select **HTML preview**, then **Save HTML…**.
    - In **v0.3.0**, open **Export HTML**, select the content, then choose **Preview what readers receive** and **Save HTML…**.
 
-![The v0.4.0 review workspace, with two selected versions and Export checkboxes next to the changes](docs/images/html-export/en-review.png)
+The screenshot shows the development build.
+
+![Development build review with versions in scope, chart thumbnails, search, and export checkboxes](docs/images/html-export/en-review.png)
 
 [Step-by-step instructions with screenshots (usage guide)](docs/usage.md#export-a-saved-version-comparison-as-html)
 
