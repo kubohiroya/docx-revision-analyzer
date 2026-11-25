@@ -20,6 +20,7 @@ import type { MicrosoftClient } from "./microsoft";
 import { rememberSource } from "./batchMain";
 import type { AppLang, AppSettings, CommentHistoryTarget, OpenedFile, WatchStatus, WatchTarget, WatchUpdateMessage } from "./shared";
 import { listCommentHistory, readCommentHistory } from "./commentHistory";
+import { readSavedVersionArchive } from "./savedLineage";
 
 let watcher: DocWatcher | undefined;
 let target: WatchTarget | undefined;
@@ -144,7 +145,7 @@ export function registerWatchIpc(d: WatchDeps): void {
     version: u.version?.n,
     gap: u.gap,
   });
-  function commentArchive(file: CommentHistoryTarget): WatchArchive | undefined {
+  function archiveFor(file: CommentHistoryTarget): WatchArchive | undefined {
     if (typeof file?.path !== "string" || typeof file.name !== "string") return undefined;
     if (watcher?.path === file.path && watcher.archive) return watcher.archive;
     return WatchArchive.find(recordsRoot(d.loadSettings()), file.path, file.name);
@@ -211,12 +212,17 @@ export function registerWatchIpc(d: WatchDeps): void {
   ipcMain.handle("watch:status", () => statusOf(d.loadSettings()));
 
   ipcMain.handle("watch:comment-history", (_e, file: CommentHistoryTarget) => {
-    const archive = commentArchive(file);
+    const archive = archiveFor(file);
     return archive ? listCommentHistory(archive) : [];
   });
   ipcMain.handle("watch:comment-detail", (_e, file: CommentHistoryTarget, key: string) => {
-    const archive = commentArchive(file);
+    const archive = archiveFor(file);
     return archive && typeof key === "string" ? readCommentHistory(archive, key) : undefined;
+  });
+  ipcMain.handle("watch:compare-saved-versions", (_e, file: CommentHistoryTarget) => {
+    if (d.loadSettings().lineagePreview !== true) return [];
+    const archive = archiveFor(file);
+    return archive ? readSavedVersionArchive(archive) : [];
   });
   ipcMain.handle("watch:open-comment-link", async (_e, value: unknown) => {
     const url = commentLinkUrl(value);

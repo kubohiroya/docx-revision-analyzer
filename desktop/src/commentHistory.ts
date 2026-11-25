@@ -1,6 +1,3 @@
-import { createHash } from "node:crypto";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import { commentReferences } from "../../src/lib/commentReferences";
 import {
   extractComments,
@@ -11,7 +8,7 @@ import {
   type DocxComment,
 } from "../../src/lib/docxComments";
 import type { WatchArchive } from "../../src/node/docWatcher";
-import type { SnapshotEntry } from "../../src/node/snapshotArchive";
+import { readArchivedSnapshot, type SnapshotEntry } from "../../src/node/snapshotArchive";
 import type { CommentHistoryDetail, CommentHistoryRow, CommentObservation } from "./shared";
 
 function rootKey(comment: DocxComment, byKey: Map<string, DocxComment>): string {
@@ -58,17 +55,6 @@ function observedVersion(event: CommentEvent, versions: SnapshotEntry[]): Snapsh
   return matching.length === 1 ? matching[0] : undefined;
 }
 
-async function readVersion(dir: string, version: SnapshotEntry): Promise<Uint8Array> {
-  if (typeof version.file !== "string" || path.basename(version.file) !== version.file || !/\.docx$/i.test(version.file)) {
-    throw new Error("Invalid archived DOCX filename");
-  }
-  const file = path.join(dir, version.file);
-  if (!(await fs.lstat(file)).isFile()) throw new Error("The archived DOCX is not a regular file");
-  const bytes = await fs.readFile(file);
-  if (createHash("sha256").update(bytes).digest("hex") !== version.sha256) throw new Error("Archived DOCX checksum mismatch");
-  return bytes;
-}
-
 export async function readCommentHistory(archive: WatchArchive, key: string): Promise<CommentHistoryDetail | undefined> {
   const events = archive.readEvents();
   const states = replayCommentEvents(events);
@@ -98,7 +84,7 @@ export async function readCommentHistory(archive: WatchArchive, key: string): Pr
     const locations: CommentLocations = { passages: new Map() };
     let comments: DocxComment[];
     try {
-      comments = await extractComments(await readVersion(archive.dir, version), locations);
+      comments = await extractComments(await readArchivedSnapshot(archive.dir, version), locations);
     } catch {
       versionUnavailable = true;
       continue;

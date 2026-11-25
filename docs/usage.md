@@ -587,6 +587,20 @@ Settings). They are not put next to the document, so they are not shared with co
 Watching is meant for keeping an eye on your own document, not for constantly monitoring other people's. No replies
 are written to documents opened from a URL (they are opened with read-only access).
 
+**Compare saved versions (preview)**: Turn on **Compare saved versions (preview)** in Settings, then open the **Saved
+versions** tab. Choose two or more local DOCX files for one document, use the arrows to put them from earliest to latest,
+and select **Compare**. With a document already open, you can also load its locally archived saves in archive order.
+
+Choose a pair of versions and switch between paragraphs and sentences. Select a relationship to see the source and
+target passages, what changed and the evidence for the match. The related occurrences let you follow the passage
+through earlier and later versions. The preview also shows clear examples of splits, merges, and possible copies
+or reappearances. Repeated passages or competing matches can remain uncertain.
+
+The preview compares visible body paragraphs and headings, including documents without Track Changes. File modification
+and archive times describe the available versions. They cannot identify the time of an individual edit or reveal writing
+that appeared and disappeared between saves. Gaps and unreadable saves are marked. The comparison reads each available
+version locally.
+
 **Saved pages**: the buttons at the top of the flow's right pane switch between "Schematic" (the page as this app draws
 it) and "Saved pages": the real pages, as a PDF, of the version saved at that column's point in time — the last
 version saved after the column's last change and before the next one. ↑ ↓ move through the pages of that version, ← →

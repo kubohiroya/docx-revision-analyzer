@@ -37,6 +37,7 @@ const api: AppApi = {
     openRecordsDir: () => ipcRenderer.invoke("watch:open-records"),
     commentHistory: (target) => ipcRenderer.invoke("watch:comment-history", target),
     commentDetail: (target, key) => ipcRenderer.invoke("watch:comment-detail", target, key),
+    savedVersionsForComparison: (target) => ipcRenderer.invoke("watch:compare-saved-versions", target),
     openCommentLink: (url) => ipcRenderer.invoke("watch:open-comment-link", url),
     onUpdate: (cb) => {
       ipcRenderer.on("watch:update", (_e, msg) => cb(msg));
@@ -59,6 +60,7 @@ const api: AppApi = {
     },
   },
   openDocxDialog: () => ipcRenderer.invoke("open-docx-dialog"),
+  chooseSavedVersions: () => ipcRenderer.invoke("choose-saved-versions"),
   readDocx: (p) => ipcRenderer.invoke("read-docx", p),
   pathForFile: (file) => webUtils.getPathForFile(file),
   inspectPath: (p) => ipcRenderer.invoke("inspect-path", p),

@@ -66,6 +66,7 @@ import {
 } from "../shared";
 import { STRINGS, Strings } from "./strings";
 import { showCommentHistory } from "./commentHistory";
+import { SavedVersionsPane, savedVersionsLabel } from "./savedVersions";
 import { batchCloudFolder, batchLocalFolder, BatchContext } from "./batch";
 import { FigureKind, FigureViewer, type SavedPageInfo } from "./viewer";
 
@@ -101,7 +102,7 @@ import {
   showSendLog,
 } from "./extensions";
 
-type Tab = "chart" | "flow" | "highlights" | "comments" | "settings";
+type Tab = "chart" | "flow" | "highlights" | "comments" | "lineage" | "settings";
 
 interface Analysis {
   data: DocxRevisionData;
@@ -144,6 +145,7 @@ let extList: ExtensionListItem[] = [];
 let extErrors: string[] = [];
 /** 文書の監視の状態 */
 let watchStatus: WatchStatus | undefined;
+let savedVersionsPane: SavedVersionsPane;
 let commentHistory: { path: string; rows: CommentHistoryRow[] } | undefined;
 let commentHistoryRequest = 0;
 let commentTag = "";
@@ -178,6 +180,8 @@ function applyLang(): void {
   setText("tab-flow", S.tabFlow);
   setText("tab-highlights", S.tabHighlights);
   setText("tab-comments", S.tabComments);
+  setText("tab-lineage", savedVersionsLabel(lang));
+  setText("l-lineage-enabled", savedVersionsLabel(lang, true));
   setText("tab-settings", S.tabSettings);
   setText("l-gap", S.gap);
   setText("l-from", S.from);
@@ -238,6 +242,7 @@ function applyLang(): void {
 // ---------------------------------------------------------------------------
 
 function showTab(next: Tab): void {
+  if (next === "lineage" && settings.lineagePreview !== true) next = "settings";
   tab = next;
   if (next === "settings") {
     void window.app.extensions.list().then((l) => {
@@ -249,16 +254,19 @@ function showTab(next: Tab): void {
     b.setAttribute("aria-selected", String(b.dataset.tab === next));
   }
   const hasFile = !!analysis;
-  $("welcome").hidden = hasFile || next === "settings";
-  for (const t of ["chart", "flow", "highlights", "comments", "settings"] as Tab[]) {
-    $(`pane-${t}`).hidden = t !== next || (t !== "settings" && !hasFile);
+  const independent = next === "settings" || next === "lineage";
+  $("banner").classList.toggle("single-doc-banner-hidden", next === "lineage");
+  $("welcome").hidden = hasFile || independent;
+  for (const t of ["chart", "flow", "highlights", "comments", "lineage", "settings"] as Tab[]) {
+    $(`pane-${t}`).hidden = t !== next || (!independent && !hasFile);
   }
-  $("controls").hidden = !hasFile || next === "settings";
+  $("controls").hidden = !hasFile || independent;
   for (const el of document.querySelectorAll<HTMLElement>(".chart-only")) el.hidden = next !== "chart";
   for (const el of document.querySelectorAll<HTMLElement>(".flow-only")) el.hidden = next !== "flow";
   for (const el of document.querySelectorAll<HTMLElement>(".figure-only")) el.hidden = next !== "chart" && next !== "flow";
   if (next === "chart") chartViewer?.shown();
   if (next === "flow") flowViewer?.shown();
+  if (next === "lineage") savedVersionsPane.render(lang, file ? { path: file.path, name: file.name } : undefined);
 }
 
 (window as unknown as { __showTab: (t: Tab) => void }).__showTab = showTab;
@@ -1349,6 +1357,8 @@ function renderSettings(): void {
   setText("rules-error", rulesError ? S.rulesError(rulesError) : "");
   $<HTMLButtonElement>("rules-clear").disabled = !settings.rulesPath;
   $<HTMLInputElement>("updates").checked = !!settings.checkForUpdates;
+  $("tab-lineage").hidden = settings.lineagePreview !== true;
+  $<HTMLInputElement>("lineage-enabled").checked = settings.lineagePreview === true;
   $<HTMLInputElement>("updates").disabled = !updatesAvailable;
   setText("updates-note", updatesAvailable ? S.updatesNote : `${S.updatesNote} ${S.updatesDevBuild}`);
   renderExtensions();
@@ -1474,6 +1484,7 @@ function renderExtensions(): void {
 
 async function main(): Promise<void> {
   settings = await window.app.getSettings();
+  savedVersionsPane = new SavedVersionsPane($("pane-lineage"));
   initExtensionUi({ lang: () => lang, strings: () => S, onPanelsChanged: () => renderHighlights() });
   extList = await window.app.extensions.list();
   updatesAvailable = await window.app.updatesAvailable();
@@ -1547,6 +1558,13 @@ async function main(): Promise<void> {
   $("updates").addEventListener("change", () => {
     settings.checkForUpdates = $<HTMLInputElement>("updates").checked;
     void persist();
+  });
+  $("lineage-enabled").addEventListener("change", () => {
+    void runSafely(async () => {
+      settings.lineagePreview = $<HTMLInputElement>("lineage-enabled").checked;
+      await persist();
+      renderSettings();
+    });
   });
   $("rules-choose").onclick = () =>
     void runSafely(async () => {
