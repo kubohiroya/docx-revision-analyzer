@@ -20,6 +20,7 @@ Use `docx-revision-analyzer --help` for the command list, and `docx-revision-ana
 - [Settings file](#settings-file)
 - [Language](#language)
 - [Desktop app (preview)](#desktop-app-preview)
+  - [Export a saved-version comparison as HTML](#export-a-saved-version-comparison-as-html)
 
 ## 1. `docx-revision-analyzer chart` — SVG chart of the revision history
 
@@ -522,7 +523,7 @@ Anything other than Japanese falls back to English. The macOS drag-and-drop apps
 [`desktop/`](../desktop/) contains a desktop app (Electron) for people who don't use the command line: open or drop a
 .docx to see the chart, the flow and the highlighted insertions. Everything runs locally and the app blocks network
 access. It can also open a .docx from a OneDrive / SharePoint link (after signing in to Microsoft); the document is
-only downloaded for analysis. Installers aren't published yet.
+only downloaded for analysis. Download the macOS or Windows installer from the [installation guide](installation.md#desktop-app).
 
 **Moving around the figures.** Drag the chart or the flow to move it; Ctrl / ⌘ + wheel (or a trackpad pinch) zooms
 around the pointer, while the wheel alone scrolls as usual. The buttons at the top right show the zoom and switch to
@@ -587,6 +588,9 @@ Settings). They are not put next to the document, so they are not shared with co
 Watching is meant for keeping an eye on your own document, not for constantly monitoring other people's. No replies
 are written to documents opened from a URL (they are opened with read-only access).
 
+For the v0.3.0 and v0.4.0 releases, see [Export a saved-version comparison as HTML](#export-a-saved-version-comparison-as-html).
+The **Versions in scope** table, the `--versions` option, per-version charts and flows, and search and date filters are features of the development build.
+
 **Compare saved versions (preview)**: Turn on **Compare saved versions (preview)** in Settings and open **Saved versions**.
 Select **Choose DOCX files** or **Choose folders** to open the **Versions in scope** table. Folders are scanned recursively
 for DOCX files. You can also drop multiple paths on the window or drop a file or folder on the **Saved versions** tab.
@@ -613,8 +617,7 @@ the original text in that saved version.
 
 Use **Word comments by version** to browse all threads in a particular save, including threads whose location or
 cross-version correspondence cannot be established. If an archived DOCX is missing, the app can show a comment and
-its recorded excerpt when the log identifies that version. Comments and replies are written in Word. The comparison
-only reads local copies.
+its recorded excerpt when the log identifies that version.
 
 The preview compares visible body paragraphs and headings, including documents without Track Changes. File modification
 and archive times describe the available versions. They cannot identify the time of an individual edit or reveal writing
@@ -647,11 +650,13 @@ changes in that DOCX. Select **Back to comparison** or the × at the top right t
 When adjacent panels are expanded, drag the divider between them to adjust their relative heights. With the divider
 focused, use the Up and Down arrow keys to resize. Double-click the divider to restore the original heights.
 
-**Add a Word comment from the comparison (preview)**: Enable saved-version comparison and **Write local Word comments from
-version comparison** in Settings, then restart the app. Compare local DOCX files and choose a change with one corresponding
+**Add a Word comment from the comparison (preview)**: Comment writing is off by default. Enable saved-version comparison
+and **Write local Word comments from version comparison (preview, applies after restart)** in Settings, then restart the app.
+Compare local DOCX files and choose a change with one corresponding
 passage in the later version. Under **Add a Word comment**, check the file and paragraph, enter the author name and comment,
 and select **Add to Word**. Archived and URL-based versions are for viewing. Close the target in Word before writing, or reload
-the versions if the file changed after comparison. A failed save keeps the draft in the comparison window.
+the versions if the file changed after comparison. A failed save keeps the draft in the comparison window. Verification of comment
+writing in Word for Windows is pending.
 
 After a successful save, the comments panel refreshes. A `.backup-timestamp.docx` file in the same folder holds the pre-write
 copy. To restore it, close Word, keep the current file under a different name, and save a copy of the backup under the original name.
@@ -690,3 +695,46 @@ Word closes the document or after the idle gap; those of any other version when 
 - The PDFs of a watched document are kept in its records folder (`pages.json` and `<name>-sNN.pdf`, next to the
   versions). For documents that aren't watched, the last 10 are kept in the app's data folder (`pages/cache/`). The
   pages are drawn with pdf.js in a hidden window that cannot reach the network.
+
+### Export a saved-version comparison as HTML
+
+#### Development build screenshots
+
+1. In **Settings**, enable **Compare saved versions (preview)**. In **Saved versions**, select **Choose DOCX files** or **Choose folders**.
+
+   ![Development build Saved versions tab with file and folder buttons](images/html-export/en-comparison.png)
+
+2. Confirm the files under **Versions in scope**. In **Change list**, review the passages and check **Export** on the rows to include. Use the filter button to open search. The heading shows the matched and total counts.
+
+   ![Development build review with chart thumbnails, one matching change out of three, and colored edit counts](images/html-export/en-review.png)
+
+3. Open **HTML preview** to check the exported versions and changes, then select **Save HTML…**.
+
+   ![Development build HTML preview showing two changes across three versions and the Save HTML button](images/html-export/en-preview.png)
+
+#### Enable and run the comparison in the released builds
+
+1. Open **Settings** in the desktop app and turn on **Compare saved versions (preview)**. The **Saved versions** tab appears at the top.
+2. In **Saved versions**, select **Choose DOCX files** and pick at least two saved versions of the same document. Use the arrows to order them from earliest to latest, then select **Compare**. For versions archived while watching a document, open that document and choose **Use the open document’s saved record** before comparing.
+
+#### Export in the v0.4.0 prerelease
+
+1. Select **Review changes and comments** above the comparison results.
+
+2. In **Versions to compare**, confirm the two selected versions or click filenames to change the selection. In **Version changes**, click a row's title to inspect the before and after text. Check **Export** at the right of each row you want to save.
+3. To set how much text goes into the file, open **Text range** in **Before and after the change** and set **Maximum text range to export**.
+
+4. Select **HTML preview** at the top. Review the included versions, changes, and comments. Open **Text range** and move the slider all the way to the right to inspect the full exported excerpt. Select **Review and comments** to revise your selection.
+5. Select **Save HTML…** and choose the file name and location.
+
+The standalone HTML includes the two selected versions, excerpts for checked changes, and related Word comments, replies, tags,
+reference links, and deleted threads. Its heading comes from the filenames' common part. The file opens offline in a browser.
+
+**Text range** starts at about 200 characters. **Full page** includes the page's body text and headings. If Word's pagination
+information is incomplete, the app marks estimated pages. If it cannot find the page boundaries, it shows an excerpt.
+
+#### Export in v0.3.0
+
+1. Select **Export HTML** above the comparison results.
+2. Choose the content to save under **Drafts to share** and **Changes to share**. Use **Include in the report** to set the text range or include Word comments.
+3. Select **Preview what readers receive**, then **Save HTML…** and choose a location. The app saves the selected content as a single local HTML file.

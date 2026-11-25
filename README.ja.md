@@ -3,15 +3,30 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [English](./README.md) | 日本語
 
-## デスクトップ版をダウンロード (プレビュー)
+## デスクトップ版をダウンロード
 
-| お使いのパソコン | ダウンロード |
-|---|---|
-| Mac (Apple Silicon / Intel 共通) | [Mac 版をダウンロード (.dmg)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) |
-| Windows (x64 / arm64) | [Windows 版をダウンロード (.exe)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) |
+| お使いのパソコン | v0.3.0（通常配布） | v0.4.0（プレビュー・手動入手） |
+|---|---|---|
+| macOS (Apple Silicon / Intel 共通) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-0.4.0-universal.dmg) |
+| Windows (x64 / ARM64 共通) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-Setup-0.4.0.exe) |
 
-.docx を開く・ドロップして使えるアプリです。Node.js やコマンドラインの操作は不要です。
-インストール時の注意は [デスクトップ版 v0.3.0 の配布ページ](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0)を参照してください。
+.docx を開くかドロップして使えます。Node.js やコマンドラインの操作は不要です。
+v0.4.0 プレビューでは、保存版の変更箇所を確認し、HTML に書き出し、設定を有効にすると Word コメントを追記できます。
+自動更新を有効にした場合の配信対象は v0.3.0 です。[インストールガイド](docs/installation.ja.md#デスクトップアプリ)
+
+### 保存版の比較を HTML に書き出す
+
+1. 「設定」で「保存版を比較（プレビュー）」を有効にします。
+2. 「保存版の比較」タブで「DOCXファイルを選ぶ」を押し、同じ文書の版を2つ以上選びます。古い順に並べて「比較する」を押します。
+3. 比較結果の上にあるボタンから書き出します。
+   - **v0.4.0** は「変更箇所の確認とコメント」を開き、保存したい行の「書き出す」にチェックを入れます。「HTMLプレビュー」で確認して「HTMLを保存…」を押します。
+   - **v0.3.0** は「HTMLを書き出す」を開いて内容を選び、「受け取る人の画面を確認」→「HTMLを保存…」と進みます。
+
+以下は開発版の画面です。
+
+![開発版の変更箇所の確認とコメント。対象版、チャート、抽出・全体件数、追加・削除文字数](docs/images/html-export/ja-review.png)
+
+[画面ごとの操作手順（利用ガイド）](docs/usage.ja.md#保存版の比較を-html-に書き出す)
 
 ## CLI をダウンロード (v2.0.0)
 
