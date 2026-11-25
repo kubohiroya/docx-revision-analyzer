@@ -138,4 +138,5 @@ Download the desktop app using the installers below. The automatic update feed s
 To try the new workspace for reviewing saved-version changes, exporting HTML, and adding Word comments, download v0.4.0 manually.
 See the [usage guide](usage.md#desktop-app-preview) for settings and steps.
 
-To run from source, see [desktop/README.md](../desktop/README.md). For packaging instructions, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md).
+To use the [saved-version branch timeline](usage.md#saved-version-branch-timeline), run the development build from source
+using [desktop/README.md](../desktop/README.md). For packaging instructions, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md).

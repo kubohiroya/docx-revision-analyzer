@@ -123,6 +123,7 @@ export interface AnalysisSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   extensions: {},
   analysis: { gapThresholdHours: 1, bulkChars: 150, bucket: "auto", chartSplit: true },
+  branchTimelinePreview: true,
 };
 
 export interface OpenedFile {

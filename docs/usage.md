@@ -20,6 +20,7 @@ Use `docx-revision-analyzer --help` for the command list, and `docx-revision-ana
 - [Settings file](#settings-file)
 - [Language](#language)
 - [Desktop app (preview)](#desktop-app-preview)
+  - [Saved-version branch timeline](#saved-version-branch-timeline)
   - [Export a saved-version comparison as HTML](#export-a-saved-version-comparison-as-html)
 
 ## 1. `docx-revision-analyzer chart` — SVG chart of the revision history
@@ -589,7 +590,8 @@ Watching is meant for keeping an eye on your own document, not for constantly mo
 are written to documents opened from a URL (they are opened with read-only access).
 
 For the v0.3.0 and v0.4.0 releases, see [Export a saved-version comparison as HTML](#export-a-saved-version-comparison-as-html).
-The **Versions in scope** table, the `--versions` option, per-version charts and flows, and search and date filters are features of the development build.
+The **Versions in scope** table, the `--versions` option, per-version charts and flows, search and date filters, and the
+[branch timeline](#saved-version-branch-timeline) are features of the development build.
 
 **Compare saved versions (preview)**: Turn on **Compare saved versions (preview)** in Settings and open **Saved versions**.
 Select **Choose DOCX files** or **Choose folders** to open the **Versions in scope** table. Folders are scanned recursively
@@ -627,8 +629,10 @@ version locally.
 **Review changes and comments**: After comparing, open **Review changes and comments**. In **Versions in scope**, choose
 versions using the filenames, dates, sizes, and visible text and heading counts. All loaded versions are selected initially.
 Select a row or its checkbox to toggle it,
-or use the header checkbox to select or clear all versions. The oldest and newest selected versions mark the ends of the review. The change list shows changes between consecutive selected versions. Select a column header to sort the table
-or drag a column boundary to resize it. For a version with tracked changes, a count like `1,000(+200)` gives the current count and
+or use the header checkbox to select or clear all versions. Initially, the change list shows changes between consecutive
+selected versions in chronological order. Use the [branch timeline](#saved-version-branch-timeline) to narrow the list to
+a branch or interval. Select a column header to sort the table or drag a column boundary to resize it.
+For a version with tracked changes, a count like `1,000(+200)` gives the current count and
 the change since the text reconstructed by rejecting all remaining tracked changes. Sorting uses the current count. The three
 comparison sections collapse independently.
 
@@ -641,18 +645,6 @@ Select a change to see its passages and related Word comments. The row title and
 to **Text range** opens and closes the comments panel. Choose **My Word author name** there to distinguish your posts from
 other authors' posts and highlight the latest post when it is yours. **Go to the original passage** shows the location in the
 app. **Open original file** uses the system's associated application and opens a read-only copy for an archived version.
-
-**Compare along a branch (development preview).** In Settings, enable **Compare along inferred branches (preview)** to
-show **Version branches** in **Review changes and comments**. The chart places the checked versions in observation order
-from left to right. It prefers archive time for archived copies and modification time for local files, and groups undated
-versions under **Time unknown**. Solid lines show inferred relations. Dashed lines show some of the candidates on hold.
-Select a version's dot to see the timestamp source, the reason for holding a decision, or the matching paragraphs under **Evidence**.
-
-Select a dot at the end of a solid line or use **Path to compare** to highlight the branch and its ancestors. Use a button
-on the highlighted line or **Interval** to limit the change list and the HTML export to two adjacent versions. Comment
-inheritance and deletion status use the entire branch path. Use Tab to reach a button or selector and Enter or Space
-to activate a button. If a change to the versions in scope makes the selected path unavailable, choose a path again before
-opening the preview.
 
 **Chart and flow for a version.** In **Versions in scope**, select a thumbnail in the **chart** column to open that
 file's chart, or select the filename to open its flow. Click a row to add or remove that version from the comparison.
@@ -708,6 +700,26 @@ Word closes the document or after the idle gap; those of any other version when 
   versions). For documents that aren't watched, the last 10 are kept in the app's data folder (`pages/cache/`). The
   pages are drawn with pdf.js in a hidden window that cannot reach the network.
 
+### Saved-version branch timeline
+
+In the development build, **Review changes and comments** shows **Version branches** by default. Turn off
+**Compare along inferred branches (preview)** in Settings to hide the timeline and use chronological comparison. The app
+remembers an explicit off setting after restart.
+
+The chart places the checked versions in observation order from left to right. It prefers archive time for archived copies
+and modification time for local files, and groups undated versions under **Time unknown**. Solid lines show inferred
+relations. Dashed lines show some of the candidates on hold. Select a version's dot to see the timestamp source, the reason
+for holding a decision, or the matching paragraphs under **Evidence**.
+
+1. Select a dot at the end of a solid line or use **Path to compare** to highlight the branch and its ancestors. Choose
+   **All versions in scope (by date)** to review the selected files in chronological order.
+2. Use a button on the highlighted line or **Interval** to show changes between two adjacent versions. Comment
+   inheritance and deletion status use the entire branch path.
+3. Check **Export** for the changes to include, then open **HTML preview** to check the contents before saving.
+
+Use Tab to reach a button or selector and Enter or Space to activate a button. If a change to the versions in scope makes
+the selected path unavailable, choose a path again before opening the preview.
+
 ### Export a saved-version comparison as HTML
 
 #### Development build screenshots
@@ -716,7 +728,9 @@ Word closes the document or after the idle gap; those of any other version when 
 
    ![Development build Saved versions tab with file and folder buttons](images/html-export/en-comparison.png)
 
-2. Confirm the files under **Versions in scope**. In **Change list**, review the passages and check **Export** on the rows to include. Use the filter button to open search. The heading shows the matched and total counts.
+2. Confirm the files under **Versions in scope**. To export changes from a particular branch or interval, select it using the
+   [branch timeline](#saved-version-branch-timeline). In **Change list**, review the passages and check **Export** on the rows to
+   include. Use the filter button to open search. The heading shows the matched and total counts.
 
    ![Development build review with chart thumbnails, one matching change out of three, and colored edit counts](images/html-export/en-review.png)
 

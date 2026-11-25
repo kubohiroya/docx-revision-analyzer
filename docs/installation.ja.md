@@ -139,4 +139,5 @@ npm と単体バイナリの公開コマンドを1つに統合しました。呼
 保存版の比較結果から変更箇所を確認し、HTML に書き出したり Word コメントを追記したりする新しい画面を試すには、v0.4.0 を手動でダウンロードしてください。
 設定と操作手順は[利用ガイド](usage.ja.md#デスクトップアプリ-プレビュー)を参照してください。
 
-ソースからの起動は [desktop/README.md](../desktop/README.md)、パッケージの作成は [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md) を参照してください。
+[保存版の分岐タイムライン](usage.ja.md#保存版の分岐タイムライン)を使うには、[desktop/README.md](../desktop/README.md) の手順で開発版を
+ソースから起動します。パッケージの作成は [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md) を参照してください。
