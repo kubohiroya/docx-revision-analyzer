@@ -9,6 +9,7 @@
 //
 //   node scripts/test-comments.mjs
 import * as esbuild from "esbuild";
+import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -22,12 +23,18 @@ const { XMLValidator } = require("fast-xml-parser");
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dra-comments-"));
 const lib = path.join(tmp, "core.cjs");
-await esbuild.build({ entryPoints: [path.join(root, "src/core.ts")], bundle: true, platform: "node", format: "cjs", outfile: lib, logLevel: "silent" });
+await esbuild.build({ stdin: { resolveDir: root, contents: `
+  export * from "./src/core";
+  export { addWordComment } from "./src/lib/docxComments";
+  export { readSavedTextVersion } from "./src/lib/lineage";
+` }, bundle: true, platform: "node", format: "cjs", outfile: lib, logLevel: "silent" });
 const {
   extractComments,
   diffComments,
   replayCommentEvents,
   addCommentReplies,
+  addWordComment,
+  readSavedTextVersion,
   RECEIPT_AUTHOR,
   extractRevisions,
   parseDocxLayout,
@@ -203,6 +210,70 @@ async function docx({ comments = BASE_COMMENTS, modern = true } = {}) {
   check("old format: relationship and content type", (await z2.file("word/_rels/document.xml.rels").async("string")).includes("commentsExtended.xml") && (await z2.file("[Content_Types].xml").async("string")).includes("/word/commentsExtended.xml"));
   const after2 = await extractComments(r2.bytes);
   check("old format: reply threaded", after2.some((c) => c.author === RECEIPT_AUTHOR && c.parentKey === oldKeys[0]));
+}
+
+// A new top-level comment on a Word comparison range.
+{
+  const input = await docx();
+  const request = {
+    range: { paragraphId: "2B3C4D5E", paragraphText: "Second paragraph", start: 2, end: 12 },
+    author: "Review & 校閲",
+    text: "#根拠 表の & <値> を確認。\nhttps://example.org/report#table3",
+  };
+  const output = await addWordComment(input, request, new Date(T1));
+  const comments = await extractComments(output.bytes);
+  const [inserted] = comments.filter(({ id }) => id === output.id);
+  assert.equal(comments.length, 4);
+  assert.deepEqual(comments.slice(0, 3), await extractComments(input));
+  assert.equal(inserted.parentKey, undefined);
+  assert.equal(inserted.anchor.quote, "cond parag");
+  assert.equal(inserted.anchor.paraId, request.range.paragraphId);
+  assert.equal(inserted.author, request.author);
+  assert.equal(inserted.text, request.text);
+  assert.equal(inserted.dateUtc, T1);
+  assert(inserted.durableId);
+  const identity = { label: "document", source: "selected" };
+  const ranges = new Map();
+  const after = await readSavedTextVersion(output.bytes, identity, ranges);
+  assert.deepEqual(after, await readSavedTextVersion(input, identity));
+  assert.deepEqual(ranges.get(output.id), [{ paragraph: 1, start: 2, end: 12 }]);
+  assert.deepEqual((await extractRevisions(output.bytes)).events, (await extractRevisions(input)).events);
+  const originalZip = await JSZip.loadAsync(input);
+  const outputZip = await JSZip.loadAsync(output.bytes);
+  for (const part of ["word/settings.xml", "word/_rels/document.xml.rels", "[Content_Types].xml"]) {
+    assert.equal(await outputZip.file(part).async("string"), await originalZip.file(part).async("string"));
+  }
+  console.log("ok new comment: native root thread, exact anchor, modern identifiers, settings, history and previous threads retained");
+
+  const fresh = await JSZip.loadAsync(await docx({ modern: false }));
+  fresh.remove("word/comments.xml");
+  fresh.remove("word/_rels/document.xml.rels");
+  const typePart = "[Content_Types].xml";
+  fresh.file(typePart, (await fresh.file(typePart).async("string")).replace(/<Override PartName="\/word\/comments\.xml"[^>]+\/>/u, ""));
+  const plain = "先頭 A & 日本語😀 終わり";
+  const first = `<w:r><w:rPr><w:b/></w:rPr><w:t>先頭 A &amp;</w:t></w:r>`;
+  const second = run(" 日本語😀 終わり");
+  const paragraph = `<w:p>${first}${second}</w:p>`;
+  const document = (body) => `<w:document ${NS}>\r\n<w:body>\r\n${body}<w:sectPr/></w:body></w:document>`;
+  fresh.file("word/document.xml", document(paragraph));
+  const freshInput = await fresh.generateAsync({ type: "uint8array" });
+  const freshRange = { paragraphText: plain, start: plain.indexOf("A"), end: plain.indexOf("😀") + 2 };
+  const freshRequest = { ...request, range: freshRange };
+  const firstComment = await addWordComment(freshInput, freshRequest);
+  assert.equal((await extractComments(firstComment.bytes))[0].anchor.quote, "A & 日本語😀");
+  const firstZip = await JSZip.loadAsync(firstComment.bytes);
+  const marked = await firstZip.file("word/document.xml").async("string");
+  assert.equal((marked.match(/<w:b\/>/gu) ?? []).length, 2);
+  assert.match(await firstZip.file(typePart).async("string"), /PartName="\/word\/comments.xml"/u);
+  assert.match(await firstZip.file("word/_rels/document.xml.rels").async("string"), /Target="comments.xml"/u);
+  await assert.rejects(addWordComment(freshInput, { ...freshRequest, range: { ...freshRange, end: freshRange.end - 1 } }), /range is invalid/u);
+  await assert.rejects(addWordComment(freshInput, { ...freshRequest, author: RECEIPT_AUTHOR }), /author/u);
+  fresh.file("word/document.xml", document(paragraph + paragraph));
+  await assert.rejects(addWordComment(await fresh.generateAsync({ type: "uint8array" }), freshRequest), /more than once/u);
+  fresh.file("word/document.xml", document(paragraph));
+  fresh.file("word/settings.xml", `<w:settings ${NS}><w:documentProtection w:enforcement="1"/></w:settings>`);
+  await assert.rejects(addWordComment(await fresh.generateAsync({ type: "uint8array" }), freshRequest), /protected/u);
+  console.log("ok first comment: package relationship, cross-run markup, Unicode, ambiguous ranges and protection");
 }
 
 if (failed) {

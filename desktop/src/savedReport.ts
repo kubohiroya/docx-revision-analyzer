@@ -1,4 +1,5 @@
 import { commentReferences, omitCommentUrls } from "../../src/lib/commentReferences";
+import type { WordCommentRange } from "../../src/lib/docxCommentRange";
 import {
   compareSavedVersions, lineageRangeText,
   type LineageLevel, type LineageLink, type LineageRange, type SavedParagraphRange, type SavedVersionLineage,
@@ -175,6 +176,22 @@ export class SavedReportAnalysis {
 
   changes(before: number, after: number): readonly SavedReportCandidate[] {
     return this.analyze(before, after).changes;
+  }
+
+  withVersions(versions: readonly SavedLineageVersion[]): SavedReportAnalysis {
+    return new SavedReportAnalysis(versions, this.lineage, this.level);
+  }
+
+  commentTarget(before: number, after: number, id: string): { paragraph: number; range: WordCommentRange } | undefined {
+    const link = this.changes(before, after).find((change) => change.id === id)?.link;
+    if (!link || link.kind === "ambiguous" || link.to.length !== 1) return;
+    const [range] = link.to;
+    const version = this.versions[after];
+    if (range.version !== after || range.start >= range.end || version.unavailable) return;
+    const paragraph = version.paragraphs.find((item) => item.index === range.paragraph);
+    if (!paragraph) return;
+    return { paragraph: paragraph.index + 1,
+      range: { paragraphId: paragraph.paraId, paragraphText: paragraph.text, start: range.start, end: range.end } };
   }
 
   describe(candidate: SavedReportCandidate): string {

@@ -65,15 +65,16 @@ try {
     stdin: { resolveDir: here, contents: `
       export { SavedReportAnalysis, savedReportTitle } from "./src/savedReport";
       export { savedReportHtml } from "./src/renderer/savedReportHtml";
-      export { readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile } from "./src/savedLineage";
+      export { addSavedVersionComment, readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile } from "./src/savedLineage";
       export { compareSavedVersions } from "../src/lib/lineage";
       export { extractComments, diffComments } from "../src/lib/docxComments";
       export { WatchArchive } from "../src/node/docWatcher";
+      export { replaceWithBackup } from "../src/node/historyFile";
     ` },
     bundle: true, platform: "node", format: "cjs", outfile: bundle,
   });
   const { SavedReportAnalysis, savedReportTitle, savedReportHtml, readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile,
-    compareSavedVersions, extractComments, diffComments, WatchArchive } = createRequire(import.meta.url)(bundle);
+    addSavedVersionComment, compareSavedVersions, extractComments, diffComments, WatchArchive, replaceWithBackup } = createRequire(import.meta.url)(bundle);
   const source = path.join(temp, "original.docx");
   const archive = WatchArchive.open(path.join(temp, "watch"), source);
   const fixtures = [];
@@ -203,6 +204,54 @@ try {
   assert(result.pairs[1].gap && !result.pairs[1].unavailable);
   assert(result.clips.some((item) => !item.page && item.text.length <= 400));
   console.log("ok saved HTML: manual and archived drafts, all pairs, page bounds, deleted replies and origins, opt-in URLs, scope and escaping");
+
+  const writeFolder = path.join(temp, "comment-writes");
+  await fs.mkdir(writeFolder);
+  const targetFile = path.join(writeFolder, "review.docx");
+  const targetZip = await JSZip.loadAsync(protectedBytes[0]);
+  targetZip.file("[Content_Types].xml", '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
+  const targetBytes = await targetZip.generateAsync({ type: "nodebuffer" });
+  await fs.writeFile(targetFile, targetBytes);
+  const [targetVersion] = await readSelectedSavedVersions([targetFile], true);
+  const paragraphText = "制度によって" + quote + "。";
+  const request = { author: "校閲者", text: "#根拠 報告書を参照\nhttps://example.org/table", range: {
+    paragraphId: "00000001", paragraphText, start: 0, end: paragraphText.length,
+  } };
+  assert.deepEqual(await addSavedVersionComment(archived[0].openId, request), { ok: false, reason: "unavailable" });
+  assert.deepEqual(await addSavedVersionComment(targetFile, request), { ok: false, reason: "unavailable" });
+  const lock = path.join(writeFolder, "~$view.docx");
+  await fs.writeFile(lock, "Word lock");
+  assert.deepEqual(await addSavedVersionComment(targetVersion.openId, request), { ok: false, reason: "locked" });
+  await fs.rm(lock);
+  await fs.chmod(targetFile, 0o400);
+  assert.deepEqual(await addSavedVersionComment(targetVersion.openId, request), { ok: false, reason: "readOnly" });
+  await fs.chmod(targetFile, 0o600);
+  assert.deepEqual(await addSavedVersionComment(targetVersion.openId, { ...request,
+    range: { ...request.range, paragraphText: "Different passage" } }), { ok: false, reason: "unsupported" });
+  assert.deepEqual(await fs.readFile(targetFile), targetBytes);
+  assert.deepEqual(await fs.readdir(writeFolder), ["review.docx"]);
+
+  const [saved, duplicate] = await Promise.all([addSavedVersionComment(targetVersion.openId, request),
+    addSavedVersionComment(targetVersion.openId, request)]);
+  assert(saved.ok);
+  assert.deepEqual(duplicate, { ok: false, reason: "changed" });
+  assert.deepEqual(await fs.readFile(saved.backupPath), targetBytes);
+  const [note] = await extractComments(await fs.readFile(targetFile));
+  assert.equal(note.author, request.author);
+  assert.equal(note.text, request.text);
+  assert.equal(note.anchor.quote, paragraphText);
+  assert(saved.version.openId && saved.version.openId !== targetVersion.openId);
+  const [reloaded] = await readSelectedSavedVersions([targetFile], true);
+  assert.equal(reloaded.threads.length, 1);
+  const savedBytes = await fs.readFile(targetFile);
+  await assert.rejects(replaceWithBackup(targetFile, targetBytes, async () => { throw new Error("simulated conflict before rename"); }), /simulated conflict/u);
+  assert.deepEqual(await fs.readFile(targetFile), savedBytes);
+  assert(!(await fs.readdir(writeFolder)).some((name) => name.startsWith(".dra-replace-")));
+  await fs.appendFile(targetFile, "An external modification");
+  const changedBytes = await fs.readFile(targetFile);
+  assert.deepEqual(await addSavedVersionComment(saved.version.openId, request), { ok: false, reason: "changed" });
+  assert.deepEqual(await fs.readFile(targetFile), changedBytes);
+  console.log("ok comment writes: opaque local capabilities, lock, protection, conflict, backup, serialized submission and reload");
 } finally {
   await fs.rm(temp, { recursive: true, force: true });
 }

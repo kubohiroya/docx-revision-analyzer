@@ -280,6 +280,14 @@ export class SavedVersionsPane {
       void showSavedReportExport(
         new SavedReportAnalysis(this.versions, result, this.level), this.versions,
         this.versions.map((_, index) => this.name(index)), [pair.before, pair.after], this.lang,
+        (index, version) => {
+          this.versions[index] = version;
+          if (this.result) {
+            this.result = { ...this.result, versions: [...this.versions] };
+            this.comments = new LineageComments(this.versions, this.result);
+          }
+          this.draw();
+        },
       );
     }, this.busy));
     this.pane.append(controls);
