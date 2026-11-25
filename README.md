@@ -3,15 +3,28 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 English | [日本語](./README.ja.md)
 
-## Download the desktop app (preview)
+## Download the desktop app
 
-| Your computer | Download |
-|---|---|
-| Mac (Apple Silicon / Intel) | [Download for Mac (.dmg)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) |
-| Windows (x64 / arm64) | [Download for Windows (.exe)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) |
+| Your computer | v0.3.0 (regular release) | v0.4.0 (prerelease download) |
+|---|---|---|
+| macOS (Apple Silicon / Intel) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-0.4.0-universal.dmg) |
+| Windows (x64 / ARM64) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-Setup-0.4.0.exe) |
 
-Open or drop a .docx to use the app; no Node.js or command line is needed.
-See the [desktop v0.3.0 release notes](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0) for installation notes.
+Open or drop a .docx to use the app. It runs without Node.js or the command line.
+The v0.4.0 prerelease lets you review changes between saved versions and export them as standalone HTML. You can enable Word comment writing in Settings.
+The automatic update feed serves v0.3.0. [Installation guide](docs/installation.md#desktop-app)
+
+### Export a saved-version comparison as HTML
+
+1. In **Settings**, turn on **Compare saved versions (preview)**.
+2. In **Saved versions**, select **Choose DOCX files** and pick at least two versions of the same document. Put them in chronological order and select **Compare**.
+3. Use the button above the comparison results.
+   - In **v0.4.0**, open **Review changes and comments** and check **Export** for the changes to include. Select **HTML preview**, then **Save HTML…**.
+   - In **v0.3.0**, open **Export HTML**, select the content, then choose **Preview what readers receive** and **Save HTML…**.
+
+![The v0.4.0 review workspace, with two selected versions and Export checkboxes next to the changes](docs/images/html-export/en-review.png)
+
+[Step-by-step instructions with screenshots (usage guide)](docs/usage.md#export-a-saved-version-comparison-as-html)
 
 ## Download the CLI (v2.0.0)
 

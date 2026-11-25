@@ -128,9 +128,14 @@ Existing settings filenames (such as `docx-revision-chart.yml`) and the analysis
 
 ## Desktop app
 
-The desktop app (Electron, preview) has installers in [desktop-v0.3.0](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0). These are separate from the CLI.
+Download the desktop app using the installers below. The automatic update feed serves v0.3.0 when you enable update checks.
 
-- [macOS (.dmg, Apple Silicon / Intel)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg)
-- [Windows (.exe, x64 / ARM64)](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe)
+| Version | macOS (Apple Silicon / Intel) | Windows (x64 / ARM64) |
+|---|---|---|
+| [v0.3.0 (regular release)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) |
+| [v0.4.0 (prerelease)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.0) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-0.4.0-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.0/Docx-Revision-Analyzer-Setup-0.4.0.exe) |
 
-To run from source, see [desktop/README.md](../desktop/README.md); to package it, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md). Its features are described in [Usage](usage.md#desktop-app-preview).
+To try the new workspace for reviewing saved-version changes, exporting HTML, and adding Word comments, download v0.4.0 manually.
+See the [usage guide](usage.md#desktop-app-preview) for settings and steps.
+
+To run from source, see [desktop/README.md](../desktop/README.md). For packaging instructions, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md).
