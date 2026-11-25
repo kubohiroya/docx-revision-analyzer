@@ -642,10 +642,11 @@ to **Text range** opens and closes the comments panel. Choose **My Word author n
 other authors' posts and highlight the latest post when it is yours. **Go to the original passage** shows the location in the
 app. **Open original file** uses the system's associated application and opens a read-only copy for an archived version.
 
-**Compare along a branch (development preview).** In Settings, enable **Compare along inferred branches (preview)** to
-show **Version branches** in **Review changes and comments**. The chart places the checked versions in observation order
-from left to right. It prefers archive time for archived copies and modification time for local files, and groups undated
-versions under **Time unknown**. Solid lines show inferred relations. Dashed lines show some of the candidates on hold.
+**Compare along a branch (development preview).** **Review changes and comments** shows **Version branches** by default.
+Turn off **Compare along inferred branches (preview)** in Settings to return to chronological comparison.
+The chart places the checked versions in observation order from left to right. It prefers archive time for archived copies
+and modification time for local files, and groups undated versions under **Time unknown**. Solid lines show inferred
+relations. Dashed lines show some of the candidates on hold.
 Select a version's dot to see the timestamp source, the reason for holding a decision, or the matching paragraphs under **Evidence**.
 
 Select a dot at the end of a solid line or use **Path to compare** to highlight the branch and its ancestors. Use a button
