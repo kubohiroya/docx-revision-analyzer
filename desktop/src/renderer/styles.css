@@ -785,3 +785,80 @@ table.comments td.receipt {
   margin-top: 0.75em;
   padding-top: 0.75em;
 }
+
+.single-doc-banner-hidden {
+  display: none;
+}
+.lineage-controls,
+.lineage-versions li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.lineage-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.lineage-controls select {
+  max-width: min(32rem, 75vw);
+}
+.lineage-versions {
+  list-style: none;
+  padding: 0;
+}
+.lineage-versions li {
+  padding: 0.25rem 0;
+}
+.lineage-versions li > span:first-child,
+.lineage-passage {
+  overflow-wrap: anywhere;
+}
+.lineage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.4fr) minmax(0, 1fr);
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.42rem 0.6rem;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.lineage-row[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+.lineage-row-heading {
+  color: var(--muted);
+  margin-top: 0.65rem;
+}
+.lineage-list {
+  display: grid;
+  gap: 0.3rem;
+  max-height: 24rem;
+  overflow: auto;
+  padding: 2px;
+}
+.lineage-detail {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.lineage-passages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: 1rem;
+}
+.lineage-passages section {
+  padding: 0 0.7rem;
+  border-inline-start: 2px solid var(--line);
+}
+.lineage-passage {
+  white-space: pre-wrap;
+}
+.lineage-timeline {
+  padding-inline-start: 1.2rem;
+}
+.lineage-timeline button {
+  white-space: normal;
+  text-align: start;
+}

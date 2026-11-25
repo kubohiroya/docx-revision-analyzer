@@ -66,6 +66,18 @@ export function readManifest(dir: string): SnapshotManifest | undefined {
   return m;
 }
 
+/** Read and verify one recorded DOCX without modifying the archive. */
+export async function readArchivedSnapshot(dir: string, version: SnapshotEntry): Promise<Uint8Array> {
+  if (typeof version.file !== "string" || path.basename(version.file) !== version.file || !/\.docx$/i.test(version.file)) {
+    throw new Error("Invalid archived DOCX filename");
+  }
+  const file = path.join(dir, version.file);
+  if (!(await fs.promises.lstat(file)).isFile()) throw new Error("The archived DOCX is not a regular file");
+  const bytes = await fs.promises.readFile(file);
+  if (createHash("sha256").update(bytes).digest("hex") !== version.sha256) throw new Error("Archived DOCX checksum mismatch");
+  return bytes;
+}
+
 function writeManifest(dir: string, m: SnapshotManifest): void {
   fs.writeFileSync(path.join(dir, MANIFEST_NAME), JSON.stringify(m, null, 2) + "\n", "utf-8");
 }

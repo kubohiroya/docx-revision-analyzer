@@ -1,0 +1,341 @@
+import {
+  compareSavedVersions, lineageRangeText, traceLineage,
+  type LineageKind, type LineageLevel, type LineageLink, type LineageRange,
+  type MatchEvidence, type SavedTextVersion, type SavedVersionLineage,
+} from "../../../src/lib/lineage";
+import type { AppLang, CommentHistoryTarget } from "../shared";
+import { el } from "./extensions";
+
+const EN = {
+  preview: "Compare saved versions (preview)", tab: "Saved versions", version: "Version",
+  select: "Choose DOCX files", archive: "Use the open document’s saved record",
+  order: "Order the files from earliest to latest, then compare.", compare: "Compare", minimum: "Choose at least two saved versions.",
+  working: "Reading saved versions…", missing: "This version could not be read.", noArchive: "There are no archived versions for this document.",
+  earlier: "Move earlier", later: "Move later", pair: "Compare versions", unit: "Track by", paragraph: "Paragraph", sentence: "Sentence",
+  unchanged: "Show unchanged text", before: "Before", after: "After", relation: "Relationship", reordered: "Order changed",
+  interval: "Changes were observed between these versions. The exact edit time and changes made and undone between saves are unknown.",
+  gap: "The saved record has a gap here. Only the two available versions can be compared.",
+  tracked: "These files also contain Word Track Changes. The comparison uses the visible text in each saved version.",
+  noPairs: "No matching changes to display.", evidence: "Matching evidence", candidate: "Possible source",
+  sample: (shown: number, total: number) => `Showing ${shown} of ${total} candidates.`,
+  limited: "The highlighted beginning and end match. The middle of this long passage has no detailed alignment.",
+  timeline: "Related occurrences across versions", archivedAt: "Archived", modifiedAt: "File modified",
+  kinds: {
+    retained: "Unchanged", rewritten: "Rewritten", split: "Split", merged: "Merged", copied: "Exact copy candidate",
+    reappeared: "Reappearance candidate", added: "Added", removed: "No longer present", ambiguous: "Uncertain",
+  } satisfies Record<LineageKind, string>,
+  clues: {
+    exact: "Exact text match after whitespace and Unicode normalization", paragraphId: "Word paragraph ID",
+    neighbors: "Matching neighboring text", heading: "Same heading", characterOverlap: "Shared character sequences",
+    japaneseWords: "Shared Japanese word segments", joined: "Text matches after joining adjacent passages", past: "Identical text in an earlier version",
+  } satisfies Record<MatchEvidence, string>,
+};
+const LABELS: Record<AppLang, typeof EN> = { en: EN, ja: {
+  preview: "保存版を比較（プレビュー）", tab: "保存版の比較", version: "保存版",
+  select: "DOCXファイルを選ぶ", archive: "開いている文書の保全記録を使う",
+  order: "ファイルを古い順に並べてから比較します。", compare: "比較する", minimum: "保存版を2つ以上選んでください。",
+  working: "保存版を読み込んでいます…", missing: "この保存版を読み込めませんでした。", noArchive: "この文書の保全済み保存版はありません。",
+  earlier: "前へ移す", later: "後ろへ移す", pair: "比較する版", unit: "追跡単位", paragraph: "段落", sentence: "文",
+  unchanged: "変更のない箇所も表示", before: "前の版", after: "次の版", relation: "対応", reordered: "並び順が変化",
+  interval: "この二つの版の間で確認できた変化を示します。正確な編集時刻や、保存の間に書いて消した内容は分かりません。",
+  gap: "この区間には保全記録の空白があります。確認できた両端の版を比較しています。",
+  tracked: "Wordの変更履歴を含む版があります。比較には各保存版の変更を反映した本文を使います。",
+  noPairs: "表示する対応はありません。", evidence: "対応の手掛かり", candidate: "元の箇所の候補",
+  sample: (shown, total) => `候補 ${total} 件のうち ${shown} 件を表示しています。`,
+  limited: "長い文章のため、一致する先頭と末尾だけを強調しています。",
+  timeline: "版をまたぐ関連箇所", archivedAt: "保管日時", modifiedAt: "ファイル更新日時",
+  kinds: {
+    retained: "継続", rewritten: "書き換え", split: "分割", merged: "結合", copied: "複製候補",
+    reappeared: "再出現候補", added: "追加", removed: "消失", ambiguous: "未確定",
+  },
+  clues: {
+    exact: "空白・Unicodeを正規化した文字列が一致", paragraphId: "Wordの段落ID",
+    neighbors: "前後の文章が対応", heading: "同じ見出し", characterOverlap: "共通する文字列",
+    japaneseWords: "共通する日本語の語区切り", joined: "隣り合う箇所をつなぐと一致", past: "過去の版に同じ文面",
+  },
+} };
+
+export function savedVersionsLabel(lang: AppLang, inSettings = false): string {
+  return inSettings ? LABELS[lang].preview : LABELS[lang].tab;
+}
+
+function action(label: string, click: () => void, disabled = false): HTMLButtonElement {
+  const button = el("button", label);
+  button.disabled = disabled;
+  button.onclick = click;
+  return button;
+}
+
+function option(label: string, value: string): HTMLOptionElement {
+  const item = el("option", label);
+  item.value = value;
+  return item;
+}
+
+export class SavedVersionsPane {
+  private versions: SavedTextVersion[] = [];
+  private result?: SavedVersionLineage;
+  private selected?: LineageLink;
+  private pair = 0;
+  private level: LineageLevel = "paragraph";
+  private showUnchanged = false;
+  private busy = false;
+  private notice: "minimum" | "noArchive" | undefined;
+  private error = "";
+  private lang: AppLang = "en";
+  private current?: CommentHistoryTarget;
+
+  constructor(private pane: HTMLElement) {}
+
+  private get labels() { return LABELS[this.lang]; }
+
+  private name(index: number): string {
+    const v = this.versions[index];
+    return v.source === "archive"
+      ? `${this.labels.version} ${v.number ?? index + 1}`
+      : `${index + 1}. ${v.label}`;
+  }
+
+  private date(v: SavedTextVersion): string {
+    const iso = v.archivedAt ?? v.sourceModified;
+    if (!iso) return "";
+    return `${v.archivedAt ? this.labels.archivedAt : this.labels.modifiedAt} ${new Date(iso).toLocaleString(this.lang)}`;
+  }
+
+  private async load(read: () => Promise<SavedTextVersion[] | null>, fromArchive = false): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    this.notice = undefined;
+    this.error = "";
+    this.draw();
+    try {
+      const items = await read();
+      if (!items) return;
+      if (!items.length && fromArchive) {
+        this.notice = "noArchive";
+        return;
+      }
+      this.versions = items;
+      this.result = undefined;
+      this.selected = undefined;
+      this.pair = 0;
+      if (items.length < 2) this.notice = "minimum";
+    } catch (error) {
+      this.error = String(error);
+    } finally {
+      this.busy = false;
+      this.draw();
+    }
+  }
+
+  private reorder(index: number, delta: -1 | 1): void {
+    const destination = index + delta;
+    [this.versions[index], this.versions[destination]] = [this.versions[destination], this.versions[index]];
+    this.result = undefined;
+    this.selected = undefined;
+    this.pair = 0;
+    this.draw();
+    const row = this.pane.querySelectorAll(".lineage-versions > li")[destination];
+    (row?.querySelector<HTMLButtonElement>("button:not(:disabled)"))?.focus();
+  }
+
+  private compare(): void {
+    try {
+      this.error = "";
+      this.result = compareSavedVersions([...this.versions], { japaneseWordHints: true });
+      this.selected = undefined;
+    } catch (error) {
+      this.error = String(error);
+    }
+    this.draw();
+    this.pane.querySelector<HTMLSelectElement>("#lineage-pair")?.focus();
+  }
+
+  render(lang: AppLang, current?: CommentHistoryTarget): void {
+    this.lang = lang;
+    this.current = current;
+    this.draw();
+  }
+
+  private draw(): void {
+    const s = this.labels;
+    this.pane.replaceChildren();
+    const controls = el("div", undefined, "lineage-controls");
+    const current = this.current;
+    controls.append(
+      action(s.select, () => void this.load(() => window.app.chooseSavedVersions()), this.busy),
+      action(s.archive, () => {
+        if (current) void this.load(() => window.app.watch.savedVersionsForComparison(current), true);
+      }, this.busy || !current),
+    );
+    this.pane.append(controls);
+    if (this.busy) this.pane.append(el("p", s.working, "hint"));
+    if (this.notice) this.pane.append(el("p", s[this.notice], "hint"));
+    if (this.error) this.pane.append(el("p", this.error, "error"));
+    if (!this.versions.length) return;
+    const manual = this.versions[0].source === "selected";
+    if (manual) this.pane.append(el("p", s.order, "hint"));
+    const versions = el("ol", undefined, "lineage-versions");
+    for (const [index, v] of this.versions.entries()) {
+      const row = el("li");
+      row.append(el("span", this.name(index)));
+      const date = this.date(v);
+      if (date) row.append(el("span", date, "hint"));
+      if (v.unavailable) row.append(el("span", s.missing, "error"));
+      if (manual) {
+        const up = action("↑", () => this.reorder(index, -1), index === 0 || this.busy);
+        const down = action("↓", () => this.reorder(index, 1), index === this.versions.length - 1 || this.busy);
+        up.setAttribute("aria-label", `${this.name(index)} — ${s.earlier}`);
+        down.setAttribute("aria-label", `${this.name(index)} — ${s.later}`);
+        row.append(up, down);
+      }
+      versions.append(row);
+    }
+    this.pane.append(versions, action(s.compare, () => this.compare(), this.versions.length < 2 || this.busy));
+    if (this.result) this.drawResult(this.result);
+  }
+
+  private kind(link: LineageLink): string {
+    const s = this.labels;
+    return link.reordered ? s.kinds[link.kind] + " · " + s.reordered : s.kinds[link.kind];
+  }
+
+  private brief(ranges: LineageRange[]): string {
+    const text = ranges.map((range) => lineageRangeText(this.versions, range)).join(" / ");
+    const chars = Array.from(text);
+    return chars.length > 72 ? chars.slice(0, 72).join("") + "…" : text;
+  }
+
+  private drawResult(result: SavedVersionLineage): void {
+    const s = this.labels;
+    this.pane.append(el("p", s.interval, "hint"));
+    if (result.versions.some((v) => !v.unavailable && v.trackedChanges)) this.pane.append(el("p", s.tracked, "hint"));
+    const controls = el("div", undefined, "lineage-controls");
+    const pairLabel = el("label", s.pair);
+    const pairs = el("select");
+    pairs.id = "lineage-pair";
+    for (const [i, p] of result.comparisons.entries()) pairs.append(option(`${this.name(p.before)} → ${this.name(p.after)}`, String(i)));
+    pairs.value = String(this.pair);
+    pairs.onchange = () => {
+      this.pair = Number(pairs.value);
+      this.selected = undefined;
+      this.draw();
+      this.pane.querySelector<HTMLSelectElement>("#lineage-pair")?.focus();
+    };
+    pairLabel.append(pairs);
+    const levelLabel = el("label", s.unit);
+    const levels = el("select");
+    levels.id = "lineage-level";
+    levels.append(option(s.paragraph, "paragraph"), option(s.sentence, "sentence"));
+    levels.value = this.level;
+    levels.onchange = () => {
+      this.level = levels.value === "sentence" ? "sentence" : "paragraph";
+      this.selected = undefined;
+      this.draw();
+      this.pane.querySelector<HTMLSelectElement>("#lineage-level")?.focus();
+    };
+    levelLabel.append(levels);
+    const showLabel = el("label", undefined, "check");
+    const show = el("input");
+    show.id = "lineage-unchanged";
+    show.type = "checkbox";
+    show.checked = this.showUnchanged;
+    show.onchange = () => {
+      this.showUnchanged = show.checked;
+      this.selected = undefined;
+      this.draw();
+      this.pane.querySelector<HTMLInputElement>("#lineage-unchanged")?.focus();
+    };
+    showLabel.append(show, s.unchanged);
+    controls.append(pairLabel, levelLabel, showLabel);
+    this.pane.append(controls);
+    const pair = result.comparisons[this.pair];
+    if (pair.unavailable) {
+      this.pane.append(el("p", s.missing, "hint"));
+      return;
+    }
+    if (pair.recordingGap) this.pane.append(el("p", s.gap, "hint"));
+    const changes = pair[this.level].filter((link) => this.showUnchanged || link.kind !== "retained" || link.reordered);
+    if (!changes.length) {
+      this.pane.append(el("p", s.noPairs, "hint"));
+      return;
+    }
+    const heading = el("div", undefined, "lineage-row lineage-row-heading");
+    heading.append(el("span", s.before), el("span", s.relation), el("span", s.after));
+    const list = el("div", undefined, "lineage-list");
+    const detail = el("section", undefined, "lineage-detail");
+    if (!this.selected || !changes.includes(this.selected)) this.selected = changes[0];
+    for (const change of changes) {
+      const row = el("button", undefined, "lineage-row");
+      row.setAttribute("aria-pressed", String(this.selected === change));
+      row.append(el("span", this.brief(change.from)), el("strong", this.kind(change)), el("span", this.brief(change.to)));
+      row.onclick = () => {
+        this.selected = change;
+        for (const button of list.querySelectorAll("button")) button.setAttribute("aria-pressed", String(button === row));
+        this.drawDetail(detail, change, result);
+      };
+      list.append(row);
+    }
+    this.pane.append(heading, list, detail);
+    this.drawDetail(detail, this.selected, result);
+  }
+
+  private drawDetail(detail: HTMLElement, change: LineageLink, result: SavedVersionLineage): void {
+    const s = this.labels;
+    detail.replaceChildren(el("h2", this.kind(change)));
+    if (change.evidence.length) detail.append(el("p", `${s.evidence} · ${change.evidence.map((e) => s.clues[e]).join(" / ")}`, "hint"));
+    if (change.alignmentPartial) detail.append(el("p", s.limited, "hint"));
+    const passages = el("div", undefined, "lineage-passages");
+    for (const side of ["from", "to"] as const) {
+      const column = el("section");
+      column.append(el("h3", side === "from" ? change.kind === "ambiguous" ? s.candidate : s.before : s.after));
+      if (side === "from" && change.candidateCount) column.append(el("p", s.sample(change.from.length, change.candidateCount), "hint"));
+      for (const range of change[side]) {
+        column.append(el("p", `${this.name(range.version)} · ${s.paragraph} ${range.paragraph + 1}`, "hint"));
+        const passage = el("p", undefined, "lineage-passage");
+        const text = lineageRangeText(this.versions, range);
+        const matches = change.unchanged.map((p) => p[side]).filter((r) =>
+          r.paragraph === range.paragraph && r.version === range.version && r.start >= range.start && r.end <= range.end);
+        let start = range.start;
+        for (const match of matches) {
+          if (match.start > start) {
+            const gap = text.slice(start - range.start, match.start - range.start);
+            passage.append(change.alignmentPartial ? gap : el("mark", gap));
+          }
+          const matched = text.slice(match.start - range.start, match.end - range.start);
+          passage.append(change.alignmentPartial ? el("mark", matched) : matched);
+          start = match.end;
+        }
+        if (start < range.end) {
+          const tail = text.slice(start - range.start);
+          passage.append(change.kind === "ambiguous" || change.alignmentPartial ? tail : el("mark", tail));
+        }
+        column.append(passage);
+      }
+      passages.append(column);
+    }
+    detail.append(passages);
+    const anchor = change.to[0] ?? change.from[0];
+    const lineage = anchor ? traceLineage(result, this.level, anchor) : [];
+    if (lineage.length > 1) {
+      const list = el("ul", undefined, "lineage-timeline");
+      for (const entry of lineage) {
+        const prior = entry.from[0];
+        const next = entry.to[0];
+        const labels = [prior && this.name(prior.version), this.kind(entry), next && this.name(next.version)].filter(Boolean);
+        const item = el("li");
+        const visibleText = `${labels.join(" · ")} — ${this.brief(entry.to.length ? entry.to : entry.from)}`;
+        const comparison = result.comparisons.findIndex((p) => p[this.level].includes(entry));
+        item.append(action(visibleText, () => {
+          this.pair = comparison;
+          this.selected = entry;
+          if (entry.kind === "retained" && !entry.reordered) this.showUnchanged = true;
+          this.draw();
+          this.pane.querySelector<HTMLButtonElement>('.lineage-row[aria-pressed="true"]')?.focus();
+        }));
+        list.append(item);
+      }
+      detail.append(el("h3", s.timeline), list);
+    }
+  }
+}
