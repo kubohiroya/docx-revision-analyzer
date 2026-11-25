@@ -570,6 +570,18 @@ paragraphs with comments (hover to read them; exported SVGs do not include comme
 document, clicking a mark opens the document in Word for the web at that place (the heading or bookmark containing the
 paragraph, or the start).
 
+**Open a thread in a saved version**: In the Comments tab, choose **Show saved version** next to a recorded thread.
+The app shows the passage and replies from the latest archived version where it can confirm that the thread was
+present. The recorded events show when resolution, disappearance or reappearance was observed in a saved version.
+If the saved copy or the exact location is unavailable, the app shows the recorded excerpt when one is available.
+You can read an existing record for the open document without restarting watching. A thread that never appeared in
+an observed save, such as one added and deleted between saves, cannot be recovered from the record.
+
+To make a comment easier to find later, add any hashtag, such as `#source-check`, and paste a source URL into the
+comment or a reply. The Comments tab can filter by recorded tags. Links pasted directly or inserted with a display
+name in Word appear in the saved thread and open in your browser when you select them. The comment text can explain
+which table, section or claim you checked and why you kept or changed the wording.
+
 By default the records are kept in the app's data folder under `watch/`, one folder per document (changeable in
 Settings). They are not put next to the document, so they are not shared with co-authors through OneDrive or Teams.
 Watching is meant for keeping an eye on your own document, not for constantly monitoring other people's. No replies

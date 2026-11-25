@@ -52,6 +52,7 @@ import {
   NO_LIBREOFFICE,
   type AppLang,
   type AppSettings,
+  type CommentHistoryRow,
   type ExtensionListItem,
   type MicrosoftStatus,
   type OpenedFile,
@@ -63,8 +64,8 @@ import {
   type WatchTarget,
   type WatchUpdateMessage,
 } from "../shared";
-import type { CommentState } from "../../../src/lib/docxComments";
 import { STRINGS, Strings } from "./strings";
+import { showCommentHistory } from "./commentHistory";
 import { batchCloudFolder, batchLocalFolder, BatchContext } from "./batch";
 import { FigureKind, FigureViewer, type SavedPageInfo } from "./viewer";
 
@@ -143,6 +144,9 @@ let extList: ExtensionListItem[] = [];
 let extErrors: string[] = [];
 /** 文書の監視の状態 */
 let watchStatus: WatchStatus | undefined;
+let commentHistory: { path: string; rows: CommentHistoryRow[] } | undefined;
+let commentHistoryRequest = 0;
+let commentTag = "";
 /** 図のプレビュー (移動・拡大縮小・ミニマップ・flow のページの強調) */
 let chartViewer: FigureViewer;
 let flowViewer: FigureViewer;
@@ -443,7 +447,7 @@ async function analyze(): Promise<void> {
   bindFigureAnnotations(flowViewer.viewport, result.figureAnnotations.flow, result.flowTargets);
   void refreshSavedPages();
   renderHighlights();
-  renderComments();
+  refreshComments();
   showTab(tab === "settings" ? "chart" : tab);
   status(
     `${file.name} — ${data.events.length} revisions, ${classification.highlights.length} highlights` +
@@ -636,13 +640,29 @@ function excerpt(s: string, max = 120): string {
   return chars.length > max ? `${chars.slice(0, max).join("")}…` : chars.join("");
 }
 
-function commentDate(c: DocxComment): string {
-  const iso = c.dateUtc ?? c.date;
+function commentDate(iso: string | undefined): string {
   const d = iso ? new Date(iso) : undefined;
   return d && !Number.isNaN(d.getTime()) ? fmtTime(d) : "";
 }
 
-/** 「コメント」タブ: 監視中は記録 (削除されたものを含む)、そうでなければいまの文書のコメント */
+function refreshComments(): void {
+  const opened = file;
+  const request = ++commentHistoryRequest;
+  renderComments();
+  if (!opened) return;
+  const target = { path: opened.path, name: opened.name };
+  void window.app.watch.commentHistory(target).then((rows) => {
+    if (request !== commentHistoryRequest || opened !== file) return;
+    commentHistory = { path: opened.path, rows };
+    renderComments();
+  }).catch((error: unknown) => {
+    if (request !== commentHistoryRequest || opened !== file) return;
+    commentHistory = undefined;
+    renderComments();
+    if (tab === "comments") status(S.error(String(error)));
+  });
+}
+
 function renderComments(): void {
   const pane = $("pane-comments");
   const a = analysis;
@@ -651,34 +671,43 @@ function renderComments(): void {
     return;
   }
   const watching = isWatchingCurrent();
-  const records: CommentState[] = watching ? watchStatus!.comments : [];
-  const rows = watching
-    ? records.map((r) => ({
-        seq: String(r.seq),
-        c: r.comment,
-        present: r.present,
-        receipt: r.receiptAt ? S.receiptWritten : r.present && watchStatus!.canWrite ? S.receiptPending : "",
-      }))
-    : a.comments.map((c) => ({ seq: "", c, present: true, receipt: "" }));
+  const records = commentHistory?.path === file?.path ? commentHistory?.rows ?? [] : [];
+  const recordedKeys = new Set(records.flatMap((row) => row.members));
+  const currentComments = new Map(a.comments.map((c) => [c.key, c]));
+  const tags = [...new Set(records.flatMap((row) => row.tags))].sort((a, b) => a.localeCompare(b, lang));
+  if (!tags.includes(commentTag)) commentTag = "";
+  const rows = records.filter((r) => !commentTag || r.tags.includes(commentTag)).map((r) => ({
+    seq: String(r.seq),
+    c: currentComments.get(r.key) ?? r.comment,
+    present: watching ? r.present : currentComments.has(r.key),
+    receipt: r.receiptAt ? S.receiptWritten : r.present && watching && watchStatus!.canWrite ? S.receiptPending : "",
+  }));
+  if (!commentTag) {
+    for (const c of a.comments) {
+      if (!recordedKeys.has(c.key)) rows.push({ seq: "", c, present: true, receipt: "" });
+    }
+  }
+  const count = watching ? watchStatus!.comments.length : 0;
   const intro = watching
     ? `<p class="hint">${escapeHtml(watchStatus!.canWrite ? S.commentsIntro : S.commentsIntroCloud)}</p><p class="hint">${escapeHtml(
         watchStatus!.canWrite
-          ? S.commentsSummary(records.length, watchStatus!.versions, watchStatus!.pendingReceipts)
-          : S.commentsSummaryCloud(records.length, watchStatus!.versions)
+          ? S.commentsSummary(count, watchStatus!.versions, watchStatus!.pendingReceipts)
+          : S.commentsSummaryCloud(count, watchStatus!.versions)
       )} <button id="comments-open-records" class="link">${escapeHtml(S.openRecords)}</button></p>`
-    : `<p class="hint">${escapeHtml(S.commentsNotWatching)}</p>`;
+    : `<p class="hint">${escapeHtml(records.length ? S.commentHistoryIntro : S.commentsNotWatching)}</p>`;
   if (rows.length === 0) {
-    pane.innerHTML = `${intro}<p class="hint">${escapeHtml(S.commentsEmpty)}</p>`;
+    pane.innerHTML = `${intro}<p class="hint">${escapeHtml(commentTag ? S.commentHistoryNoTagMatches : S.commentsEmpty)}</p>`;
   } else {
-    const body = rows.map((r) => {
-      const state = !r.present ? S.commentRemoved : r.c.done ? S.commentResolved : S.commentPresent;
+    const body = rows.map((r, index) => {
+      const state = !r.present ? S.commentHistoryAbsent : r.c.done ? S.commentResolved : S.commentPresent;
       const reply = r.c.parentKey ? "↳ " : "";
+      const open = r.seq ? ` <button class="link" data-comment-row="${index}">${escapeHtml(S.commentHistoryOpen)}</button>` : "";
       return `<tr class="${r.present ? "" : "removed"}">
         <td>${escapeHtml(r.seq)}</td>
         <td class="state">${escapeHtml(state)}</td>
         <td>${escapeHtml(r.c.author ?? "")}</td>
-        <td>${escapeHtml(commentDate(r.c))}</td>
-        <td>${escapeHtml(reply + excerpt(r.c.text))}</td>
+        <td>${escapeHtml(commentDate(r.c.dateUtc ?? r.c.date))}</td>
+        <td>${escapeHtml(reply + excerpt(r.c.text))}${open}</td>
         <td class="quote">${escapeHtml(r.c.anchor?.quote ? `「${excerpt(r.c.anchor.quote, 60)}」` : "")}</td>
         <td class="receipt">${escapeHtml(r.receipt)}</td>
       </tr>`;
@@ -691,6 +720,40 @@ function renderComments(): void {
   }
   const btn = pane.querySelector<HTMLButtonElement>("#comments-open-records");
   if (btn) btn.onclick = () => void window.app.watch.openRecordsDir();
+  if (tags.length) {
+    const label = el("label", S.commentHistoryTag, "comment-tag-filter");
+    const select = el("select");
+    for (const tag of ["", ...tags]) {
+      const option = el("option", tag ? `#${tag}` : S.commentHistoryAllTags);
+      option.value = tag;
+      select.append(option);
+    }
+    select.value = commentTag;
+    select.onchange = () => {
+      commentTag = select.value;
+      renderComments();
+      pane.querySelector("select")?.focus();
+    };
+    label.append(select);
+    pane.firstElementChild?.after(label);
+  }
+  for (const button of pane.querySelectorAll<HTMLButtonElement>("[data-comment-row]")) {
+    button.onclick = () => {
+      const opened = file;
+      if (!opened) return;
+      const key = rows[Number(button.dataset.commentRow)].c.key;
+      void runSafely(async () => {
+        button.disabled = true;
+        try {
+          const detail = await window.app.watch.commentDetail({ path: opened.path, name: opened.name }, key);
+          if (!detail || opened.path !== file?.path) return;
+          await showCommentHistory(detail, S, commentDate, (url) => void runSafely(() => window.app.watch.openCommentLink(url)));
+        } finally {
+          button.disabled = false;
+        }
+      });
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -742,7 +805,7 @@ async function toggleWatch(): Promise<void> {
       watchStatus = await window.app.watch.stop();
       settings.watchTarget = undefined;
       renderWatch();
-      renderComments();
+      refreshComments();
       return;
     }
     const msg = await window.app.watch.start(target);
@@ -894,14 +957,14 @@ function initWatch(): void {
       watchStatus = await window.app.watch.chooseRecordsDir();
       settings = await window.app.getSettings();
       renderWatch();
-      renderComments();
+      refreshComments();
     });
   $("watch-records-default").onclick = () =>
     void runSafely(async () => {
       watchStatus = await window.app.watch.chooseRecordsDir(true);
       settings = await window.app.getSettings();
       renderWatch();
-      renderComments();
+      refreshComments();
     });
   $("watch-records-open").onclick = () => void window.app.watch.openRecordsDir();
 }
@@ -937,6 +1000,7 @@ async function openFile(opened: OpenedFile | null): Promise<void> {
     settings.watchTarget = undefined;
     status(S.watchStoppedOther);
   }
+  if (file?.path !== opened.path) commentTag = "";
   file = opened;
   savedVersions = [];
   setText("file-name", opened.path);

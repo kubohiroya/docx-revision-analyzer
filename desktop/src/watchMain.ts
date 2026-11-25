@@ -13,11 +13,13 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as fs from "fs";
 import * as path from "path";
-import { DocWatcher, WatchSource, WatchUpdate } from "../../src/node/docWatcher";
+import { DocWatcher, WatchArchive, WatchSource, WatchUpdate } from "../../src/node/docWatcher";
+import { commentLinkUrl } from "../../src/lib/commentReferences";
 import { setLang, t } from "../../src/lib/i18n";
 import type { MicrosoftClient } from "./microsoft";
 import { rememberSource } from "./batchMain";
-import type { AppLang, AppSettings, OpenedFile, WatchStatus, WatchTarget, WatchUpdateMessage } from "./shared";
+import type { AppLang, AppSettings, CommentHistoryTarget, OpenedFile, WatchStatus, WatchTarget, WatchUpdateMessage } from "./shared";
+import { listCommentHistory, readCommentHistory } from "./commentHistory";
 
 let watcher: DocWatcher | undefined;
 let target: WatchTarget | undefined;
@@ -39,6 +41,7 @@ interface WatchDeps {
   loadSettings: () => AppSettings;
   saveSettings: (s: AppSettings) => void;
   lang: () => AppLang;
+  openExternal: (url: string) => Promise<void>;
 }
 
 /** OneDrive / SharePoint の文書を問い合わせる間隔 (ミリ秒)。アプリが前面にないときはこの4倍 */
@@ -141,6 +144,11 @@ export function registerWatchIpc(d: WatchDeps): void {
     version: u.version?.n,
     gap: u.gap,
   });
+  function commentArchive(file: CommentHistoryTarget): WatchArchive | undefined {
+    if (typeof file?.path !== "string" || typeof file.name !== "string") return undefined;
+    if (watcher?.path === file.path && watcher.archive) return watcher.archive;
+    return WatchArchive.find(recordsRoot(d.loadSettings()), file.path, file.name);
+  }
 
   /** 文書の監視を始める (ほかの文書の監視はやめる) */
   async function start(wt: WatchTarget): Promise<WatchUpdateMessage> {
@@ -201,6 +209,19 @@ export function registerWatchIpc(d: WatchDeps): void {
   });
 
   ipcMain.handle("watch:status", () => statusOf(d.loadSettings()));
+
+  ipcMain.handle("watch:comment-history", (_e, file: CommentHistoryTarget) => {
+    const archive = commentArchive(file);
+    return archive ? listCommentHistory(archive) : [];
+  });
+  ipcMain.handle("watch:comment-detail", (_e, file: CommentHistoryTarget, key: string) => {
+    const archive = commentArchive(file);
+    return archive && typeof key === "string" ? readCommentHistory(archive, key) : undefined;
+  });
+  ipcMain.handle("watch:open-comment-link", async (_e, value: unknown) => {
+    const url = commentLinkUrl(value);
+    if (url) await d.openExternal(url);
+  });
 
   ipcMain.handle("watch:choose-records-dir", async (_e, reset?: boolean) => {
     const s = d.loadSettings();
