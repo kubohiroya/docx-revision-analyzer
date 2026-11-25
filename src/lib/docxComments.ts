@@ -25,6 +25,8 @@ import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
 import type { DocxInput } from "./input";
 import { commentLinkUrl, type CommentLink } from "./commentReferences";
+import { insertWordCommentMarks, WORD_NS, type WordCommentRange } from "./docxCommentRange";
+import { readSavedTextVersion } from "./lineage";
 
 type XmlNode = Record<string, unknown>;
 
@@ -485,6 +487,9 @@ const NS_W14 = "http://schemas.microsoft.com/office/word/2010/wordml";
 const NS_W15 = "http://schemas.microsoft.com/office/word/2012/wordml";
 const REL_COMMENTS_EXTENDED = "http://schemas.microsoft.com/office/2011/relationships/commentsExtended";
 const CT_COMMENTS_EXTENDED = "application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml";
+const REL_COMMENTS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
+const CT_COMMENTS = "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml";
+const NS_MCE = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 
 function escXml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -524,6 +529,124 @@ function newHexId(used: Set<string>, random: () => number): string {
 /** Word の w:date の形 (秒まで、UTC) */
 function wordDate(d: Date): string {
   return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+export interface NewWordComment {
+  range: WordCommentRange;
+  author: string;
+  text: string;
+}
+
+/** Produce a new DOCX in memory, retaining other parts and existing comment threads. */
+export async function addWordComment(
+  input: DocxInput, comment: NewWordComment, now = new Date(),
+): Promise<{ bytes: Uint8Array; id: string }> {
+  const author = comment.author.trim();
+  const text = comment.text.replace(/\r\n?/gu, "\n");
+  const invalidXml = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/u;
+  if (!text.trim() || !author || author === RECEIPT_AUTHOR || /[\t\r\n]/u.test(author) || invalidXml.test(author + text)) {
+    throw new Error("A valid comment and author are required.");
+  }
+  const zip = await JSZip.loadAsync(input);
+  const settings = await partTree(zip, "word/settings.xml");
+  const root = settings?.find((node) => tagOf(node) === "settings");
+  const restrictions = root && childrenOf(root, "settings").find((node) => tagOf(node) === "documentProtection");
+  const enforcement = restrictions && attr(restrictions, "enforcement");
+  if (Object.keys(zip.files).some((name) => name.startsWith("_xmlsignatures/")) ||
+      (enforcement !== undefined && !["0", "false", "off"].includes(enforcement))) {
+    throw new Error("Signed or protected documents cannot be used for comment insertion.");
+  }
+  const documentXml = await zip.file("word/document.xml")?.async("string");
+  if (!documentXml) throw new Error("The Word document body is missing.");
+  const version = await readSavedTextVersion(input, { label: "", source: "selected" });
+  const { paragraphId, paragraphText } = comment.range;
+  const matches = !version.unavailable && version.paragraphs.filter((p) =>
+    p.text === paragraphText && (!paragraphId || p.paraId?.toUpperCase() === paragraphId.toUpperCase()));
+  if (!matches || matches.length !== 1) throw new Error("The selected paragraph is missing or occurs more than once.");
+
+  const part = "word/comments.xml";
+  const existing = await zip.file(part)?.async("string");
+  await ensureWordCommentsRelationship(zip, existing !== undefined);
+  let commentsXml = existing ?? `<w:comments xmlns:w="${WORD_NS}" xmlns:w14="${NS_W14}" xmlns:mc="${NS_MCE}" mc:Ignorable="w14"></w:comments>`;
+  const prefix = rootPrefix(commentsXml, "comments");
+  if (prefixFor(commentsXml, WORD_NS) !== prefix) throw new Error("The Word comments part has an unsupported namespace.");
+  const w14 = prefixFor(commentsXml, NS_W14) ?? "w14";
+  if (!prefixFor(commentsXml, NS_W14)) commentsXml = declareNs(commentsXml, "comments", w14, NS_W14);
+
+  const comments = await extractComments(input);
+  const usedCommentIds = new Set(comments.map(({ id }) => id));
+  for (const match of documentXml.matchAll(/<[^:\s]+:comment(?:RangeStart|RangeEnd|Reference)\b[^>]*\b[^:\s]+:id\s*=\s*["'](\d+)["']/gu)) {
+    usedCommentIds.add(match[1]);
+  }
+  let id = 0;
+  while (usedCommentIds.has(String(id))) id++;
+  const key = String(id);
+  const marked = insertWordCommentMarks(documentXml, comment.range, key);
+  const extendedParts = await Promise.all(["commentsExtended", "commentsIds", "commentsExtensible"].map(async (name) => ({
+    name: `word/${name}.xml`, xml: await zip.file(`word/${name}.xml`)?.async("string"),
+  })));
+  const usedIds = new Set([...`${documentXml}${commentsXml}${extendedParts.map(({ xml }) => xml ?? "").join("")}`
+    .matchAll(/(?:paraId|durableId)\s*=\s*["']([0-9A-Fa-f]{8})["']/gu)].map((match) => match[1].toUpperCase()));
+  const paraId = newHexId(usedIds, Math.random);
+  const durableId = newHexId(usedIds, Math.random);
+  const date = wordDate(now);
+  const w = (name: string) => `${prefix}:${name}`;
+  const body = text.split("\n").map((line) => `<${w("t")} xml:space="preserve">${escXml(line)}</${w("t")}>`).join(`<${w("br")}/>`);
+  const node = `<${w("comment")} ${w("id")}="${key}" ${w("author")}="${escXml(author)}" ${w("date")}="${date}">` +
+    `<${w("p")} ${w14}:paraId="${paraId}"><${w("r")}><${w("annotationRef")}/></${w("r")}>` +
+    `<${w("r")}>${body}</${w("r")}></${w("p")}></${w("comment")}>`;
+  zip.file(part, insertIntoXmlRoot(commentsXml, w("comments"), node));
+  zip.file("word/document.xml", marked);
+  const additions = [
+    ["commentsEx", NS_W15, "commentEx", `paraId="${paraId}" done="0"`],
+    ["commentsIds", "http://schemas.microsoft.com/office/word/2016/wordml/cid", "commentId", `paraId="${paraId}" durableId="${durableId}"`],
+    ["commentsExtensible", "http://schemas.microsoft.com/office/word/2018/wordml/cex", "commentExtensible", `durableId="${durableId}" dateUtc="${date}"`],
+  ];
+  for (const [index, { name, xml }] of extendedParts.entries()) {
+    if (!xml) continue;
+    const [root, ns, item, attributes] = additions[index];
+    const p = prefixFor(xml, ns);
+    if (!p) throw new Error("The Word comment extensions have an unsupported namespace.");
+    const attrs = attributes.replace(/\b([A-Za-z]+)=/gu, `${p}:$1=`);
+    zip.file(name, insertIntoXmlRoot(xml, `${p}:${root}`, `<${p}:${item} ${attrs}/>`));
+  }
+  return { bytes: await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" }), id: key };
+}
+
+function insertIntoXmlRoot(xml: string, name: string, child: string): string {
+  const closing = new RegExp(`</${escRe(name)}\\s*>\\s*$`, "u");
+  if (closing.test(xml)) return xml.replace(closing, (end) => child + end);
+  const empty = new RegExp(`(<${escRe(name)}(?:\\s[^<>]*?)?)/>(\\s*)$`, "u");
+  if (empty.test(xml)) return xml.replace(empty, (_match, start, space) => `${start}>${child}</${name}>${space}`);
+  throw new Error(`The Word package has an unsupported ${name} part.`);
+}
+
+async function ensureWordCommentsRelationship(zip: JSZip, exists: boolean): Promise<void> {
+  const relName = "word/_rels/document.xml.rels";
+  const relsXml = await zip.file(relName)?.async("string") ??
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+  const root = (parser.parse(relsXml) as XmlNode[]).find((node) => tagOf(node) === "Relationships");
+  if (!root) throw new Error("The Word document relationships part is invalid.");
+  const rels = childrenOf(root, "Relationships");
+  const comments = rels.filter((node) => attr(node, "Type") === REL_COMMENTS);
+  const regularTarget = (node: XmlNode) => ["comments.xml", "/word/comments.xml"].includes(attr(node, "Target") ?? "") &&
+    attr(node, "TargetMode") !== "External";
+  if (exists ? comments.length !== 1 || !regularTarget(comments[0])
+    : comments.length > 0 || rels.some(regularTarget)) throw new Error("The Word comments part does not have a supported relationship.");
+  const typesName = "[Content_Types].xml";
+  const types = await zip.file(typesName)?.async("string");
+  if (!types) throw new Error("The Word package content types are missing.");
+  const typeRoot = (parser.parse(types) as XmlNode[]).find((node) => tagOf(node) === "Types");
+  const overrides = typeRoot && childrenOf(typeRoot, "Types").filter((node) => attr(node, "PartName") === "/word/comments.xml");
+  if (!overrides || (exists ? overrides.length !== 1 || attr(overrides[0], "ContentType") !== CT_COMMENTS : overrides.length !== 0)) {
+    throw new Error("The Word package content types are invalid.");
+  }
+  if (exists) return;
+  const ids = new Set(rels.map((node) => attr(node, "Id")));
+  let n = 1;
+  while (ids.has(`rId${n}`)) n++;
+  zip.file(relName, insertIntoXmlRoot(relsXml, "Relationships", `<Relationship Id="rId${n}" Type="${REL_COMMENTS}" Target="comments.xml"/>`));
+  zip.file(typesName, insertIntoXmlRoot(types, "Types", `<Override PartName="/word/comments.xml" ContentType="${CT_COMMENTS}"/>`));
 }
 
 /**

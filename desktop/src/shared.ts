@@ -57,6 +57,8 @@ export interface AppSettings {
   pages?: PagesSettings;
   /** Enable the saved-version comparison preview. */
   lineagePreview?: boolean;
+  /** Enable the local review comment writer on the next launch. */
+  reviewCommentWrite?: boolean;
   /** 図のプレビューの設定 (ミニマップの大きさと位置、flow の分割画面の左の幅) */
   viewer?: Partial<Record<"chart" | "flow", { minimap?: { width: number; corner: "tl" | "tr" | "bl" | "br" }; split?: number }>>;
 }
@@ -348,6 +350,11 @@ export type SavedLineageVersion = SavedTextVersion & {
   openId?: string;
 };
 
+export type SavedVersionCommentRequest = import("../../src/lib/docxComments").NewWordComment;
+export type SavedVersionCommentError = "disabled" | "unavailable" | "changed" | "locked" | "readOnly" | "unsupported" | "saveFailed";
+export type SavedVersionCommentResult = { ok: true; version: SavedLineageVersion; backupPath: string }
+  | { ok: false; reason: SavedVersionCommentError };
+
 export interface WatchApi {
   /** 文書の監視を始める (ほかの文書の監視はやめる) */
   start(target: WatchTarget): Promise<WatchUpdateMessage>;
@@ -374,6 +381,8 @@ export interface AppApi {
   openDocxDialog(): Promise<OpenedFile | null>;
   chooseSavedVersions(): Promise<SavedLineageVersion[] | null>;
   openSavedVersion(id: string): Promise<void>;
+  reviewCommentWriteEnabled(): Promise<boolean>;
+  addSavedVersionComment(id: string, comment: SavedVersionCommentRequest): Promise<SavedVersionCommentResult>;
   /** パスのファイルを読む (ドロップされたファイルなど) */
   readDocx(path: string): Promise<OpenedFile>;
   /** OneDrive / SharePoint の URL (または最近開いた文書) を開く。必要ならブラウザでサインインする */

@@ -621,6 +621,15 @@ to **Text range** opens and closes the comments panel. Choose **My Word author n
 other authors' posts and highlight the latest post when it is yours. **Go to the original passage** shows the location in the
 app. **Open original file** uses the system's associated application and opens a read-only copy for an archived version.
 
+**Add a Word comment from the comparison (preview)**: Enable saved-version comparison and **Write local Word comments from
+version comparison** in Settings, then restart the app. Compare local DOCX files and choose a change with one corresponding
+passage in the later version. Under **Add a Word comment**, check the file and paragraph, enter the author name and comment,
+and select **Add to Word**. Archived and URL-based versions are for viewing. Close the target in Word before writing, or reload
+the versions if the file changed after comparison. A failed save keeps the draft in the comparison window.
+
+After a successful save, the comments panel refreshes. A `.backup-timestamp.docx` file in the same folder holds the pre-write
+copy. To restore it, close Word, keep the current file under a different name, and save a copy of the backup under the original name.
+
 **Export HTML**: Check **Export** on each change you want to include, open **HTML preview**, then choose **Save HTML…**.
 The saved HTML includes the two compared versions, the selected changes and their excerpts, and their related Word comments,
 replies, tags, reference links, and deleted threads. The heading comes from the filenames' common part. The single file opens

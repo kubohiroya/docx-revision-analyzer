@@ -94,7 +94,9 @@ export interface EnableHistoryResult {
  * ファイルを新しい内容で置き換える。元のファイルは "<名前>.backup-<YYYYMMDD-HHMMSS>.docx" として同じフォルダに残し、
  * そのパスを返す
  */
-export async function replaceWithBackup(filePath: string, out: Uint8Array): Promise<string> {
+export async function replaceWithBackup(filePath: string, out: Uint8Array,
+  beforeReplace?: (backupPath: string) => Promise<void>,
+): Promise<string> {
   const dir = path.dirname(filePath);
   const base = path.basename(filePath).replace(/\.docx$/i, "");
   const stamp = formatTimestampForFilename(new Date());
@@ -111,13 +113,18 @@ export async function replaceWithBackup(filePath: string, out: Uint8Array): Prom
   }
 
   // 途中で失敗しても元のファイルが壊れないよう、一時ファイルに書いてから置き換える
-  const tmpPath = path.join(dir, `.${base}.tmp-${process.pid}.docx`);
+  const temporary = await fs.promises.mkdtemp(path.join(dir, ".dra-replace-"));
+  const tmpPath = path.join(temporary, "document.docx");
   try {
     await fs.promises.writeFile(tmpPath, out);
+    if (beforeReplace) {
+      const { mode } = await fs.promises.stat(backupPath);
+      await fs.promises.chmod(tmpPath, mode & 0o777);
+      await beforeReplace(backupPath);
+    }
     await fs.promises.rename(tmpPath, filePath);
-  } catch (err) {
-    await fs.promises.rm(tmpPath, { force: true });
-    throw err;
+  } finally {
+    await fs.promises.rm(temporary, { recursive: true, force: true }).catch(() => undefined);
   }
   return backupPath;
 }

@@ -5,6 +5,7 @@ import {
   type ReportPassage, type ReportThread, type SavedVersionReport,
 } from "../reportData";
 import { reportVersionTable, type VersionTableState } from "./savedReportVersions";
+import type { SavedVersionCommentError } from "../shared";
 
 const EN = {
   tracking: "Versions to compare", inferred: "Inferred from saved text",
@@ -14,6 +15,15 @@ const EN = {
   chooseChange: "Choose a change to see its passages and comments.", export: "Export", outputRange: "Maximum text range to export",
   openVersion: "Open original file", author: "My Word author name", noAuthor: "Choose an author", me: "Me", latest: "Latest",
   participantCount: (n: number) => `${n} comment author${n === 1 ? "" : "s"}`, others: "Other authors",
+  compose: "Add a Word comment", writeComment: "Add to Word", commentText: "Comment", commentAuthor: "Author name in Word",
+  composeUnavailable: "Choose a change with one corresponding passage in a local comparison-after DOCX.",
+  writingComment: "Saving the comment…",
+  commentErrors: {
+    disabled: "Word comment writing is disabled.", unavailable: "This Word file is no longer available. Load the versions again.",
+    changed: "The Word file has changed. Load the versions again before saving.", locked: "Close the file in Word or the other application, then try again.",
+    readOnly: "The Word file is read-only.", unsupported: "The selected passage or document structure does not support adding a comment.",
+    saveFailed: "The Word comment could not be saved. Your draft is still here.",
+  } satisfies Record<SavedVersionCommentError, string>,
   gap: "There is a gap in the saved record. The comparison uses the available endpoints.",
   missing: "A selected draft could not be read.", tracked: "Observed changes between saves, not exact edit times.",
   changeType: "Change type", tags: "Comment tag", all: "All", noMatches: "No changes match this selection.",
@@ -49,6 +59,15 @@ export const REPORT_LABELS: Record<SavedVersionReport["lang"], typeof EN> = { en
   chooseChange: "変更箇所を選ぶと、前後の原文とコメントを表示します。", export: "書き出す", outputRange: "書き出す原文の上限",
   openVersion: "元のファイルを開く", author: "自分のWord作成者名", noAuthor: "作成者を選択", me: "自分", latest: "最新",
   participantCount: (n) => `${n}人がコメント`, others: "他の投稿者",
+  compose: "コメントを追記", writeComment: "Wordに追記", commentText: "コメント", commentAuthor: "Wordに記録する作成者名",
+  composeUnavailable: "比較後のローカルDOCXで、対応箇所が1つに特定できる変更を選んでください。",
+  writingComment: "コメントを保存しています…",
+  commentErrors: {
+    disabled: "Wordコメントの追記は無効です。", unavailable: "このWordファイルを開けません。版を読み込み直してください。",
+    changed: "Wordファイルが変更されました。版を読み込み直してから追記してください。", locked: "Wordなどでファイルを閉じてからやり直してください。",
+    readOnly: "このWordファイルは読み取り専用です。", unsupported: "選択した箇所または文書の構造にはコメントを追記できません。",
+    saveFailed: "Wordコメントを保存できませんでした。入力した文章は保持されています。",
+  },
   gap: "この区間には保全記録の空白があります。確認できた両端を比較しています。",
   missing: "選んだ稿の一方を読み込めませんでした。", tracked: "保存版の間で観測した変化を示します。個々の編集時刻は分かりません。",
   changeType: "変更の種類", tags: "コメントのタグ", all: "すべて", noMatches: "条件に一致する変更箇所はありません。",
@@ -151,6 +170,22 @@ export interface ReportViewState {
   author?: string;
   table?: VersionTableState;
   expanded?: boolean[];
+  kind?: string;
+  tag?: string;
+}
+
+export interface ReviewCommentDraft {
+  author?: string;
+  text: string;
+  pending?: boolean;
+  failure?: SavedVersionCommentError;
+}
+
+interface CommentComposer {
+  filename: string;
+  paragraph: number;
+  draft: ReviewCommentDraft;
+  submit(): void;
 }
 
 interface ReviewOptions {
@@ -164,6 +199,7 @@ interface ReviewOptions {
   setOutputRange: (range: number) => void;
   openVersion: (index: number) => void;
   canOpenVersion: (index: number) => boolean;
+  commentComposer?: (id: string) => CommentComposer | undefined;
 }
 
 interface ReportViewOptions {
@@ -302,7 +338,7 @@ export function renderSavedVersionReport(
   rootHeader.onpointerdown = closeRangeOnOutsidePress;
   layout.onpointerdown = closeRangeOnOutsidePress;
 
-  const changeFilters = () => { original = undefined; draw(); };
+  const changeFilters = () => { state.kind = kinds.value; state.tag = tags.value; original = undefined; draw(); };
   kinds.onchange = changeFilters;
   tags.onchange = changeFilters;
   rangeInput.oninput = () => {
@@ -373,8 +409,8 @@ export function renderSavedVersionReport(
       return chip;
     }));
     const pair = pairFor();
-    let kind = kinds.value;
-    let tag = tags.value;
+    let kind = state.kind ?? "";
+    let tag = state.tag ?? "";
     const changes = pair?.changes ?? [];
     const availableKinds = new Map(changes.map((change) => [kindValue(change), changeName(change)]));
     const availableTags = new Set(changes.flatMap((change) => change.threads.flatMap((id) =>
@@ -385,6 +421,8 @@ export function renderSavedVersionReport(
     tags.replaceChildren(option(s.all, ""), ...[...availableTags].map((value) => option(`#${value}`, value)));
     kinds.value = kind;
     tags.value = tag;
+    state.kind = kind;
+    state.tag = tag;
     const shown = changes.filter((item) => (!kind || kindValue(item) === kind) && (!tag || item.threads.some((id) =>
       report.threads[id].messages.some((message) => message.tags.includes(tag)))));
     if (selected && !shown.includes(selected)) selected = undefined;
@@ -627,6 +665,47 @@ export function renderSavedVersionReport(
       for (const id of unlocated) box.append(showThread(report.threads[id], false));
       sidebar.append(box);
     }
+    if (selected?.reviewId && review?.commentComposer) {
+      const compose = review.commentComposer(selected.reviewId);
+      sidebar.append(compose ? commentForm(compose) : el("p", s.composeUnavailable, "report-hint"));
+    }
+  }
+
+  function commentForm({ filename, paragraph, draft, submit }: CommentComposer): HTMLElement {
+    const form = el("section", undefined, "report-comment-compose");
+    form.append(el("h3", s.compose), el("p", `${filename} · ${s.paragraph} ${paragraph}`, "report-hint"));
+    const authorLabel = el("label", s.commentAuthor);
+    const author = el("input");
+    author.type = "text";
+    author.autocomplete = "off";
+    author.value = draft.author ?? state.author ?? "";
+    authorLabel.append(author);
+    const textLabel = el("label", s.commentText);
+    const text = el("textarea");
+    text.rows = 3;
+    text.value = draft.text;
+    textLabel.append(text);
+    const save = button(s.writeComment, () => {
+      draft.author = author.value;
+      draft.text = text.value;
+      submit();
+      update();
+    }, "report-write-comment");
+    const status = el("p", undefined, "report-hint");
+    status.setAttribute("role", "status");
+    form.append(authorLabel, textLabel, save, status);
+    author.oninput = text.oninput = () => {
+      draft.author = author.value;
+      draft.text = text.value;
+      update();
+    };
+    function update(): void {
+      author.disabled = text.disabled = draft.pending === true;
+      save.disabled = Boolean(draft.pending || !author.value.trim() || !text.value.trim());
+      status.textContent = draft.pending ? s.writingComment : draft.failure ? s.commentErrors[draft.failure] : "";
+    }
+    update();
+    return form;
   }
 
   draw();

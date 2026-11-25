@@ -166,6 +166,16 @@
 .report-post.report-latest-own { padding: 6px 8px; border: 0; border-inline-start: 3px solid var(--report-accent); border-radius: 5px; background: var(--report-tint); }
 .report-latest-marker { color: var(--report-accent-text); background: var(--report-accent); border-radius: 4px; padding-inline: 4px; }
 .report-my-author { display: grid; gap: 3px; margin-top: 5px; color: var(--report-muted); font-size: 12px; }
+.report-comment-compose { display: grid; gap: 5px; border-top: 1px solid var(--report-line); margin-top: 8px; padding-top: 8px; }
+.report-comment-compose label { display: grid; gap: 3px; color: var(--report-muted); font-size: 12px; }
+.report-comment-compose input, .report-comment-compose textarea {
+  width: 100%; min-width: 0; color: var(--report-text); background: var(--report-paper); border: 1px solid var(--report-line);
+  border-radius: 7px; padding: 4px 6px; font: inherit; font-size: 14px;
+}
+.report-comment-compose textarea { resize: vertical; }
+.saved-report .report-write-comment { justify-self: end; }
+.saved-report .report-write-comment:enabled { color: var(--report-accent-text); background: var(--report-accent); border-color: var(--report-accent); }
+.report-comment-compose [role="status"]:empty { display: none; }
 .saved-report .report-open-version { margin-top: 5px; color: var(--report-accent); }
 .report-tags { display: flex; flex-wrap: wrap; gap: 4px 7px; color: var(--report-accent); }
 .saved-report .report-tags button { font-size: 12px; color: var(--report-accent); }

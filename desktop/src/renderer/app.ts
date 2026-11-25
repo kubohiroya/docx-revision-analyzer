@@ -182,6 +182,7 @@ function applyLang(): void {
   setText("tab-comments", S.tabComments);
   setText("tab-lineage", savedVersionsLabel(lang));
   setText("l-lineage-enabled", savedVersionsLabel(lang, true));
+  setText("l-review-comment-write", S.reviewCommentWrite);
   setText("tab-settings", S.tabSettings);
   setText("l-gap", S.gap);
   setText("l-from", S.from);
@@ -1359,6 +1360,8 @@ function renderSettings(): void {
   $<HTMLInputElement>("updates").checked = !!settings.checkForUpdates;
   $("tab-lineage").hidden = settings.lineagePreview !== true;
   $<HTMLInputElement>("lineage-enabled").checked = settings.lineagePreview === true;
+  $<HTMLInputElement>("review-comment-write").checked = settings.reviewCommentWrite === true;
+  $<HTMLInputElement>("review-comment-write").disabled = settings.lineagePreview !== true;
   $<HTMLInputElement>("updates").disabled = !updatesAvailable;
   setText("updates-note", updatesAvailable ? S.updatesNote : `${S.updatesNote} ${S.updatesDevBuild}`);
   renderExtensions();
@@ -1564,6 +1567,12 @@ async function main(): Promise<void> {
       settings.lineagePreview = $<HTMLInputElement>("lineage-enabled").checked;
       await persist();
       renderSettings();
+    });
+  });
+  $("review-comment-write").addEventListener("change", () => {
+    void runSafely(async () => {
+      settings.reviewCommentWrite = $<HTMLInputElement>("review-comment-write").checked;
+      await persist();
     });
   });
   $("rules-choose").onclick = () =>

@@ -24,7 +24,7 @@ import { NetMediator } from "./sendLog";
 import { isSourceLink, registerBatchIpc, rememberSource } from "./batchMain";
 import { openFileInBrowser } from "./openInBrowser";
 import { registerWatchIpc, stopWatching } from "./watchMain";
-import { readSelectedSavedVersions, savedVersionFile } from "./savedLineage";
+import { addSavedVersionComment, readSelectedSavedVersions, savedVersionFile } from "./savedLineage";
 import { disposePages, registerPagesIpc } from "./pages/pagesMain";
 import { PDF_SCHEME } from "./pages/pdfHost";
 import type { AnalysisResult, ClassifierContext, FigureContext } from "./extension-api";
@@ -157,6 +157,8 @@ function lockDown(): void {
 }
 
 function registerIpc(): void {
+  const reviewCommentWriteAtLaunch = loadSettings().reviewCommentWrite === true;
+  const reviewCommentWriteEnabled = () => reviewCommentWriteAtLaunch && loadSettings().lineagePreview === true;
   ipcMain.handle("open-docx-dialog", async () => {
     const r = await dialog.showOpenDialog(mainWindow!, {
       properties: ["openFile"],
@@ -176,6 +178,13 @@ function registerIpc(): void {
     if (loadSettings().lineagePreview !== true) return;
     const failure = await shell.openPath(await savedVersionFile(id));
     if (failure) throw new Error(failure);
+  });
+  ipcMain.handle("review-comment-write-enabled", () => reviewCommentWriteEnabled());
+  ipcMain.handle("add-saved-version-comment", (event, id: unknown, comment: unknown) => {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame || !reviewCommentWriteEnabled()) {
+      return { ok: false, reason: "disabled" };
+    }
+    return addSavedVersionComment(id, comment);
   });
   ipcMain.handle("read-docx", (_e, p: string) => readDocx(p));
   ipcMain.handle("open-url", async (_e, target: { url: string } | { recent: string }) => {
