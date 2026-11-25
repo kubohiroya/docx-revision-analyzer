@@ -1,7 +1,8 @@
 /**
  * electron-builder の設定 (配布物の作成・署名・公証・GitHub Releases への公開)。
  *
- * 署名と公証は、環境変数 (CI では GitHub の Secrets) があるときだけ行う。無ければ署名なしで作る。
+ * macOS では配布用証明書が未設定の場合にアプリ全体をアドホック署名する。
+ * 公証と Windows の署名には環境変数 (CI では GitHub の Secrets) を使う。
  *   macOS の署名:   CSC_LINK (Developer ID Application 証明書の .p12 を base64 にしたもの), CSC_KEY_PASSWORD
  *   macOS の公証:   APPLE_API_KEY (.p8 のパス), APPLE_API_KEY_ID, APPLE_API_ISSUER
  *                   または APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
@@ -9,11 +10,13 @@
  *                   (Windows 用の証明書の発行者名を WIN_PUBLISHER_NAME に入れると、自動更新で署名を検証する)
  * 詳しくは DISTRIBUTION.md。
  */
+const path = require("node:path");
 const env = process.env;
-const notarize =
-  !!(env.APPLE_API_KEY && env.APPLE_API_KEY_ID && env.APPLE_API_ISSUER) ||
-  !!(env.APPLE_ID && env.APPLE_APP_SPECIFIC_PASSWORD && env.APPLE_TEAM_ID);
 const macSigned = !!env.CSC_LINK || !!env.CSC_NAME;
+const notarize =
+  macSigned && (!!(env.APPLE_API_KEY && env.APPLE_API_KEY_ID && env.APPLE_API_ISSUER) ||
+    !!(env.APPLE_ID && env.APPLE_APP_SPECIFIC_PASSWORD && env.APPLE_TEAM_ID));
+const macEntitlements = path.join(__dirname, "build", macSigned ? "entitlements.mac.plist" : "entitlements.mac.adhoc.plist");
 
 /** @type {import("electron-builder").Configuration} */
 module.exports = {
@@ -42,10 +45,10 @@ module.exports = {
     artifactName: "Docx-Revision-Analyzer-${version}-${arch}-mac.${ext}",
     hardenedRuntime: true,
     gatekeeperAssess: false,
-    entitlements: "build/entitlements.mac.plist",
-    entitlementsInherit: "build/entitlements.mac.plist",
-    // 証明書が無ければ署名しない (ad-hoc 署名のみ)
-    identity: macSigned ? undefined : null,
+    entitlements: macEntitlements,
+    entitlementsInherit: macEntitlements,
+    identity: macSigned ? undefined : "-",
+    preAutoEntitlements: macSigned,
     notarize,
   },
   dmg: { sign: false, artifactName: "Docx-Revision-Analyzer-${version}-${arch}.${ext}" },

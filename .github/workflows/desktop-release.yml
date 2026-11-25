@@ -5,7 +5,7 @@
 #  - 自動更新の情報 (latest*.yml) の配布物の名前は、そのリリースのダウンロード用の絶対 URL に書き換えておく。
 #    下書きを公開すると、desktop-update-feed.yml が自動更新の参照先 (プレリリース desktop-latest) にこれを置く
 #  - 手動実行 (workflow_dispatch) では公開せず、配布物を Actions の成果物として残す
-# 署名・公証は Secrets があるときだけ行う (無ければ署名なし)。必要な Secrets は desktop/DISTRIBUTION.md を参照。
+# macOS で配布用証明書を指定しない場合はアドホック署名する。配布用署名と公証の Secrets は desktop/DISTRIBUTION.md を参照。
 name: Desktop release
 
 on:
@@ -70,6 +70,11 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CSC_LINK != '' && 'true' || 'false' }}
         # 配布物を作るだけ (GitHub Releases への添付は release のジョブがまとめて行う)
         run: npx electron-builder --config electron-builder.config.cjs --publish never
+      - name: Verify the complete macOS app signature
+        if: runner.os == 'macOS'
+        run: |
+          codesign --verify --deep --strict --all-architectures --verbose=2 \
+            "release/desktop/mac/mac-universal/Docx Revision Analyzer.app"
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.os }}

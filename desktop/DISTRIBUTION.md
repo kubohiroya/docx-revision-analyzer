@@ -5,15 +5,20 @@
 | | macOS | Windows |
 |---|---|---|
 | Artifacts / 配布物 | `.dmg` (universal), `.zip` (for auto-update) | NSIS installer (x64 / arm64), `.zip` |
-| Signing / 署名 | Developer ID Application + Hardened Runtime | Code-signing certificate (OV/EV) |
+| Signing / 署名 | Developer ID Application or ad hoc + Hardened Runtime | Code-signing certificate (OV/EV) |
 | Notarization / 公証 | notarytool (App Store Connect API key) | — |
 | Built by / ビルド | `.github/workflows/desktop-release.yml` on `macos-latest` | same, on `windows-latest` |
 
-Signing and notarization run only when the secrets below are set; without them, unsigned builds are produced
-(macOS users then need right-click → Open the first time, Windows users see a SmartScreen warning).
+The macOS build signs the entire app, including its helpers, ad hoc when a Developer ID certificate is unavailable.
+Developer ID signing, Apple notarization, and Windows signing use the secrets below. macOS may require individual
+approval on first launch of an ad-hoc build. Windows may show a SmartScreen warning for an unsigned build.
 
-署名・公証は下の Secrets があるときだけ行います。無ければ署名なしの配布物を作ります (macOS では初回に右クリック→開く、
-Windows では SmartScreen の警告が必要になります)。
+macOS の配布用証明書を指定していない場合は、ヘルパーを含むアプリ全体をアドホック署名します。Developer ID 署名、
+Apple 公証、Windows の署名には下の Secrets を使います。アドホック署名版では初回起動時に macOS で個別の許可が必要な場合があります。
+Windows の署名を使わない場合は SmartScreen に警告が出ることがあります。
+
+The release workflow runs `codesign --verify --deep --strict --all-architectures` before uploading macOS artifacts.
+配布ワークフローは、macOS の配布物を添付する前に同じコマンドで厳密に署名を検証します。
 
 ## Secrets / 設定する Secrets
 
@@ -116,5 +121,5 @@ network.
 
 ```bash
 cd desktop
-CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist -- --mac dir --arm64   # unsigned .app in ../release/desktop/mac/
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist -- --mac dir --arm64   # ad-hoc signed .app in ../release/desktop/mac/
 ```
