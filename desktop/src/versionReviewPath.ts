@@ -1,20 +1,23 @@
 import { compareSavedVersions, type LineageLevel } from "../../src/lib/lineage";
-import { inferVersionBranches } from "../../src/lib/lineageBranches";
+import { inferVersionBranches, type VersionBranchEntry } from "../../src/lib/lineageBranches";
 import { SavedReportAnalysis } from "./savedReport";
 import type { SavedLineageVersion } from "./shared";
 
 /** The review input is one archive history, or a set of local files. */
-export function inferSavedVersionPaths(versions: readonly SavedLineageVersion[], targets: readonly number[]): number[][] {
+export function inferSavedVersionTimeline(versions: readonly SavedLineageVersion[], targets: readonly number[]): {
+  entries: VersionBranchEntry[];
+  paths: Map<string, number[]>;
+} {
   const archiveId = versions.every(version => version.source === "archive") ? "archive" : undefined;
-  const graph = inferVersionBranches(targets.map(index => ({ ...versions[index], id: String(index), archiveId })));
-  const paths = new Map<string, number[]>();
-  for (const entry of graph) {
+  const entries = inferVersionBranches(targets.map(index => ({ ...versions[index], id: String(index), archiveId })));
+  const byEndpoint = new Map<string, number[]>();
+  for (const entry of entries) {
     if (entry.decision.status === "inferred") {
       const parent = entry.decision.parentId;
-      paths.set(entry.id, [...(paths.get(parent) ?? [Number(parent)]), Number(entry.id)]);
+      byEndpoint.set(entry.id, [...(byEndpoint.get(parent) ?? [Number(parent)]), Number(entry.id)]);
     }
   }
-  return [...paths.values()];
+  return { entries, paths: new Map([...byEndpoint.values()].map(path => [path.join(":"), path])) };
 }
 
 /** Build lineage and its comment index from the complete selected ancestry. */

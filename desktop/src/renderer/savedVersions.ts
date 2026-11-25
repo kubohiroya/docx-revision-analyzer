@@ -103,7 +103,8 @@ function compareVersionTime(left: SavedLineageVersion, right: SavedLineageVersio
     (left.number ?? 0) - (right.number ?? 0) ||
     timestamp(left.fileCreatedAt) - timestamp(right.fileCreatedAt) ||
     left.label.localeCompare(right.label, "en", { numeric: true }) ||
-    (left.sha256 ?? "").localeCompare(right.sha256 ?? "");
+    (left.sha256 ?? "").localeCompare(right.sha256 ?? "") ||
+    (left.sourcePathHash ?? "").localeCompare(right.sourcePathHash ?? "");
 }
 
 export class SavedVersionsPane {

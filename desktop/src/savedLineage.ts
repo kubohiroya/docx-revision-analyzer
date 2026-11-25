@@ -143,6 +143,7 @@ export async function readSelectedSavedVersions(files: string[], allowOpen = fal
   const result: SavedLineageVersion[] = [];
   for (const file of files) {
     const stat = await fs.stat(file).catch(() => undefined);
+    const sourcePathHash = createHash("sha256").update(path.resolve(file)).digest("hex");
     const identity: VersionIdentity = {
       label: path.basename(file), source: "selected", sourceModified: stat?.mtime.toISOString(),
     };
@@ -153,9 +154,9 @@ export async function readSelectedSavedVersions(files: string[], allowOpen = fal
       const sha256 = digest(bytes);
       const version = await readVersion(bytes, { ...identity, sha256 });
       const openId = allowOpen && stat?.isFile() && /\.docx$/iu.test(actual) ? rememberLocalVersion(actual, stat, sha256) : undefined;
-      result.push({ ...version, fileCreatedAt, openId });
+      result.push({ ...version, fileCreatedAt, sourcePathHash, openId });
     } catch {
-      result.push({ ...identity, fileCreatedAt, fileSize: stat?.size, unavailable: true, threads: [] });
+      result.push({ ...identity, fileCreatedAt, fileSize: stat?.size, sourcePathHash, unavailable: true, threads: [] });
     }
   }
   return result;
