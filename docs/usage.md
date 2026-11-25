@@ -704,13 +704,13 @@ Word closes the document or after the idle gap; those of any other version when 
 
    ![Development build Saved versions tab with file and folder buttons](images/html-export/en-comparison.png)
 
-2. Confirm the files under **Versions in scope**. In **Change list**, review the passages and check **Export** on the rows to include. Use the filter button to open search.
+2. Confirm the files under **Versions in scope**. In **Change list**, review the passages and check **Export** on the rows to include. Use the filter button to open search. The heading shows the matched and total counts.
 
-   ![Development build review with version checkboxes, chart thumbnails, search, and export checkboxes](images/html-export/en-review.png)
+   ![Development build review with chart thumbnails, one matching change out of three, and colored edit counts](images/html-export/en-review.png)
 
 3. Open **HTML preview** to check the exported versions and changes, then select **Save HTML…**.
 
-   ![Development build HTML preview showing a selected change and the Save HTML button](images/html-export/en-preview.png)
+   ![Development build HTML preview showing two changes across three versions and the Save HTML button](images/html-export/en-preview.png)
 
 #### Enable and run the comparison in the released builds
 

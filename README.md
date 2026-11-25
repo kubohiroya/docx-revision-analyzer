@@ -24,7 +24,7 @@ The automatic update feed serves v0.3.0. [Installation guide](docs/installation.
 
 The screenshot shows the development build.
 
-![Development build review with versions in scope, chart thumbnails, search, and export checkboxes](docs/images/html-export/en-review.png)
+![Development build review with versions in scope, chart thumbnails, matched and total changes, and added and deleted character counts](docs/images/html-export/en-review.png)
 
 [Step-by-step instructions with screenshots (usage guide)](docs/usage.md#export-a-saved-version-comparison-as-html)
 
