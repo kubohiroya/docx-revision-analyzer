@@ -1,4 +1,4 @@
-import { parseDocxLayout } from "./docxLayout";
+import { parseDocxLayout, type LayoutCommentMark, type Para } from "./docxLayout";
 import type { DocxInput } from "./input";
 import { compareUnits, prepareUnits, type Unit } from "./lineageMatching";
 
@@ -29,11 +29,14 @@ export type SavedTextVersion = VersionIdentity & (
 );
 
 /** Offsets are UTF-16 positions within the original paragraph text for this version. */
-export interface LineageRange {
-  version: number;
+export interface SavedParagraphRange {
   paragraph: number;
   start: number;
   end: number;
+}
+
+export interface LineageRange extends SavedParagraphRange {
+  version: number;
 }
 
 export interface LineageLink {
@@ -66,20 +69,67 @@ export interface LineageOptions {
   japaneseWordHints?: boolean;
 }
 
-export async function readSavedTextVersion(input: DocxInput, identity: VersionIdentity): Promise<SavedTextVersion> {
-  const model = await parseDocxLayout(input);
+export async function readSavedTextVersion(
+  input: DocxInput, identity: VersionIdentity, commentRanges?: Map<string, SavedParagraphRange[]>,
+): Promise<SavedTextVersion> {
+  const rawMarks = commentRanges && new Map<number, LayoutCommentMark[]>();
+  const model = await parseDocxLayout(input, rawMarks);
   const paragraphs: VersionParagraph[] = [];
+  const marks = new Map<string, Array<{ kind: LayoutCommentMark["kind"]; paragraph: number; offset: number }>>();
   let trackedChanges = false;
   for (const p of model.paras) {
+    const pending = rawMarks?.get(p.index);
+    if (p.kind === "table" && !pending) continue;
+    const { text, offsets } = visibleText(p, pending);
+    pending?.forEach((mark, index) => {
+      const existing = marks.get(mark.id) ?? [];
+      existing.push({ kind: mark.kind, paragraph: p.index, offset: offsets[index] });
+      marks.set(mark.id, existing);
+    });
     if (p.kind === "table") continue;
     trackedChanges ||= Boolean(p.markIns || p.markDel || p.segs.some((s) => s.ins || s.del));
-    const text = p.segs.filter((s) => !s.del).map((s) => {
-      if (s.kind === "text") return s.text;
-      return s.kind === "lineBreak" || s.kind === "pageBreak" ? "\n" : "";
-    }).join("");
     if (text.trim()) paragraphs.push({ index: p.index, kind: p.kind, text, paraId: p.paraId });
   }
+  if (commentRanges) {
+    const byIndex = new Map(paragraphs.map((p) => [p.index, p]));
+    for (const [id, entries] of marks) {
+      const starts = entries.filter((mark) => mark.kind === "commentRangeStart");
+      const ends = entries.filter((mark) => mark.kind === "commentRangeEnd");
+      const refs = entries.filter((mark) => mark.kind === "commentReference");
+      if (!starts.length && !ends.length && refs.length === 1 && byIndex.has(refs[0].paragraph)) {
+        const { paragraph, offset } = refs[0];
+        commentRanges.set(id, [{ paragraph, start: offset, end: offset }]);
+      } else if (starts.length === 1 && ends.length === 1) {
+        const start = starts[0];
+        const end = ends[0];
+        if (!byIndex.has(start.paragraph) || !byIndex.has(end.paragraph)) continue;
+        const ranges: SavedParagraphRange[] = [];
+        for (let index = start.paragraph; index <= end.paragraph; index++) {
+          const p = byIndex.get(index);
+          if (!p) continue;
+          const from = index === start.paragraph ? start.offset : 0;
+          const to = index === end.paragraph ? end.offset : p.text.length;
+          if (from < to) ranges.push({ paragraph: index, start: from, end: to });
+        }
+        if (ranges.length) commentRanges.set(id, ranges);
+      }
+    }
+  }
   return { ...identity, paragraphs, trackedChanges };
+}
+
+/** Use the same visible text and offsets for comparison ranges and Word comment marks. */
+function visibleText(p: Para, marks: LayoutCommentMark[] = []): { text: string; offsets: number[] } {
+  let text = "";
+  const offsets: number[] = [];
+  for (let i = 0; i <= p.segs.length; i++) {
+    while (marks[offsets.length]?.segment === i) offsets.push(text.length);
+    const seg = p.segs[i];
+    if (!seg || seg.del) continue;
+    if (seg.kind === "text") text += seg.text;
+    else if (seg.kind === "lineBreak" || seg.kind === "pageBreak") text += "\n";
+  }
+  return { text, offsets };
 }
 
 export function compareSavedVersions(versions: readonly SavedTextVersion[], options: LineageOptions = {}): SavedVersionLineage {

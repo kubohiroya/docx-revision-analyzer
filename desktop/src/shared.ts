@@ -7,7 +7,7 @@
  */
 
 import type { CommentAnchor, CommentEvent, CommentPassage, CommentState, DocxComment } from "../../src/lib/docxComments";
-import type { SavedTextVersion } from "../../src/lib/lineage";
+import type { SavedParagraphRange, SavedTextVersion } from "../../src/lib/lineage";
 import type {
   AnalysisResult,
   CategorySpec,
@@ -334,6 +334,17 @@ export interface CommentHistoryDetail {
   observations: CommentObservation[];
 }
 
+export interface SavedVersionThread {
+  key: string;
+  ranges: SavedParagraphRange[];
+  detail: CommentHistoryDetail;
+}
+
+export type SavedLineageVersion = SavedTextVersion & {
+  threads: SavedVersionThread[];
+  commentsUnavailable?: boolean;
+};
+
 export interface WatchApi {
   /** 文書の監視を始める (ほかの文書の監視はやめる) */
   start(target: WatchTarget): Promise<WatchUpdateMessage>;
@@ -345,7 +356,7 @@ export interface WatchApi {
   openRecordsDir(): Promise<void>;
   commentHistory(target: CommentHistoryTarget): Promise<CommentHistoryRow[]>;
   commentDetail(target: CommentHistoryTarget, key: string): Promise<CommentHistoryDetail | undefined>;
-  savedVersionsForComparison(target: CommentHistoryTarget): Promise<SavedTextVersion[]>;
+  savedVersionsForComparison(target: CommentHistoryTarget): Promise<SavedLineageVersion[]>;
   openCommentLink(url: string): Promise<void>;
   onUpdate(cb: (msg: WatchUpdateMessage) => void): void;
   onReceipts(cb: (msg: WatchReceiptsMessage) => void): void;
@@ -358,7 +369,7 @@ export interface AppApi {
   pages: PagesApi;
   /** ファイルを開くダイアログ。キャンセルなら null */
   openDocxDialog(): Promise<OpenedFile | null>;
-  chooseSavedVersions(): Promise<SavedTextVersion[] | null>;
+  chooseSavedVersions(): Promise<SavedLineageVersion[] | null>;
   /** パスのファイルを読む (ドロップされたファイルなど) */
   readDocx(path: string): Promise<OpenedFile>;
   /** OneDrive / SharePoint の URL (または最近開いた文書) を開く。必要ならブラウザでサインインする */
