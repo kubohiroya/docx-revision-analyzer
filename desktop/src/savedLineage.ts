@@ -1,5 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
+import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { extractComments, replayCommentEvents, type CommentEvent, type CommentLocations, type DocxComment } from "../../src/lib/docxComments";
 import { readSavedTextVersion, type SavedParagraphRange, type VersionIdentity } from "../../src/lib/lineage";
@@ -7,6 +8,20 @@ import type { WatchArchive } from "../../src/node/docWatcher";
 import { readArchivedSnapshot, type SnapshotEntry } from "../../src/node/snapshotArchive";
 import { commentObservations, commentThreads, observedVersion } from "./commentHistory";
 import type { CommentObservation, SavedLineageVersion, SavedVersionThread } from "./shared";
+
+const versionFiles = new Map<string, () => Promise<string>>();
+
+function rememberVersionFile(resolve: () => Promise<string>): string {
+  const id = randomUUID();
+  versionFiles.set(id, resolve);
+  return id;
+}
+
+export async function savedVersionFile(id: unknown): Promise<string> {
+  const resolve = typeof id === "string" ? versionFiles.get(id) : undefined;
+  if (!resolve) throw new Error("The saved version is no longer available.");
+  return resolve();
+}
 
 function makeThreads(
   comments: DocxComment[],
@@ -62,7 +77,7 @@ async function readVersion(
   }
 }
 
-export async function readSelectedSavedVersions(files: string[]): Promise<SavedLineageVersion[]> {
+export async function readSelectedSavedVersions(files: string[], allowOpen = false): Promise<SavedLineageVersion[]> {
   const result: SavedLineageVersion[] = [];
   for (const file of files) {
     const stat = await fs.stat(file).catch(() => undefined);
@@ -72,11 +87,17 @@ export async function readSelectedSavedVersions(files: string[]): Promise<SavedL
     const fileCreatedAt = stat && stat.birthtimeMs > 0 ? stat.birthtime.toISOString() : undefined;
     try {
       const bytes = await fs.readFile(file);
-      const version = await readVersion(bytes, {
-        ...identity,
-        sha256: createHash("sha256").update(bytes).digest("hex"),
-      });
-      result.push({ ...version, fileCreatedAt });
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      const version = await readVersion(bytes, { ...identity, sha256 });
+      const openId = allowOpen && /\.docx$/iu.test(file) ? rememberVersionFile(async () => {
+        const actual = await fs.realpath(file);
+        if (!/\.docx$/iu.test(actual) || !(await fs.stat(actual)).isFile() ||
+            createHash("sha256").update(await fs.readFile(actual)).digest("hex") !== sha256) {
+          throw new Error("The DOCX has changed since it was compared. Load the versions again.");
+        }
+        return actual;
+      }) : undefined;
+      result.push({ ...version, fileCreatedAt, openId });
     } catch {
       result.push({ ...identity, fileCreatedAt, fileSize: stat?.size, unavailable: true, threads: [] });
     }
@@ -84,7 +105,7 @@ export async function readSelectedSavedVersions(files: string[]): Promise<SavedL
   return result;
 }
 
-export async function readSavedVersionArchive(archive: WatchArchive): Promise<SavedLineageVersion[]> {
+export async function readSavedVersionArchive(archive: WatchArchive, allowOpen = false): Promise<SavedLineageVersion[]> {
   const versions = archive.versions().slice().sort((a, b) => a.n - b.n);
   const events = archive.readEvents();
   const observations = commentObservations(events, versions);
@@ -103,7 +124,20 @@ export async function readSavedVersionArchive(archive: WatchArchive): Promise<Sa
       gapBefore: resumed.has(entry.n) || Boolean(previous && entry.n !== previous.n + 1),
     };
     try {
-      result.push(await readVersion(await readArchivedSnapshot(archive.dir, entry), identity, observations));
+      const version = await readVersion(await readArchivedSnapshot(archive.dir, entry), identity, observations);
+      const openId = allowOpen ? rememberVersionFile(async () => {
+        const bytes = await readArchivedSnapshot(archive.dir, entry);
+        const folder = await fs.mkdtemp(path.join(tmpdir(), "dra-saved-version-"));
+        const copy = path.join(folder, entry.file);
+        try {
+          await fs.writeFile(copy, bytes, { flag: "wx", mode: 0o400 });
+          return copy;
+        } catch (error) {
+          await fs.rm(folder, { recursive: true, force: true });
+          throw error;
+        }
+      }) : undefined;
+      result.push({ ...version, openId });
     } catch {
       const comments = recordedCommentsAt(events, versions, entry.n);
       result.push({ ...identity, unavailable: true, threads: makeThreads(comments, identity, observations) });

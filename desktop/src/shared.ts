@@ -345,6 +345,7 @@ export type SavedLineageVersion = SavedTextVersion & {
   commentsUnavailable?: boolean;
   fileCreatedAt?: string;
   fileSize?: number;
+  openId?: string;
 };
 
 export interface WatchApi {
@@ -372,6 +373,7 @@ export interface AppApi {
   /** ファイルを開くダイアログ。キャンセルなら null */
   openDocxDialog(): Promise<OpenedFile | null>;
   chooseSavedVersions(): Promise<SavedLineageVersion[] | null>;
+  openSavedVersion(id: string): Promise<void>;
   /** パスのファイルを読む (ドロップされたファイルなど) */
   readDocx(path: string): Promise<OpenedFile>;
   /** OneDrive / SharePoint の URL (または最近開いた文書) を開く。必要ならブラウザでサインインする */

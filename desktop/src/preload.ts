@@ -61,6 +61,7 @@ const api: AppApi = {
   },
   openDocxDialog: () => ipcRenderer.invoke("open-docx-dialog"),
   chooseSavedVersions: () => ipcRenderer.invoke("choose-saved-versions"),
+  openSavedVersion: (id) => ipcRenderer.invoke("open-saved-version", id),
   readDocx: (p) => ipcRenderer.invoke("read-docx", p),
   pathForFile: (file) => webUtils.getPathForFile(file),
   inspectPath: (p) => ipcRenderer.invoke("inspect-path", p),

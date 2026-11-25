@@ -222,7 +222,7 @@ export function registerWatchIpc(d: WatchDeps): void {
   ipcMain.handle("watch:compare-saved-versions", (_e, file: CommentHistoryTarget) => {
     if (d.loadSettings().lineagePreview !== true) return [];
     const archive = archiveFor(file);
-    return archive ? readSavedVersionArchive(archive) : [];
+    return archive ? readSavedVersionArchive(archive, true) : [];
   });
   ipcMain.handle("watch:open-comment-link", async (_e, value: unknown) => {
     const url = commentLinkUrl(value);

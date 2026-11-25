@@ -21,6 +21,8 @@ export interface SavedReportScope {
   includeDeleted: boolean;
   includeLinks: boolean;
   includeUnlocated: boolean;
+  includeRelatedSources?: boolean;
+  review?: boolean;
 }
 
 export interface SavedReportCandidate {
@@ -138,6 +140,7 @@ export class SavedReportAnalysis {
   private adjacentComments: LineageComments;
   private candidates = new Map<string, { pair: VersionComparison; changes: SavedReportCandidate[] }>();
   private sources = new Map<number, SourceText>();
+  private counts = new Map<AppLang, Array<{ characters: number; words: number } | undefined>>();
 
   constructor(
     private versions: readonly SavedLineageVersion[],
@@ -182,6 +185,32 @@ export class SavedReportAnalysis {
     return [heading, sample.slice(0, 75).join("") + (sample.length > 75 ? "…" : "")].filter(Boolean).join(" · ");
   }
 
+  private draft(index: number, lang: AppLang, labels: readonly string[], unlocated: number[] = []): ReportDraft {
+    if (!this.counts.has(lang)) {
+      const segmenter = new Intl.Segmenter(lang, { granularity: "word" });
+      this.counts.set(lang, this.versions.map((version) => {
+        if (version.unavailable) return;
+        let characters = 0;
+        let words = 0;
+        for (const paragraph of version.paragraphs) {
+          characters += Array.from(paragraph.text).length;
+          for (const segment of segmenter.segment(paragraph.text)) if (segment.isWordLike) words++;
+        }
+        return { characters, words };
+      }));
+    }
+    const version = this.versions[index];
+    return {
+      label: labels[index], filename: version.label, createdAt: version.fileCreatedAt, archivedAt: version.archivedAt,
+      modifiedAt: version.sourceModified, size: version.fileSize, ...this.counts.get(lang)?.[index],
+      unavailable: Boolean(version.unavailable), unlocated,
+    };
+  }
+
+  drafts(lang: AppLang, labels: readonly string[]): ReportDraft[] {
+    return this.versions.map((_, index) => this.draft(index, lang, labels));
+  }
+
   private analyze(before: number, after: number) {
     const key = `${before}:${after}`;
     const stored = this.candidates.get(key);
@@ -216,8 +245,8 @@ export class SavedReportAnalysis {
     const ids = new Map(selected.map((version, index) => [version, index]));
     const beforeInitial = ids.get(scope.initial[0]);
     const afterInitial = ids.get(scope.initial[1]);
-    const initial: [number, number] = beforeInitial === undefined || afterInitial === undefined
-      ? [0, 1] : [beforeInitial, afterInitial];
+    const initial = beforeInitial === undefined || afterInitial === undefined
+      ? selected.slice(0, 2).map((_, index) => index) : [beforeInitial, afterInitial];
     const clips: ReportText[] = [];
     const stored = new Map<number, Map<string, StoredClip>>();
     const threads: ReportThread[] = [];
@@ -277,6 +306,7 @@ export class SavedReportAnalysis {
         const within = new Set([before, after]);
         const omitPast = link.kind === "reappeared" && link.from.some((r) => !ids.has(r.version));
         const item: ReportChange = {
+          ...(scope.review ? { reviewId: candidate.id } : {}),
           kind: omitPast ? "added" : candidate.kind,
           reordered: Boolean(link.reordered), alignmentPartial: Boolean(link.alignmentPartial),
           evidence: link.evidence.filter((e) => !omitPast || e !== "past"),
@@ -292,7 +322,7 @@ export class SavedReportAnalysis {
     });
 
     const canShareThread = ({ version, thread }: VersionThreadOccurrence) =>
-      ids.has(version) && (scope.includeDeleted || !this.adjacentComments.absentInLatest({ version, thread }));
+      (ids.has(version) || scope.includeRelatedSources) && (scope.includeDeleted || !this.adjacentComments.absentInLatest({ version, thread }));
 
     const threadId = ({ version, thread }: VersionThreadOccurrence): number => {
       const existing = threadIds.get(thread);
@@ -302,7 +332,13 @@ export class SavedReportAnalysis {
         const interval = source.interval(range);
         if (!interval) return;
         const [start, end] = interval;
-        const clip = [...(stored.get(version)?.values() ?? [])].find((part) => part.start <= start && part.end >= end);
+        let clip = [...(stored.get(version)?.values() ?? [])].find((part) => part.start <= start && part.end >= end);
+        if (!clip && includeText && scope.includeRelatedSources) {
+          const focus = start + Math.floor((end - start) / 2);
+          const context = source.context(focus, REPORT_LIMITS[scope.range]);
+          const [left, right] = context.bounds;
+          if (left <= start && right >= end) clip = { start: left, end: right, number: clips.push(context.text) - 1 };
+        }
         if (!clip) return;
         return {
           paragraph: range.paragraph + 1, heading: source.heading(range.paragraph),
@@ -316,9 +352,12 @@ export class SavedReportAnalysis {
         return { author: comment.author && share(comment.author), date: date && Number.isFinite(Date.parse(date)) ? date : undefined,
           text: share(comment.text), tags, links: scope.includeLinks ? links : undefined };
       });
+      const draft = ids.get(version);
       const id = threads.push({
-        draft: ids.get(version)!, resolved: Boolean(thread.detail.comments[0]?.done),
-        absent: latest !== undefined && latest > version && !latestKeys.has(thread.key),
+        draft, sourceLabel: draft === undefined ? labels[version] : undefined,
+        ...(scope.review ? { reviewVersion: version } : {}), resolved: Boolean(thread.detail.comments[0]?.done),
+        absent: scope.includeRelatedSources ? this.adjacentComments.absentInLatest({ version, thread })
+          : latest !== undefined && latest > version && !latestKeys.has(thread.key),
         unavailable: thread.detail.versionUnavailable, messages,
         original: originals.length && originals.every((range) => range !== undefined) ? originals : undefined,
       }) - 1;
@@ -331,8 +370,7 @@ export class SavedReportAnalysis {
       const item = this.versions[version];
       const unlocated = scope.includeComments && scope.includeUnlocated ? item.threads.filter((thread) => !thread.ranges.length)
         .map((thread) => ({ version, thread })).filter(canShareThread).map(threadId) : [];
-      return { label: labels[version], archivedAt: item.archivedAt, modifiedAt: item.archivedAt ? undefined : item.sourceModified,
-        unavailable: Boolean(item.unavailable), unlocated };
+      return this.draft(version, lang, labels, unlocated);
     });
     const title = savedReportTitle(selected.map((index) => {
       const version = this.versions[index];
