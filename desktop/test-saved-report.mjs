@@ -67,7 +67,7 @@ try {
     stdin: { resolveDir: here, contents: `
       export { SavedReportAnalysis, savedReportTitle } from "./src/savedReport";
       export { savedReportHtml } from "./src/renderer/savedReportHtml";
-      export { compareSavedVersionPath, inferSavedVersionPaths } from "./src/versionReviewPath";
+      export { compareSavedVersionPath, inferSavedVersionTimeline } from "./src/versionReviewPath";
       export { addSavedVersionComment, readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile } from "./src/savedLineage";
       export { compareSavedVersions } from "../src/lib/lineage";
       export { extractComments, diffComments } from "../src/lib/docxComments";
@@ -76,7 +76,7 @@ try {
     ` },
     bundle: true, platform: "node", format: "cjs", outfile: bundle,
   });
-  const { SavedReportAnalysis, savedReportTitle, savedReportHtml, compareSavedVersionPath, inferSavedVersionPaths,
+  const { SavedReportAnalysis, savedReportTitle, savedReportHtml, compareSavedVersionPath, inferSavedVersionTimeline,
     readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile,
     addSavedVersionComment, compareSavedVersions, extractComments, diffComments, WatchArchive, replaceWithBackup } = createRequire(import.meta.url)(bundle);
   const meeting = "説明会は五号館で開催します。担当部署は回答の根拠を当日までにそろえます。";
@@ -109,10 +109,10 @@ try {
     branchVersion("B2.docx", 4, [meeting.replace("五号館", "七号館"), ...originalBody.slice(1), ...branchB]),
     branchVersion("unrelated.docx", 5, ["配車担当者は各車両の燃料を確認し、整備先を一覧に記録します。"]),
   ];
-  const allPaths = inferSavedVersionPaths(branchVersions, [0, 1, 2, 3, 4, 5]);
-  assert(allPaths.some(path => path.join(":") === "0:1:3"));
-  assert(allPaths.some(path => path.join(":") === "2:4"), JSON.stringify(allPaths));
-  assert(!inferSavedVersionPaths(branchVersions, [0, 2, 3, 4, 5]).some(path => path.join(":") === "0:1:3"));
+  const { paths: allPaths } = inferSavedVersionTimeline(branchVersions, [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual(allPaths.get("0:1:3"), [0, 1, 3]);
+  assert.deepEqual(allPaths.get("2:4"), [2, 4]);
+  assert(!inferSavedVersionTimeline(branchVersions, [0, 2, 3, 4, 5]).paths.has("0:1:3"));
 
   const exportBranch = (analysis, pair, labels, extra = {}) => analysis.project({
     versions: [...pair], initial: pair, onlyPairs: [pair], range: 2,

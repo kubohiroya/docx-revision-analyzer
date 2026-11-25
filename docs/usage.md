@@ -643,9 +643,16 @@ other authors' posts and highlight the latest post when it is yours. **Go to the
 app. **Open original file** uses the system's associated application and opens a read-only copy for an archived version.
 
 **Compare along a branch (development preview).** In Settings, enable **Compare along inferred branches (preview)** to
-show **Path to compare** in **Review changes and comments**. Choose a path inferred from the versions in scope.
-The change list, comment history and deletion status, and HTML export use the displayed path. If that path becomes
-unavailable, choose a path again before opening the preview.
+show **Version branches** in **Review changes and comments**. The chart places the checked versions in observation order
+from left to right. It prefers archive time for archived copies and modification time for local files, and groups undated
+versions under **Time unknown**. Solid lines show inferred relations. Dashed lines show some of the candidates on hold.
+Select a version's dot to see the timestamp source, the reason for holding a decision, or the matching paragraphs under **Evidence**.
+
+Select a dot at the end of a solid line or use **Path to compare** to highlight the branch and its ancestors. Use a button
+on the highlighted line or **Interval** to limit the change list and the HTML export to two adjacent versions. Comment
+inheritance and deletion status use the entire branch path. Use Tab to reach a button or selector and Enter or Space
+to activate a button. If a change to the versions in scope makes the selected path unavailable, choose a path again before
+opening the preview.
 
 **Chart and flow for a version.** In **Versions in scope**, select a thumbnail in the **chart** column to open that
 file's chart, or select the filename to open its flow. Click a row to add or remove that version from the comparison.

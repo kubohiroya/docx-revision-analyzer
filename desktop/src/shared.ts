@@ -356,6 +356,8 @@ export type SavedLineageVersion = SavedTextVersion & {
   fileSize?: number;
   revisionCount?: number;
   originalTextCounts?: Record<AppLang, VersionTextCounts>;
+  /** Stable tie-breaker for files with the same name, timestamps, and bytes. */
+  sourcePathHash?: string;
   openId?: string;
 };
 

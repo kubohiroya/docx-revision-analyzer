@@ -48,10 +48,11 @@ try {
     stdin: { resolveDir: here, contents: `
       export { inferVersionBranches } from "../src/lib/lineageBranches";
       export { readSelectedSavedVersions } from "./src/savedLineage";
+      export { layoutSavedVersionTimeline } from "./src/renderer/savedReportTimeline";
     ` },
     bundle: true, platform: "node", format: "cjs", outfile: implementation,
   });
-  const { inferVersionBranches, readSelectedSavedVersions } = require(implementation);
+  const { inferVersionBranches, readSelectedSavedVersions, layoutSavedVersionTimeline } = require(implementation);
   const nodes = versions => new Map(inferVersionBranches(versions).map(node => [node.id, node]));
   const inferred = parentId => ({ status: "inferred", parentId });
   const held = reason => ({ status: "held", reason });
@@ -87,6 +88,40 @@ try {
   assert.equal(interleaved.get("B1").candidates[0].parentId, "root");
   assert.deepEqual(interleaved.get("unrelated").decision, held("only-common-body-text"));
   assert.equal(interleaved.get("unrelated").candidates.length, 0);
+
+  const aLater = [
+    "野外調査の結果は地域別に整理し、現地の担当者に最初の集計を共有します。",
+    "試料の番号はラベルに書き、確認担当者が一覧を見て照合します。",
+  ];
+  const bLater = [
+    "オンライン配信の開始時刻は設定表に記載し、映像を切り替える順序を決めます。",
+    "録音の説明は各担当者が確認し、公開前に字幕と対応づけます。",
+  ];
+  const siblings = [
+    draft("fork", 0, [...a, ...b]),
+    draft("A1", 1, [...a, ...aLater]),
+    draft("B1", 2, [...b, ...bLater]),
+    draft("A2", 3, [...a, ...aLater, root[0]]),
+    draft("B2", 4, [...b, ...bLater, root[1]]),
+    draft("overlap", 4, unrelated),
+    draft("unknown", undefined, [root[2]]),
+  ];
+  const layout = versions => layoutSavedVersionTimeline(inferVersionBranches(versions));
+  const fork = layout(siblings);
+  const positioned = new Map(fork.nodes.map(node => [node.entry.id, node]));
+  assert.deepEqual(fork, layout([...siblings].reverse()));
+  assert.deepEqual(fork.edges.filter(edge => edge.inferred).map(edge => [edge.from.entry.id, edge.to.entry.id]),
+    [["fork", "A1"], ["fork", "B1"], ["A1", "A2"], ["B1", "B2"]]);
+  assert.equal(positioned.get("A1").lane, positioned.get("A2").lane);
+  assert.equal(positioned.get("B1").lane, positioned.get("B2").lane);
+  assert.notEqual(positioned.get("A2").lane, positioned.get("B2").lane);
+  assert.equal(positioned.get("B2").column, positioned.get("overlap").column);
+  assert.equal(positioned.get("unknown").column, fork.times.length - 1);
+  assert.equal(fork.times.at(-1), undefined);
+  assert(fork.edges.every(edge => edge.from.column < edge.to.column));
+  assert(!fork.edges.some(edge => ["unknown", "overlap"].includes(edge.to.entry.id)));
+  const dashed = layout(versions).edges.find(edge => edge.to.entry.id === "B1");
+  assert(dashed && !dashed.inferred && dashed.from.entry.id === "root");
 
   const withoutOutgroup = nodes(versions.slice(0, -1));
   assert.deepEqual(withoutOutgroup.get("A2").decision, inferred("A1"));
@@ -160,11 +195,22 @@ try {
   assert.deepEqual(partial.decision, held("insufficient-coverage"));
   const noMatch = draft("disconnected", 2, unrelated);
   assert.deepEqual(nodes([previous, noMatch]).get("disconnected").decision, held("no-shared-body-text"));
+  const conservative = [
+    [draft("short", 2, [a[0], b[0]]), "insufficient-distinctive-text"],
+    [draft("paraphrase", 2, [
+      "地域別の調査票に切り替え、自然科学を担当する部署が野外観察を引き受けます。",
+      "水温と潮の流れに応じて採取条件を選び、担当者二名の記録を突き合わせます。",
+    ]), "no-shared-body-text"],
+  ];
+  for (const [edition, reason] of conservative) {
+    assert.deepEqual(nodes([previous, edition]).get(edition.id).decision, held(reason));
+    assert(!layout([previous, edition]).edges.some(edge => edge.inferred));
+  }
   assert.deepEqual(nodes([previous, { id: "unread", label: "unread.docx", source: "selected", unavailable: true }])
     .get("unread").decision, held("unavailable"));
   assert.throws(() => inferVersionBranches([previous, previous]), /Version IDs must be unique/);
   assert.deepEqual(inferVersionBranches([]), []);
-  console.log("ok inferred interleaved branches from DOCX, evidence ranges, stable order, date uncertainty, duplicates and competing sources");
+  console.log("ok inferred interleaved branches from DOCX, diagram lanes, stable order, uncertain dates, duplicates and conservative holds");
 } finally {
   await fs.rm(temp, { recursive: true, force: true });
 }

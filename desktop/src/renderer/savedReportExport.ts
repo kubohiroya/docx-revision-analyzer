@@ -1,10 +1,11 @@
 import { DEFAULT_REPORT_RANGE, REPORT_LIMITS, type SavedVersionReport } from "../reportData";
 import { SavedReportAnalysis, type SavedReportScope } from "../savedReport";
 import type { AppLang, SavedLineageVersion } from "../shared";
-import { compareSavedVersionPath, inferSavedVersionPaths } from "../versionReviewPath";
+import { compareSavedVersionPath, inferSavedVersionTimeline } from "../versionReviewPath";
 import { el, modal } from "./extensions";
 import { savedReportHtml } from "./savedReportHtml";
 import { loadSavedVersionChart, savedReportFigures, type FigureKind, type FigureSettings } from "./savedReportFigures";
+import { savedReportTimeline } from "./savedReportTimeline";
 import { renderSavedVersionReport, type ReportViewState, type ReviewCommentDraft } from "./savedReportView";
 
 const LABELS = {
@@ -15,6 +16,7 @@ const LABELS = {
     previewHint: "This is what will be saved. Open Text range to inspect the full exported excerpt.",
     commentSaved: (backup: string) => `Word comment saved. Copy from before writing: ${backup}`,
     path: "Path to compare", allPaths: "All versions in scope (by date)",
+    interval: "Interval", allIntervals: "Entire path",
     noPaths: "No branch paths could be inferred from the selected versions.",
     pathUnavailable: "The selected path is unavailable. Choose another path to compare.",
   },
@@ -25,6 +27,7 @@ const LABELS = {
     previewHint: "保存する内容のプレビューです。「表示範囲」を開くと、収録する原文の全範囲を確認できます。",
     commentSaved: (backup: string) => `Wordコメントを追記しました。追記前のバックアップ: ${backup}`,
     path: "比較する経路", allPaths: "対象とする版すべて（時刻順）",
+    interval: "比較する区間", allIntervals: "経路全体",
     noPaths: "対象とする版から経路を推定できませんでした。",
     pathUnavailable: "選択した経路を利用できません。比較する経路を選び直してください。",
   },
@@ -40,6 +43,13 @@ export async function showSavedReportExport(
   const s = LABELS[lang];
   const canWrite = await window.app.reviewCommentWriteEnabled?.().catch(() => false) === true;
   const currentVersions = [...versions];
+  const sameNames = new Set<string>();
+  const seenNames = new Set<string>();
+  for (const { source, label } of versions) {
+    if (source !== "selected") continue;
+    if (seenNames.has(label)) sameNames.add(label);
+    seenNames.add(label);
+  }
   const authors = (indices: readonly number[]) => [...new Set(indices.flatMap(index =>
     currentVersions[index].threads.flatMap(thread => thread.detail.comments
       .flatMap(comment => comment.author?.trim() ? [comment.author.trim()] : []))))].sort(new Intl.Collator(lang).compare);
@@ -48,6 +58,7 @@ export async function showSavedReportExport(
   let included: IncludedChanges = new Map();
   pathSelections.set("", included);
   let requestedPath = "";
+  let intervalEnd: number | undefined;
   let paths = new Map<string, number[]>();
   let pathIndices: readonly number[] | undefined;
   let pathAnalysis: SavedReportAnalysis | undefined;
@@ -88,20 +99,45 @@ export async function showSavedReportExport(
     const pathSelect = el("select");
     const pathLabel = el("label", s.path);
     pathLabel.append(pathSelect);
+    const intervalSelect = el("select");
+    const intervalLabel = el("label", s.interval);
+    intervalLabel.append(intervalSelect);
+    const controls = el("div", undefined, "report-branch-selectors");
+    controls.append(pathLabel, intervalLabel);
     const pathDescription = el("p", undefined, "hint");
     pathDescription.setAttribute("role", "status");
-    pathBox.append(pathLabel, pathDescription);
-    pathSelect.onchange = () => {
+    const versionName = (index: number) => {
+      const { source, label } = currentVersions[index];
+      if (source === "archive") return labels[index];
+      return sameNames.has(label) ? `${index + 1}. ${label}` : label;
+    };
+    const timeline = savedReportTimeline(lang, currentVersions, versionName, choosePath, (after) => {
+      const end = analysisIndex(after);
+      if (end > 0) chooseInterval(intervalEnd === end ? undefined : end);
+    });
+    pathBox.append(timeline.element, controls, pathDescription);
+    pathSelect.onchange = () => choosePath(pathSelect.value);
+    intervalSelect.onchange = () => chooseInterval(intervalSelect.value ? Number(intervalSelect.value) : undefined);
+
+    function chooseInterval(end: number | undefined): void {
+      if (intervalEnd === end) return;
+      intervalEnd = end;
+      intervalSelect.value = end === undefined ? "" : String(end);
+      reviewState.selected = undefined;
+      showReview();
+    }
+
+    function choosePath(key: string): void {
+      if (key === requestedPath) return;
       try {
-        applyPath(pathSelect.value);
+        applyPath(key);
         reviewState.selected = undefined;
         showReview();
       } catch (error) {
         pathSelect.value = requestedPath;
         status.textContent = `${s.failed} · ${String(error)}`;
       }
-      pathSelect.focus({ preventScroll: true });
-    };
+    }
     const hint = el("p", s.previewHint, "hint");
     const action = (label: string, click: () => void, css?: string) => {
       const node = el("button", label, css);
@@ -154,23 +190,31 @@ export async function showSavedReportExport(
       const next = key ? paths.get(key) ?? [] : undefined;
       if (!force && key === requestedPath && next?.join(":") === pathIndices?.join(":")) return;
       const nextAnalysis = next && compareSavedVersionPath(currentVersions, next, analysis.level);
+      if (key !== requestedPath) intervalEnd = undefined;
       requestedPath = key;
       pathIndices = next;
       pathAnalysis = nextAnalysis;
       included = pathSelections.get(key) ?? new Map();
       pathSelections.set(key, included);
+      const path = next ?? [];
+      intervalSelect.replaceChildren(option("", s.allIntervals), ...path.slice(1).map((index, before) =>
+        option(String(before + 1), `${versionName(path[before])} → ${versionName(index)}`)));
+      intervalSelect.value = intervalEnd === undefined ? "" : String(intervalEnd);
+    }
+
+    function option(value: string, label: string) {
+      const node = el("option", label);
+      node.value = value;
+      return node;
     }
 
     function refreshPaths(): void {
       if (!branchTimelineEnabled) return;
-      paths = new Map(inferSavedVersionPaths(currentVersions, targets).map(path => [path.join(":"), path]));
+      const graph = inferSavedVersionTimeline(currentVersions, targets);
+      paths = graph.paths;
       applyPath(requestedPath);
-      const option = (value: string, label: string) => {
-        const node = el("option", label);
-        node.value = value;
-        return node;
-      };
-      const choices = [...paths].map(([key, path]) => option(key, `${labels[path[0]]} → ${labels[path[path.length - 1]]}`));
+      timeline.refresh(graph.entries, paths);
+      const choices = [...paths].map(([key, path]) => option(key, `${versionName(path[0])} → ${versionName(path[path.length - 1])}`));
       if (requestedPath && !paths.has(requestedPath)) choices.push(option(requestedPath, s.pathUnavailable));
       pathSelect.replaceChildren(option("", s.allPaths), ...choices);
       pathSelect.value = requestedPath;
@@ -178,7 +222,7 @@ export async function showSavedReportExport(
     }
 
     function updatePathDescription(): void {
-      pathDescription.textContent = pathIndices?.length ? pathIndices.map(index => labels[index]).join(" → ")
+      pathDescription.textContent = pathIndices?.length ? pathIndices.map(versionName).join(" → ")
         : requestedPath ? s.pathUnavailable : paths.size ? "" : s.noPaths;
       pathDescription.hidden = !pathDescription.textContent;
     }
@@ -188,8 +232,14 @@ export async function showSavedReportExport(
     }
 
     function timelinePairs(): [number, number][] {
+      const interval = activeInterval();
+      if (interval) return [interval];
       const indices = activeTargets();
       return indices.slice(1).map((after, index) => [indices[index], after]);
+    }
+
+    function activeInterval(): [number, number] | undefined {
+      if (intervalEnd && pathIndices && intervalEnd < pathIndices.length) return [intervalEnd - 1, intervalEnd];
     }
 
     function exportSelection() {
@@ -202,8 +252,8 @@ export async function showSavedReportExport(
       const selection = review ? undefined : exportSelection();
       const indices = activeTargets();
       const includePath = review || (pathIndices !== undefined && !selection?.size);
-      const versions = includePath ? indices : selection?.size
-        ? [...new Set([...selection.values()].flat())].sort((a, b) => a - b) : endpoints(indices);
+      const versions = activeInterval() ?? (includePath ? indices : selection?.size
+        ? [...new Set([...selection.values()].flat())].sort((a, b) => a - b) : endpoints(indices));
       const selectedEdges = new Set([...(selection?.values() ?? [])].map(pair => pair.join(":")));
       const onlyPairs = includePath ? timelinePairs() : timelinePairs().filter(pair => selectedEdges.has(pair.join(":")));
       if (!review && !pathIndices && !onlyPairs.length && versions.length === 2) onlyPairs.push([versions[0], versions[1]]);
@@ -225,13 +275,17 @@ export async function showSavedReportExport(
       const indices = activeTargets();
       previewButton.disabled = indices.length < 2 || saving || writing;
       pathBox.hidden = !branchTimelineEnabled || Boolean(preview);
+      pathSelect.value = requestedPath;
       pathSelect.disabled = saving || writing || (!paths.size && !requestedPath);
+      intervalLabel.hidden = !pathIndices?.length;
+      intervalSelect.disabled = saving || writing;
+      if (branchTimelineEnabled) timeline.setDisabled(saving || writing);
       reviewButton.disabled = saving;
       save.hidden = hint.hidden = !preview;
       save.disabled = saving;
       const selection = exportSelection();
       const countVersions = selection.size ? new Set([...selection.values()].flat()).size
-        : pathIndices ? indices.length : endpoints(indices).length;
+        : activeInterval() ? 2 : pathIndices ? indices.length : endpoints(indices).length;
       count.textContent = s.exportCount(countVersions, selection.size);
     }
 
@@ -251,6 +305,10 @@ export async function showSavedReportExport(
       }
       const sourceIndices = configuration.versions.map(originalIndex);
       updatePathDescription();
+      if (branchTimelineEnabled) {
+        const interval = activeInterval();
+        timeline.select(pathIndices, interval && [originalIndex(interval[0]), originalIndex(interval[1])]);
+      }
       updateMode();
       return { report, sourceIndices, authors: authors(pathIndices ?? currentVersions.map((_, index) => index)) };
     }
@@ -329,7 +387,8 @@ export async function showSavedReportExport(
           return;
         }
         backup = result.backupPath;
-        const version = { ...result.version, label: currentVersions[index].label };
+        const { label, sourcePathHash } = currentVersions[index];
+        const version = { ...result.version, label, sourcePathHash };
         currentVersions[index] = version;
         analysis = analysis.withVersions(currentVersions);
         applyPath(requestedPath, true);
