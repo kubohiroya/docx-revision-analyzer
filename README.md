@@ -28,6 +28,10 @@ The screenshot shows the development build.
 
 [Step-by-step instructions with screenshots (usage guide)](docs/usage.md#export-a-saved-version-comparison-as-html)
 
+In the development build, choose files or folders in **Saved versions** to open **Review changes and comments** with
+**Version branches** visible by default. Choose a branch and interval to narrow the change list and HTML export.
+[Using the saved-version branch timeline](docs/usage.md#saved-version-branch-timeline)
+
 ## Download the CLI (v2.0.0)
 
 For command-line use, choose **one** ZIP for your OS and CPU. Each contains one executable with all five subcommands; no Node.js installation is needed.
