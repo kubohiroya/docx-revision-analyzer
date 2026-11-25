@@ -37,6 +37,7 @@ export function onWatchVersion(cb: () => void): void {
 }
 
 interface WatchDeps {
+  versionReviewEnabled(): boolean;
   window: () => BrowserWindow | undefined;
   microsoft: () => MicrosoftClient | undefined;
   loadSettings: () => AppSettings;
@@ -220,7 +221,7 @@ export function registerWatchIpc(d: WatchDeps): void {
     return archive && typeof key === "string" ? readCommentHistory(archive, key) : undefined;
   });
   ipcMain.handle("watch:compare-saved-versions", (_e, file: CommentHistoryTarget) => {
-    if (d.loadSettings().lineagePreview !== true) return [];
+    if (!d.versionReviewEnabled()) return [];
     const archive = archiveFor(file);
     return archive ? readSavedVersionArchive(archive, true) : [];
   });

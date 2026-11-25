@@ -66,12 +66,12 @@ interface Row {
 }
 
 /** 1つの docx からチャートとフローの SVG を作る */
-async function renderFigures(
+export async function renderDocumentFigures(
   bytes: Uint8Array,
   name: string,
-  mtime: string,
-  ctx: BatchContext,
-  webUrl?: string
+  mtime: string | undefined,
+  ctx: Pick<BatchContext, "analysis" | "rules">,
+  { webUrl, chartThumbnail = false }: { webUrl?: string; chartThumbnail?: boolean } = {},
 ): Promise<Omit<Row, "path">> {
   // OneDrive / SharePoint の文書なら、見出しのファイル名を元の文書へのリンクにする
   const titleLink = webUrl ? { text: name, href: webUrl } : undefined;
@@ -86,12 +86,13 @@ async function renderFigures(
   const cls = await runClassifiers([...defaultClassifiers(rules), ...extra], actx);
   applyClassification(data.events, cls);
   const bucket: BucketSpec = /^\d+$/.test(a.bucket) ? parseInt(a.bucket, 10) : (a.bucket as BucketSpec);
-  const when = new Date(mtime);
+  const title = (prefix: string) => mtime === undefined ? prefix : buildDefaultTitle(prefix, name, new Date(mtime));
   const note = ctx.rules() ? libT("rulesNote", rules.ruleSet) : undefined;
-  const chartTitle = buildDefaultTitle(libT("chartTitlePrefix"), name, when);
+  const chartTitle = title(libT("chartTitlePrefix"));
   const chart = a.chartSplit
     ? renderSessionedRevisionChart(splitIntoSessions(data.events, a.gapThresholdHours), data.baselineCharCount, bucket, {
         title: chartTitle,
+        plotOnly: chartThumbnail,
         height: 550,
         gapThresholdHours: a.gapThresholdHours,
         note,
@@ -103,13 +104,17 @@ async function renderFigures(
         width: 1100,
         height: 550,
         title: chartTitle,
+        plotOnly: chartThumbnail,
         note,
         categories: cls.categories,
         titleLink,
       });
-  const flow = buildFlow(model, { gapThresholdHours: a.gapThresholdHours, bulkChars: a.bulkChars, highlightOf: highlightCategoryMap(cls) });
+  if (chartThumbnail) return { ok: true, chart };
+  const flow = buildFlow(model, {
+    gapThresholdHours: a.gapThresholdHours, bulkChars: a.bulkChars, highlightOf: highlightCategoryMap(cls),
+  });
   const flowSvg = flow.sessions.length
-    ? renderFlowSvg(flow, { title: buildDefaultTitle(libT("flowTitlePrefix"), name, when), note, categories: cls.categories, titleLink })
+    ? renderFlowSvg(flow, { title: title(libT("flowTitlePrefix")), note, categories: cls.categories, titleLink })
     : undefined;
   const tamper = await checkTamperEvidence(bytes);
   const tampered = tamper.evidence.length > 0;
@@ -279,7 +284,7 @@ async function runBatch(folder: BatchFolder, outputRoot: string, ctx: BatchConte
     ctx.status(`${S.batchProgress(i + 1, folder.files.length)} ${f.path}`);
     try {
       const bytes = await window.app.readBatchFile(f.ref);
-      const r = await renderFigures(bytes, f.name, f.mtime, ctx, f.webUrl);
+      const r = await renderDocumentFigures(bytes, f.name, f.mtime, ctx, { webUrl: f.webUrl });
       const named = { path: f.path, tampered: r.tampered };
       if (r.chart) await window.app.writeOutput(outputRoot, chartFile(named), r.chart);
       if (r.flow) await window.app.writeOutput(outputRoot, flowFile(named), r.flow);

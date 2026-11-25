@@ -141,6 +141,20 @@ function fmt(d: Date | undefined): string | null {
   return d ? d.toISOString() : null;
 }
 
+function documentRevisionMarkup(xml: string | undefined) {
+  const revisions: RevisionAttr[] = [];
+  const rsids = new Set<string>();
+  if (xml) walk(parser.parse(xml) as XmlNode[], revisions, rsids);
+  return { revisions, rsids };
+}
+
+/** Count revision elements in the main Word document, including those without dates. */
+export async function countRecordedRevisions(input: DocxInput): Promise<number | undefined> {
+  const zip = await JSZip.loadAsync(input);
+  const xml = await zip.file("word/document.xml")?.async("string");
+  return xml ? documentRevisionMarkup(xml).revisions.length : undefined;
+}
+
 /** docx のバイト列から、整合性の簡易チェックを行う */
 export async function checkIntegrity(input: DocxInput, opts: { now?: Date } = {}): Promise<IntegrityReport> {
   const now = opts.now ?? new Date();
@@ -152,9 +166,7 @@ export async function checkIntegrity(input: DocxInput, opts: { now?: Date } = {}
     read("docProps/core.xml"),
     read("docProps/app.xml"),
   ]);
-  const revs: RevisionAttr[] = [];
-  const usedRsids = new Set<string>();
-  if (docXml) walk(parser.parse(docXml) as XmlNode[], revs, usedRsids);
+  const { revisions: revs, rsids: usedRsids } = documentRevisionMarkup(docXml);
   const items: IntegrityItem[] = [];
 
   // settings

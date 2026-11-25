@@ -76,9 +76,10 @@ export interface LineageOptions {
 
 export async function readSavedTextVersion(
   input: DocxInput, identity: VersionIdentity, commentRanges?: Map<string, SavedParagraphRange[]>,
+  transformDocumentXml?: (xml: string) => string,
 ): Promise<SavedTextVersion> {
   const rawMarks = commentRanges && new Map<number, LayoutCommentMark[]>();
-  const model = await parseDocxLayout(input, rawMarks);
+  const model = await parseDocxLayout(input, rawMarks, transformDocumentXml);
   const paragraphs: VersionParagraph[] = [];
   const pageBreaks: SavedPageMap["breaks"] = [];
   let pendingBreak = false;

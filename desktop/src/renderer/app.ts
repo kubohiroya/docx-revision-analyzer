@@ -138,6 +138,7 @@ let rules: RuleSet | undefined;
 let rulesError: string | undefined;
 let analysis: Analysis | undefined;
 let tab: Tab = "chart";
+let versionReviewFromInput = false;
 let smokeReported = false;
 let updatesAvailable = false;
 let extList: ExtensionListItem[] = [];
@@ -242,8 +243,12 @@ function applyLang(): void {
 // タブ
 // ---------------------------------------------------------------------------
 
+function versionReviewAvailable(): boolean {
+  return versionReviewFromInput || settings.lineagePreview === true;
+}
+
 function showTab(next: Tab): void {
-  if (next === "lineage" && settings.lineagePreview !== true) next = "settings";
+  if (next === "lineage" && !versionReviewAvailable()) next = "settings";
   tab = next;
   if (next === "settings") {
     void window.app.extensions.list().then((l) => {
@@ -1108,6 +1113,13 @@ async function openPath(p: string): Promise<void> {
   else await openFile(await window.app.readDocx(p));
 }
 
+async function openVersionPaths(paths: string[]): Promise<void> {
+  versionReviewFromInput = true;
+  $("tab-lineage").hidden = false;
+  showTab("lineage");
+  await savedVersionsPane.loadPaths(paths);
+}
+
 const batchCtx: BatchContext = {
   lang: () => lang,
   strings: () => S,
@@ -1358,10 +1370,10 @@ function renderSettings(): void {
   setText("rules-error", rulesError ? S.rulesError(rulesError) : "");
   $<HTMLButtonElement>("rules-clear").disabled = !settings.rulesPath;
   $<HTMLInputElement>("updates").checked = !!settings.checkForUpdates;
-  $("tab-lineage").hidden = settings.lineagePreview !== true;
+  $("tab-lineage").hidden = !versionReviewAvailable();
   $<HTMLInputElement>("lineage-enabled").checked = settings.lineagePreview === true;
   $<HTMLInputElement>("review-comment-write").checked = settings.reviewCommentWrite === true;
-  $<HTMLInputElement>("review-comment-write").disabled = settings.lineagePreview !== true;
+  $<HTMLInputElement>("review-comment-write").disabled = !versionReviewAvailable();
   $<HTMLInputElement>("updates").disabled = !updatesAvailable;
   setText("updates-note", updatesAvailable ? S.updatesNote : `${S.updatesNote} ${S.updatesDevBuild}`);
   renderExtensions();
@@ -1487,7 +1499,7 @@ function renderExtensions(): void {
 
 async function main(): Promise<void> {
   settings = await window.app.getSettings();
-  savedVersionsPane = new SavedVersionsPane($("pane-lineage"));
+  savedVersionsPane = new SavedVersionsPane($("pane-lineage"), batchCtx);
   initExtensionUi({ lang: () => lang, strings: () => S, onPanelsChanged: () => renderHighlights() });
   extList = await window.app.extensions.list();
   updatesAvailable = await window.app.updatesAvailable();
@@ -1605,10 +1617,15 @@ async function main(): Promise<void> {
   document.addEventListener("drop", (e) => {
     e.preventDefault();
     document.body.classList.remove("dragover");
-    const f = e.dataTransfer?.files[0];
-    if (f) void runSafely(async () => openPath(window.app.pathForFile(f)));
+    const paths = Array.from(e.dataTransfer?.files ?? [], file => window.app.pathForFile(file)).filter(Boolean);
+    if (!paths.length) return;
+    void runSafely(async () => {
+      if (paths.length > 1 || tab === "lineage") await openVersionPaths(paths);
+      else await openPath(paths[0]);
+    });
   });
   window.app.onOpenPath((p) => void runSafely(async () => openPath(p)));
+  window.app.onOpenVersionPaths((paths) => void runSafely(async () => openVersionPaths(paths)));
   window.appSmoke?.onBatch((target) =>
     void runSafely(async () => {
       if (target.kind === "local") await batchLocalFolder(target.path, batchCtx, true);

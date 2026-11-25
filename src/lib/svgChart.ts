@@ -7,6 +7,8 @@ import { chartBarKey, decorateElement, DecorateOptions, ResolvedAnnotation } fro
 export interface ChartOptions {
   width?: number;
   height?: number;
+  /** Emit only the bars and total trace as a compact SVG. */
+  plotOnly?: boolean;
   title?: string;
   /** 文字コード表記用フォント */
   fontFamily?: string;
@@ -77,10 +79,13 @@ function renderBucketBars(
   yAdded: (v: number) => number,
   yDeleted: (v: number) => number,
   reg: CategoryRegistry,
-  deco: DecorateOptions = {}
+  deco: DecorateOptions = {},
+  tooltips = true,
 ): string {
   const parts: string[] = [];
   const when = b.start.toISOString();
+  const tooltip = (category: Category, count: number) => tooltips
+    ? `<title>${esc(t("barTooltip", reg.label(category), count, when))}</title>` : "";
   const data = deco.annotate ? ` data-start="${when}" data-end="${b.end.toISOString()}"` : "";
   const decorated = deco.annotate || !!deco.annotations?.size;
   // 模様の矩形が棒へのマウス操作を隠さないようにする (部分に注釈を付けるときだけ)
@@ -98,9 +103,7 @@ function renderBucketBars(
     const [rx, ry, rw, rh] = [x.toFixed(2), top.toFixed(2), barW.toFixed(2), (bottom - top).toFixed(2)];
     parts.push(
       decorateElement(
-        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fillOf(reg, c)}" fill-opacity="0.85"${data}><title>${esc(
-          t("barTooltip", reg.label(c), v, when)
-        )}</title></rect>`,
+        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${fillOf(reg, c)}" fill-opacity="0.85"${data}>${tooltip(c, v)}</rect>`,
         chartBarKey(c.id, b.start),
         deco
       ) + overlay(patternOverlay(c, rx, ry, rw, rh))
@@ -114,13 +117,32 @@ function renderBucketBars(
       decorateElement(
         `<rect x="${x.toFixed(2)}" y="${zeroY.toFixed(2)}" width="${barW.toFixed(2)}" height="${(y - zeroY).toFixed(
           2
-        )}" fill="${fillOf(reg, del)}" fill-opacity="0.85"${data}><title>${esc(t("barTooltip", reg.label(del), b.deleted, when))}</title></rect>`,
+        )}" fill="${fillOf(reg, del)}" fill-opacity="0.85"${data}>${tooltip(del, b.deleted)}</rect>`,
         chartBarKey(del.id, b.start),
         deco
       )
     );
   }
   return parts.join("");
+}
+
+function renderTotalTrace(
+  buckets: Bucket[], xCenter: (index: number) => number, yTotal: (value: number) => number, plotOnly = false, separator = "",
+): string {
+  const points = buckets.map((b, i) => `${xCenter(i).toFixed(2)},${yTotal(b.totalAtEnd).toFixed(2)}`).join(" ");
+  const lineStroke = plotOnly ? 'stroke-width="1.25" vector-effect="non-scaling-stroke"' : 'stroke-width="2.5"';
+  const dots = buckets.map((b, i) => {
+    const position = `cx="${xCenter(i).toFixed(2)}" cy="${yTotal(b.totalAtEnd).toFixed(2)}"`;
+    if (plotOnly) return `<circle ${position} r="3.5" stroke="${TOTAL_COLOR}" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+    return `<circle ${position} r="2.5"><title>${esc(t("totalTooltip", b.totalAtEnd, b.end.toISOString()))}</title></circle>`;
+  }).join("");
+  return `<polyline points="${points}" fill="none" stroke="${TOTAL_COLOR}" ${lineStroke}/>${separator}<g fill="${TOTAL_COLOR}">${dots}</g>`;
+}
+
+function renderPlotThumbnail(plot: string, reg: CategoryRegistry, x: number, y: number, width: number, height: number): string {
+  const padding = 8;
+  const viewBox = [x - padding, y - padding, width + 2 * padding, height + 2 * padding].join(" ");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="48" viewBox="${viewBox}" preserveAspectRatio="none">${renderPatternDefs(reg.patterns())}${plot}</svg>`;
 }
 
 /** 凡例 (移動・並べ替えは、該当する挿入がある場合だけ載せる) */
@@ -224,13 +246,13 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   for (let i = 0; i < n; i++) {
     const b = buckets[i];
     const x = marginLeft + bandW * i + (bandW - barW) / 2;
-    bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted, reg, opts));
+    bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted, reg, opts.plotOnly ? {} : opts, !opts.plotOnly));
   }
 
-  // --- 総文字数の折れ線 ---
-  const linePoints = buckets
-    .map((b, i) => `${xCenter(i).toFixed(2)},${yTotal(b.totalAtEnd).toFixed(2)}`)
-    .join(" ");
+  const plot = `<g>${bars.join("\n  ")}</g>
+
+  ${renderTotalTrace(buckets, xCenter, yTotal, opts.plotOnly, "\n  ")}`;
+  if (opts.plotOnly) return renderPlotThumbnail(plot, reg, marginLeft, marginTop, plotW, plotH);
 
   // --- 軸ラベル (X軸: 間引いて表示) ---
   const maxLabels = 10;
@@ -300,12 +322,7 @@ export function renderRevisionChart(buckets: Bucket[], opts: ChartOptions = {}):
   ${rightTicks.join("\n  ")}
   ${xLabels.join("\n  ")}
 
-  ${renderPatternDefs(reg.patterns())}<g>${bars.join("\n  ")}</g>
-
-  <polyline points="${linePoints}" fill="none" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>
-  <g fill="${TOTAL_COLOR}">${buckets
-    .map((b, i) => `<circle cx="${xCenter(i).toFixed(2)}" cy="${yTotal(b.totalAtEnd).toFixed(2)}" r="2.5"><title>${esc(t("totalTooltip", b.totalAtEnd, b.end.toISOString()))}</title></circle>`)
-    .join("")}</g>
+  ${renderPatternDefs(reg.patterns())}${plot}
 
   <text x="${marginLeft - 50}" y="${marginTop - 10}" font-size="11" fill="#555">${esc(t("axisAddedDeleted"))}</text>
   <text x="${marginLeft + plotW + 24}" y="${marginTop - 10}" font-size="11" fill="${TOTAL_COLOR}" text-anchor="end">${esc(t("totalChars"))}</text>
@@ -449,7 +466,23 @@ export function renderSessionedRevisionChart(
   const yDeleted = (v: number) => zeroY + (v / barScaleMax) * halfH;
   const yTotal = (v: number) => marginTop + plotH - ((v - minTotal) / totalRange) * plotH;
 
-  const svgParts: string[] = [];
+  const centerOf = (panel: PanelGeom, index: number) => {
+    const bandW = panel.width / panel.buckets.length;
+    return panel.x + bandW * index + bandW / 2;
+  };
+  const drawPanelPlot = (panel: PanelGeom) => {
+    if (!panel.buckets.length) return "";
+    const bandW = panel.width / panel.buckets.length;
+    const barW = Math.max(1, bandW * 0.7);
+    const bars = panel.buckets.map((bucket, index) => {
+      const x = panel.x + bandW * index + (bandW - barW) / 2;
+      return renderBucketBars(bucket, x, barW, zeroY, yAdded, yDeleted, reg, opts.plotOnly ? {} : opts, !opts.plotOnly);
+    });
+    return `<g>${bars.join("")}</g>${renderTotalTrace(panel.buckets, index => centerOf(panel, index), yTotal, opts.plotOnly)}`;
+  };
+  if (opts.plotOnly) {
+    return renderPlotThumbnail(panels.map(drawPanelPlot).join(""), reg, marginLeft, marginTop, plotRight - marginLeft, plotH);
+  }
 
   // --- 左軸 (追加/削除) 目盛り: 先頭パネルの左端にのみ描画 ---
   const leftTicks: string[] = [];
@@ -523,36 +556,14 @@ export function renderSessionedRevisionChart(
   for (const [k, p] of panels.entries()) {
     const n = p.buckets.length;
     if (n === 0) continue;
-    const bandW = p.width / n;
-    const barW = Math.max(1, bandW * 0.7);
-    const xCenter = (i: number) => p.x + bandW * i + bandW / 2;
     const spanMs = p.buckets[n - 1].end.getTime() - p.buckets[0].start.getTime();
-
-    const bars: string[] = [];
-    for (let i = 0; i < n; i++) {
-      const b = p.buckets[i];
-      const x = p.x + bandW * i + (bandW - barW) / 2;
-      bars.push(renderBucketBars(b, x, barW, zeroY, yAdded, yDeleted, reg, opts));
-    }
-
-    const linePoints = p.buckets
-      .map((b, i) => `${xCenter(i).toFixed(2)},${yTotal(b.totalAtEnd).toFixed(2)}`)
-      .join(" ");
-    const dots = p.buckets
-      .map(
-        (b, i) =>
-          `<circle cx="${xCenter(i).toFixed(2)}" cy="${yTotal(b.totalAtEnd).toFixed(
-            2
-          )}" r="2.5"><title>${esc(t("totalTooltip", b.totalAtEnd, b.end.toISOString()))}</title></circle>`
-      )
-      .join("");
 
     const maxLabels = Math.max(2, Math.floor(p.width / 70));
     const labelStep = Math.max(1, Math.ceil(n / maxLabels));
     const xLabels: string[] = [];
     for (let i = 0; i < n; i += labelStep) {
       xLabels.push(
-        `<text x="${xCenter(i).toFixed(2)}" y="${(marginTop + plotH + 20).toFixed(
+        `<text x="${centerOf(p, i).toFixed(2)}" y="${(marginTop + plotH + 20).toFixed(
           2
         )}" font-size="10" fill="#333" text-anchor="middle">${esc(
           fmtTime(p.buckets[i].start, spanMs)
@@ -570,14 +581,7 @@ export function renderSessionedRevisionChart(
         }">${esc(sl.text)}${sl.tooltip ? `<title>${esc(sl.tooltip)}</title>` : ""}</text>`
       : "";
 
-    panelContents.push(
-      panelLabel +
-        dayLabel +
-        `<g>${bars.join("")}</g>` +
-        `<polyline points="${linePoints}" fill="none" stroke="${TOTAL_COLOR}" stroke-width="2.5"/>` +
-        `<g fill="${TOTAL_COLOR}">${dots}</g>` +
-        `${xLabels.join("")}`
-    );
+    panelContents.push(panelLabel + dayLabel + drawPanelPlot(p) + xLabels.join(""));
   }
 
   const thresholdNote =

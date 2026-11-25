@@ -27,12 +27,12 @@ try {
     stdin: { resolveDir: here, contents: `
       export { compareSavedVersions, lineageRangeText, traceLineage, readSavedTextVersion } from "../src/lib/lineage";
       export { WatchArchive } from "../src/node/docWatcher";
-      export { readSelectedSavedVersions, readSavedVersionArchive } from "./src/savedLineage";
+      export { readSelectedSavedVersions, readSavedVersionArchive, readSavedVersionFigureSource } from "./src/savedLineage";
     ` },
     bundle: true, platform: "node", format: "cjs", outfile: file,
   });
   const { compareSavedVersions, lineageRangeText, traceLineage, readSavedTextVersion,
-    WatchArchive, readSelectedSavedVersions, readSavedVersionArchive } = require(file);
+    WatchArchive, readSelectedSavedVersions, readSavedVersionArchive, readSavedVersionFigureSource } = require(file);
   const makeVersions = async (drafts) => Promise.all(drafts.map(async (paragraphs, index) =>
     readSavedTextVersion(await docx(paragraphs), { label: `draft-${index + 1}.docx`, source: "selected" })));
   const words = (value, ranges) => ranges.map((range) => lineageRangeText(value.versions, range));
@@ -131,16 +131,25 @@ try {
   }
   const manifest = path.join(archive.dir, "snapshots.json");
   const savedManifest = await fs.readFile(manifest);
-  const selected = await readSelectedSavedVersions([drafts[2], drafts[0], drafts[1]]);
+  const selected = await readSelectedSavedVersions([drafts[2], drafts[0], drafts[1]], true);
   assert.deepEqual(selected.map((v) => v.label), ["file-3.docx", "file-1.docx", "file-2.docx"]);
-  const recorded = await readSavedVersionArchive(archive);
+  const recorded = await readSavedVersionArchive(archive, true);
   assert.deepEqual(recorded.map((v) => v.number), [1, 2, 3]);
   assert.equal(recorded[0].sha256, selected[1].sha256);
   assert.equal(archive.versions()[0].archivedAt, recorded[0].archivedAt);
   for (const [index, v] of recorded.entries()) {
     assert.deepEqual(v.paragraphs, selected[(index + 1) % 3].paragraphs);
   }
+  const originalBytes = await fs.readFile(drafts[0]);
+  assert.deepEqual(await readSavedVersionFigureSource(selected[1].openId), { ok: true, bytes: originalBytes });
+  assert.deepEqual(await readSavedVersionFigureSource(recorded[0].openId), { ok: true, bytes: originalBytes });
+  await fs.writeFile(drafts[0], await docx([right]));
+  assert.deepEqual(await readSavedVersionFigureSource(selected[1].openId), { ok: false, reason: "changed" });
+  assert.deepEqual(await readSavedVersionFigureSource(recorded[0].openId), { ok: true, bytes: originalBytes });
+  assert.deepEqual(await readSavedVersionFigureSource(drafts[0]), { ok: false, reason: "unavailable" });
+
   await fs.unlink(path.join(archive.dir, archive.versions()[1].file));
+  assert.deepEqual(await readSavedVersionFigureSource(recorded[1].openId), { ok: false, reason: "unavailable" });
   const missing = await readSavedVersionArchive(archive);
   assert(missing[1].unavailable);
   assert(compareSavedVersions(missing).comparisons.every((p) => p.unavailable && p.paragraph.length === 0));

@@ -10,11 +10,12 @@ import type { AppLang, CommentHistoryTarget, SavedLineageVersion } from "../shar
 import { el } from "./extensions";
 import { showCommentHistory } from "./commentHistory";
 import { savedReportExportLabel, showSavedReportExport } from "./savedReportExport";
+import type { FigureSettings } from "./savedReportFigures";
 import { STRINGS } from "./strings";
 
 const EN = {
   preview: "Compare saved versions (preview)", tab: "Saved versions", version: "Version",
-  select: "Choose DOCX files", archive: "Use the open document’s saved record",
+  select: "Choose DOCX files", folders: "Choose folders", noInputs: "No DOCX files were found.", archive: "Use the open document’s saved record",
   order: "Order the files from earliest to latest, then compare.", compare: "Compare", minimum: "Choose at least two saved versions.",
   working: "Reading saved versions…", missing: "This version could not be read.", noArchive: "There are no archived versions for this document.",
   earlier: "Move earlier", later: "Move later", pair: "Compare versions", unit: "Track by", paragraph: "Paragraph", sentence: "Sentence",
@@ -43,7 +44,7 @@ const EN = {
 };
 const LABELS: Record<AppLang, typeof EN> = { en: EN, ja: {
   preview: "保存版を比較（プレビュー）", tab: "保存版の比較", version: "保存版",
-  select: "DOCXファイルを選ぶ", archive: "開いている文書の保全記録を使う",
+  select: "DOCXファイルを選ぶ", folders: "フォルダを選ぶ", noInputs: "対象のDOCXファイルが見つかりませんでした。", archive: "開いている文書の保全記録を使う",
   order: "ファイルを古い順に並べてから比較します。", compare: "比較する", minimum: "保存版を2つ以上選んでください。",
   working: "保存版を読み込んでいます…", missing: "この保存版を読み込めませんでした。", noArchive: "この文書の保全済み保存版はありません。",
   earlier: "前へ移す", later: "後ろへ移す", pair: "比較する版", unit: "追跡単位", paragraph: "段落", sentence: "文",
@@ -88,6 +89,23 @@ function option(label: string, value: string): HTMLOptionElement {
   return item;
 }
 
+function timestamp(...values: (string | undefined)[]): number {
+  for (const value of values) {
+    const parsed = value ? Date.parse(value) : NaN;
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function compareVersionTime(left: SavedLineageVersion, right: SavedLineageVersion): number {
+  return timestamp(left.archivedAt, left.sourceModified, left.fileCreatedAt) -
+    timestamp(right.archivedAt, right.sourceModified, right.fileCreatedAt) ||
+    (left.number ?? 0) - (right.number ?? 0) ||
+    timestamp(left.fileCreatedAt) - timestamp(right.fileCreatedAt) ||
+    left.label.localeCompare(right.label, "en", { numeric: true }) ||
+    (left.sha256 ?? "").localeCompare(right.sha256 ?? "");
+}
+
 export class SavedVersionsPane {
   private versions: SavedLineageVersion[] = [];
   private result?: SavedVersionLineage;
@@ -100,12 +118,12 @@ export class SavedVersionsPane {
   private level: LineageLevel = "paragraph";
   private showUnchanged = false;
   private busy = false;
-  private notice: "minimum" | "noArchive" | undefined;
+  private notice: "minimum" | "noArchive" | "noInputs" | undefined;
   private error = "";
   private lang: AppLang = "en";
   private current?: CommentHistoryTarget;
 
-  constructor(private pane: HTMLElement) {}
+  constructor(private pane: HTMLElement, private figureSettings: FigureSettings) {}
 
   private get labels() { return LABELS[this.lang]; }
 
@@ -122,12 +140,19 @@ export class SavedVersionsPane {
     return `${v.archivedAt ? this.labels.archivedAt : this.labels.modifiedAt} ${new Date(iso).toLocaleString(this.lang)}`;
   }
 
-  private async load(read: () => Promise<SavedLineageVersion[] | null>, fromArchive = false): Promise<void> {
+  loadPaths(paths: string[]): Promise<void> {
+    return this.load(() => window.app.loadSavedVersionPaths(paths), { review: true });
+  }
+
+  private async load(
+    read: () => Promise<SavedLineageVersion[] | null>, { fromArchive = false, review = false } = {},
+  ): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     this.notice = undefined;
     this.error = "";
     this.draw();
+    let loaded = false;
     try {
       const items = await read();
       if (!items) return;
@@ -142,13 +167,35 @@ export class SavedVersionsPane {
       this.original = undefined;
       this.selected = undefined;
       this.pair = 0;
-      if (items.length < 2) this.notice = "minimum";
+      if (!items.length) this.notice = "noInputs";
+      else if (items.length < 2) this.notice = "minimum";
+      loaded = items.length > 0;
     } catch (error) {
       this.error = String(error);
     } finally {
       this.busy = false;
       this.draw();
     }
+    if (loaded && review) this.openReview();
+  }
+
+  private openReview(): void {
+    const ordered = this.versions.map((version, index) => ({ version, index }));
+    ordered.sort((a, b) => compareVersionTime(a.version, b.version));
+    const versions = ordered.map(({ version }) => version);
+    const lineage = compareSavedVersions(versions, { japaneseWordHints: true });
+    void showSavedReportExport(
+      new SavedReportAnalysis(versions, lineage, this.level), versions,
+      ordered.map(({ index }) => this.name(index)), this.lang, this.figureSettings,
+      (index, version) => {
+        this.versions[ordered[index].index] = version;
+        if (this.result) {
+          this.result = { ...this.result, versions: [...this.versions] };
+          this.comments = new LineageComments(this.versions, this.result);
+        }
+        this.draw();
+      },
+    );
   }
 
   private reorder(index: number, delta: -1 | 1): void {
@@ -190,9 +237,10 @@ export class SavedVersionsPane {
     const controls = el("div", undefined, "lineage-controls");
     const current = this.current;
     controls.append(
-      action(s.select, () => void this.load(() => window.app.chooseSavedVersions()), this.busy),
+      action(s.select, () => void this.load(() => window.app.chooseSavedVersions(), { review: true }), this.busy),
+      action(s.folders, () => void this.load(() => window.app.chooseSavedVersionFolders(), { review: true }), this.busy),
       action(s.archive, () => {
-        if (current) void this.load(() => window.app.watch.savedVersionsForComparison(current), true);
+        if (current) void this.load(() => window.app.watch.savedVersionsForComparison(current), { fromArchive: true });
       }, this.busy || !current),
     );
     this.pane.append(controls);
@@ -276,20 +324,7 @@ export class SavedVersionsPane {
     };
     showLabel.append(show, s.unchanged);
     const pair = result.comparisons[this.pair];
-    controls.append(pairLabel, levelLabel, showLabel, action(savedReportExportLabel(this.lang), () => {
-      void showSavedReportExport(
-        new SavedReportAnalysis(this.versions, result, this.level), this.versions,
-        this.versions.map((_, index) => this.name(index)), [pair.before, pair.after], this.lang,
-        (index, version) => {
-          this.versions[index] = version;
-          if (this.result) {
-            this.result = { ...this.result, versions: [...this.versions] };
-            this.comments = new LineageComments(this.versions, this.result);
-          }
-          this.draw();
-        },
-      );
-    }, this.busy));
+    controls.append(pairLabel, levelLabel, showLabel, action(savedReportExportLabel(this.lang), () => this.openReview(), this.busy));
     this.pane.append(controls);
     this.drawVersionComments(pair.before, pair.after);
     if (pair.unavailable) {

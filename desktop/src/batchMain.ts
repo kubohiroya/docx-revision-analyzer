@@ -45,7 +45,7 @@ const outputRoots = new Set<string>();
 const ALLOWED_EXT = new Set([".svg", ".csv", ".html"]);
 
 /** ローカルのフォルダの下の .docx を一覧する (隠しフォルダ・一時ファイルは除く) */
-export async function listLocalFolder(dir: string): Promise<BatchFolder> {
+export async function listLocalFolder(dir: string, limit = MAX_FOLDER_FILES): Promise<BatchFolder> {
   const files: BatchFolder["files"] = [];
   let truncated = false;
   const walk = async (rel: string): Promise<void> => {
@@ -57,7 +57,7 @@ export async function listLocalFolder(dir: string): Promise<BatchFolder> {
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) await walk(r);
       else if (e.isFile() && isTargetDocx(e.name)) {
-        if (files.length >= MAX_FOLDER_FILES) {
+        if (files.length >= limit) {
           truncated = true;
           return;
         }
@@ -68,6 +68,25 @@ export async function listLocalFolder(dir: string): Promise<BatchFolder> {
   };
   await walk("");
   return { name: path.basename(dir), location: dir, files, truncated };
+}
+
+/** Expand explicit version inputs without registering any output folders. */
+export async function listVersionInputFiles(inputs: readonly string[]): Promise<string[]> {
+  const resolved = new Set<string>();
+  const files = new Set<string>();
+  for (const input of inputs) {
+    const canonical = await fs.promises.realpath(input).catch(() => undefined);
+    if (!canonical || resolved.has(canonical)) continue;
+    resolved.add(canonical);
+    const stat = await fs.promises.stat(canonical).catch(() => undefined);
+    if (stat?.isDirectory()) {
+      const folder = await listLocalFolder(canonical, Infinity);
+      for (const file of folder.files) if (file.ref.kind === "local") files.add(file.ref.path);
+    } else if (stat?.isFile() && isTargetDocx(path.basename(canonical))) {
+      files.add(canonical);
+    }
+  }
+  return [...files];
 }
 
 function isInside(root: string, p: string): boolean {
