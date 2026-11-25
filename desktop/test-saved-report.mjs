@@ -67,6 +67,7 @@ try {
     stdin: { resolveDir: here, contents: `
       export { SavedReportAnalysis, savedReportTitle } from "./src/savedReport";
       export { savedReportHtml } from "./src/renderer/savedReportHtml";
+      export { compareSavedVersionPath, inferSavedVersionPaths } from "./src/versionReviewPath";
       export { addSavedVersionComment, readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile } from "./src/savedLineage";
       export { compareSavedVersions } from "../src/lib/lineage";
       export { extractComments, diffComments } from "../src/lib/docxComments";
@@ -75,8 +76,92 @@ try {
     ` },
     bundle: true, platform: "node", format: "cjs", outfile: bundle,
   });
-  const { SavedReportAnalysis, savedReportTitle, savedReportHtml, readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile,
+  const { SavedReportAnalysis, savedReportTitle, savedReportHtml, compareSavedVersionPath, inferSavedVersionPaths,
+    readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile,
     addSavedVersionComment, compareSavedVersions, extractComments, diffComments, WatchArchive, replaceWithBackup } = createRequire(import.meta.url)(bundle);
+  const meeting = "説明会は五号館で開催します。担当部署は回答の根拠を当日までにそろえます。";
+  const originalBody = [
+    meeting,
+    "今月の説明会は事務局が司会を担当し、議事録は終了後に配布します。",
+    "当日は参加者名簿を確認し、案内担当者と会場責任者の間で共有します。",
+  ];
+  const branchA = ["Ａ案では図書室を主会場として準備し、展示物を先に運びます。",
+    "Ａ案の案内係は閲覧室で名簿を受け取り、全員に利用方法を説明します。"];
+  const branchB = ["Ｂ案では配信設備を先に見直し、字幕担当者と操作手順を共有します。",
+    "Ｂ案の収録班は通信状況を確認し、変更した機材を会議室に持ち込みます。"];
+  function branchVersion(label, hour, body, key, notes = []) {
+    return {
+      label, source: "selected", sourceModified: new Date(Date.UTC(2026, 0, 1, hour)).toISOString(), trackedChanges: false,
+      paragraphs: body.map((text, index) => ({ index, kind: "body", text, paraId: String(index + 1) })),
+      threads: key ? [{ key, ranges: [{ paragraph: 0, start: 0, end: 14 }], detail: {
+        versionUnavailable: false, observations: [],
+        comments: [{ key, id: "0", done: false, author: key, text: key },
+          ...notes.map((text, index) => ({ key: key + index, id: String(index + 1), done: false, text }))],
+      } }] : [],
+    };
+  }
+  const changedMeeting = meeting.replace("五号館", "六号館");
+  const branchVersions = [
+    branchVersion("root.docx", 0, originalBody, "ROOT_HISTORICAL", ["旧版の返信 #参照 https://example.org/root-source"]),
+    branchVersion("A1.docx", 1, [...originalBody, ...branchA], "A_PERSISTS"),
+    branchVersion("B1.docx", 2, [...originalBody, ...branchB], "SIBLING_PRIVATE", ["B_REPLY #B_BRANCH https://example.org/b-source"]),
+    branchVersion("A2.docx", 3, [changedMeeting, ...originalBody.slice(1), ...branchA], "A_PERSISTS"),
+    branchVersion("B2.docx", 4, [meeting.replace("五号館", "七号館"), ...originalBody.slice(1), ...branchB]),
+    branchVersion("unrelated.docx", 5, ["配車担当者は各車両の燃料を確認し、整備先を一覧に記録します。"]),
+  ];
+  const allPaths = inferSavedVersionPaths(branchVersions, [0, 1, 2, 3, 4, 5]);
+  assert(allPaths.some(path => path.join(":") === "0:1:3"));
+  assert(allPaths.some(path => path.join(":") === "2:4"), JSON.stringify(allPaths));
+  assert(!inferSavedVersionPaths(branchVersions, [0, 2, 3, 4, 5]).some(path => path.join(":") === "0:1:3"));
+
+  const exportBranch = (analysis, pair, labels, extra = {}) => analysis.project({
+    versions: [...pair], initial: pair, onlyPairs: [pair], range: 2,
+    excluded: new Set(), includeText: true, includeComments: true, includeDeleted: true,
+    includeLinks: true, includeUnlocated: false, includeRelatedSources: true, ...extra,
+  }, "ja", labels);
+  const labels = branchVersions.map(version => version.label);
+  for (const level of ["paragraph", "sentence"]) {
+    const chronological = new SavedReportAnalysis(branchVersions, compareSavedVersions(branchVersions), level);
+    const unscoped = exportBranch(chronological, [1, 3], labels);
+    assert(unscoped.threads.some(thread => thread.messages.some(message => message.text === "SIBLING_PRIVATE")));
+    assert(unscoped.threads.some(thread => thread.absent && thread.messages[0].text === "A_PERSISTS"));
+
+    const analysis = compareSavedVersionPath(branchVersions, [0, 1, 3], level);
+    const scopeLabels = [labels[0], labels[1], labels[3]];
+    const review = exportBranch(analysis, [1, 2], scopeLabels, {
+      versions: [0, 1, 2], initial: [0, 2], onlyPairs: [[0, 1], [1, 2]], review: true,
+    });
+    assert.deepEqual(review.drafts.map(draft => draft.filename), scopeLabels);
+    assert(review.pairs[1].changes.length);
+    assert(review.threads.every(thread => !thread.messages.some(message => message.text === "SIBLING_PRIVATE")));
+
+    const output = exportBranch(analysis, [1, 2], scopeLabels);
+    assert.deepEqual(output.drafts.map(draft => draft.filename), [labels[1], labels[3]]);
+    const messages = keyword => output.threads.filter(thread => thread.messages.some(message => message.text === keyword));
+    assert(messages("A_PERSISTS").length);
+    assert(messages("A_PERSISTS").every(thread => !thread.absent));
+    const deleted = messages("ROOT_HISTORICAL").find(thread => thread.original?.length);
+    assert(deleted?.absent);
+    assert.equal(deleted.sourceLabel, "root.docx");
+    assert.deepEqual(deleted.messages[1].tags, ["参照"]);
+    assert.equal(deleted.messages[1].links[0].url, "https://example.org/root-source");
+    const html = savedReportHtml(output);
+    assert(html.includes("ROOT_HISTORICAL"));
+    for (const term of ["SIBLING_PRIVATE", "B_REPLY", "B_BRANCH", "b-source", "B1.docx", "B2.docx", branchB[0]]) {
+      assert(!html.includes(term), term);
+    }
+    const other = exportBranch(compareSavedVersionPath(branchVersions, [2, 4], level), [0, 1], [labels[2], labels[4]]);
+    assert(other.threads.some(thread => thread.absent && thread.messages[0].text === "SIBLING_PRIVATE"));
+    assert(!savedReportHtml(other).includes("A_PERSISTS"));
+  }
+
+  const archivedBranches = branchVersions.slice(0, 4).map((version, index) => ({
+    ...version, source: "archive", number: index + 1, gapBefore: index === 2,
+  }));
+  const archivedPath = compareSavedVersionPath(archivedBranches, [0, 1, 3], "paragraph");
+  assert(exportBranch(archivedPath, [1, 2], [labels[0], labels[1], labels[3]]).pairs[0].gap);
+  console.log("ok inferred paths isolate comments and past sources in paragraph and sentence review and HTML");
+
   const source = path.join(temp, "original.docx");
   const archive = WatchArchive.open(path.join(temp, "watch"), source);
   const fixtures = [];

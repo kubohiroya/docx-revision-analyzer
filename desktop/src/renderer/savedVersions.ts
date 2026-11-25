@@ -123,7 +123,11 @@ export class SavedVersionsPane {
   private lang: AppLang = "en";
   private current?: CommentHistoryTarget;
 
-  constructor(private pane: HTMLElement, private figureSettings: FigureSettings) {}
+  constructor(
+    private pane: HTMLElement,
+    private figureSettings: FigureSettings,
+    private branchTimelineEnabled: () => boolean,
+  ) {}
 
   private get labels() { return LABELS[this.lang]; }
 
@@ -186,7 +190,7 @@ export class SavedVersionsPane {
     const lineage = compareSavedVersions(versions, { japaneseWordHints: true });
     void showSavedReportExport(
       new SavedReportAnalysis(versions, lineage, this.level), versions,
-      ordered.map(({ index }) => this.name(index)), this.lang, this.figureSettings,
+      ordered.map(({ index }) => this.name(index)), this.lang, this.figureSettings, this.branchTimelineEnabled(),
       (index, version) => {
         this.versions[ordered[index].index] = version;
         if (this.result) {
