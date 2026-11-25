@@ -90,6 +90,8 @@
 }
 .report-accordion-toggle[aria-expanded="true"] .report-accordion-chevron { transform: rotate(45deg); }
 .report-accordion-meta { margin-inline-start: auto; font-weight: 400; text-align: end; }
+.report-heading-counts { font-weight: 400; }
+.report-heading-counts:empty,
 .report-accordion-meta:empty,
 .report-accordion-toggle[aria-expanded="true"] .report-collapsed-summary,
 .report-selected-title:empty,
@@ -207,6 +209,20 @@
 .report-changes li { display: flex; gap: 7px; align-items: center; }
 .saved-report .report-changes button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .report-changes button[aria-pressed="true"] { background: var(--report-tint); border-color: var(--report-accent); }
+.report-change-heading { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.report-change-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report-change-heading > .report-participants { flex: none; margin-inline-start: 0; }
+.report-row-character-counts {
+  display: inline-grid;
+  flex: none;
+  justify-items: end;
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.report-added-count, .report-deleted-count { font-weight: 600; font-variant-numeric: tabular-nums; }
+.report-added-count { color: light-dark(#176743, #85dab0); }
+.report-deleted-count { color: light-dark(#a3212e, #ffa2ab); }
 .report-changes small, .report-row-text { color: var(--report-muted); font-size: 12px; }
 .report-row-text { grid-column: 1 / -1; }
 .report-include-change { display: flex; gap: 5px; align-items: center; flex: none; font-size: 12px; }

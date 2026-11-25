@@ -42,6 +42,7 @@ export interface ReportThread {
 export interface ReportChange {
   reviewId?: string;
   searchText?: string;
+  characterChanges?: { added: number; deleted: number } | null;
   kind: LineageKind | "comment";
   reordered: boolean;
   evidence: MatchEvidence[];

@@ -148,7 +148,10 @@ try {
     assert.deepEqual(report.drafts.map((draft) => draft.revisionCount), [0, 0, 0]);
     assert(report.drafts.every((draft) => draft.characterDelta === undefined && draft.wordDelta === undefined));
     assert.deepEqual(report.pairs.map((pair) => [pair.before, pair.after]), [[0, 1], [0, 2], [1, 2]]);
-    assert(report.pairs[0].changes.some((row) => row.kind === "comment"));
+    const commentOnly = report.pairs[0].changes.find((row) => row.kind === "comment");
+    assert.deepEqual(commentOnly?.characterChanges, { added: 0, deleted: 0 });
+    const rewritten = (report) => report.pairs[1].changes.find((row) => row.kind === "rewritten" && row.before[0]?.paragraph === 2);
+    assert.deepEqual(rewritten(report)?.characterChanges, { added: 4, deleted: 4 });
     assert(report.pairs[1].changes.some((row) => row.kind === "rewritten" && row.evidence.includes("paragraphId")));
     const thread = report.threads.find((item) => item.draft === 1);
     assert(thread?.absent && thread.resolved);
@@ -179,10 +182,13 @@ try {
     assert(!JSON.stringify(withoutLinks).includes(direct));
     assert(!JSON.stringify(withoutLinks).includes(target));
     assert(withoutLinks.clips.every((item) => item.text.length <= 20));
+    assert.deepEqual(rewritten(withoutLinks)?.characterChanges, rewritten(report)?.characterChanges);
     assert(!JSON.stringify(withoutLinks).includes("第一ページの周辺情報。"));
     assert.equal(analysis.project({ ...scope, includeDeleted: false }, "ja", labels).threads.length, 0);
     assert.equal(analysis.project({ ...scope, includeComments: false }, "ja", labels).threads.length, 0);
-    assert.equal(analysis.project({ ...scope, includeText: false }, "ja", labels).clips.length, 0);
+    const withoutText = analysis.project({ ...scope, includeText: false }, "ja", labels);
+    assert.equal(withoutText.clips.length, 0);
+    assert(rewritten(withoutText) && !("characterChanges" in rewritten(withoutText)));
     assert(!JSON.stringify(report).includes("位置未確定の注記"));
     const includeUnlocated = analysis.project({ ...scope, includeUnlocated: true }, "ja", labels);
     const [unlocated] = includeUnlocated.drafts[1].unlocated;
