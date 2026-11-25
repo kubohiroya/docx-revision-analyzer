@@ -29,7 +29,9 @@ export interface ReportMessage {
 }
 
 export interface ReportThread {
-  draft: number;
+  draft?: number;
+  sourceLabel?: string;
+  reviewVersion?: number;
   resolved: boolean;
   absent: boolean;
   unavailable: boolean;
@@ -38,6 +40,7 @@ export interface ReportThread {
 }
 
 export interface ReportChange {
+  reviewId?: string;
   kind: LineageKind | "comment";
   reordered: boolean;
   evidence: MatchEvidence[];
@@ -50,8 +53,13 @@ export interface ReportChange {
 
 export interface ReportDraft {
   label: string;
+  filename?: string;
+  createdAt?: string;
   archivedAt?: string;
   modifiedAt?: string;
+  size?: number;
+  characters?: number;
+  words?: number;
   unavailable: boolean;
   unlocated: number[];
 }
@@ -65,9 +73,10 @@ export interface ReportPair {
 }
 
 export interface SavedVersionReport {
+  title: string;
   lang: AppLang;
   level: LineageLevel;
-  initial: [number, number];
+  initial: number[];
   range: number;
   includeText: boolean;
   drafts: ReportDraft[];

@@ -278,7 +278,7 @@ export class SavedVersionsPane {
     const pair = result.comparisons[this.pair];
     controls.append(pairLabel, levelLabel, showLabel, action(savedReportExportLabel(this.lang), () => {
       void showSavedReportExport(
-        new SavedReportAnalysis(this.versions, result, this.level),
+        new SavedReportAnalysis(this.versions, result, this.level), this.versions,
         this.versions.map((_, index) => this.name(index)), [pair.before, pair.after], this.lang,
       );
     }, this.busy));

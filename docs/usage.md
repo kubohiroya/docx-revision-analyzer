@@ -612,18 +612,24 @@ and archive times describe the available versions. They cannot identify the time
 that appeared and disappeared between saves. Gaps and unreadable saves are marked. The comparison reads each available
 version locally.
 
-**Share a saved-version comparison as HTML**: After comparing, choose **Export HTML**. Select the drafts to share, the
-changes for each pair of drafts, and the maximum amount of surrounding text to include. You can opt in to Word comments,
-replies, tags, deleted threads, reference URLs, and comments without a confirmed location. Choose **Preview what readers
-receive**, then **Save HTML…**. Viewing filters and sharing options are independent. To let readers jump back to a
-comment's original passage, include the draft where it was observed and an excerpt that contains its range.
+**Review changes and comments**: After comparing, open **Review changes and comments**. In **Versions to compare**, choose
+two versions using the filenames, dates, sizes, and visible text and heading counts. Select a column header to sort the table
+or drag a column boundary to resize it. The three comparison sections collapse independently.
 
-The single HTML file opens offline in a browser. In **Trace across saved versions**, choose two drafts, then filter the
-change list by type or tag. The text range starts at about 200 characters, or at the sharing limit if it is lower, and
-can be adjusted from about 20 characters up to the shared limit. **Full page** includes body text and headings from the
-page containing the change. It does not embed a page image. Page boundaries derived from incomplete Word pagination
-information are marked as estimated. If boundaries cannot be established, the report shows an excerpt instead. Before
-sharing, move the preview slider to its highest position to inspect all the surrounding text you are including.
+Select a change to see its passages and related Word comments. Select it again to clear the selection. The speech bubble next
+to **Text range** opens and closes the comments panel. Choose **My Word author name** there to distinguish your posts from
+other authors' posts and highlight the latest post when it is yours. **Go to the original passage** shows the location in the
+app. **Open original file** uses the system's associated application and opens a read-only copy for an archived version.
+
+**Export HTML**: Check **Export** on each change you want to include, open **HTML preview**, then choose **Save HTML…**.
+The saved HTML includes the two compared versions, the selected changes and their excerpts, and their related Word comments,
+replies, tags, reference links, and deleted threads. The heading comes from the filenames' common part. The single file opens
+offline in a browser.
+
+Use **Text range** in **Before and after the change** to adjust the visible context from about 20 characters to a full page.
+The initial range is about 200 characters. The same menu sets the maximum text range to export. Move the preview slider to its
+highest position to inspect the longest exported excerpt. **Full page** includes body text and headings. Page boundaries derived
+from incomplete Word pagination information are marked as estimated. When boundaries are unavailable, the report shows an excerpt.
 
 **Saved pages**: the buttons at the top of the flow's right pane switch between "Schematic" (the page as this app draws
 it) and "Saved pages": the real pages, as a PDF, of the version saved at that column's point in time — the last

@@ -24,7 +24,7 @@ import { NetMediator } from "./sendLog";
 import { isSourceLink, registerBatchIpc, rememberSource } from "./batchMain";
 import { openFileInBrowser } from "./openInBrowser";
 import { registerWatchIpc, stopWatching } from "./watchMain";
-import { readSelectedSavedVersions } from "./savedLineage";
+import { readSelectedSavedVersions, savedVersionFile } from "./savedLineage";
 import { disposePages, registerPagesIpc } from "./pages/pagesMain";
 import { PDF_SCHEME } from "./pages/pdfHost";
 import type { AnalysisResult, ClassifierContext, FigureContext } from "./extension-api";
@@ -170,7 +170,12 @@ function registerIpc(): void {
       properties: ["openFile", "multiSelections"],
       filters: [{ name: "Word", extensions: ["docx"] }],
     });
-    return r.canceled ? null : readSelectedSavedVersions(r.filePaths);
+    return r.canceled ? null : readSelectedSavedVersions(r.filePaths, true);
+  });
+  ipcMain.handle("open-saved-version", async (_e, id: unknown) => {
+    if (loadSettings().lineagePreview !== true) return;
+    const failure = await shell.openPath(await savedVersionFile(id));
+    if (failure) throw new Error(failure);
   });
   ipcMain.handle("read-docx", (_e, p: string) => readDocx(p));
   ipcMain.handle("open-url", async (_e, target: { url: string } | { recent: string }) => {

@@ -63,16 +63,16 @@ try {
       __DRA_SAVED_REPORT_CSS__: JSON.stringify(css),
     },
     stdin: { resolveDir: here, contents: `
-      export { SavedReportAnalysis } from "./src/savedReport";
+      export { SavedReportAnalysis, savedReportTitle } from "./src/savedReport";
       export { savedReportHtml } from "./src/renderer/savedReportHtml";
-      export { readSelectedSavedVersions, readSavedVersionArchive } from "./src/savedLineage";
+      export { readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile } from "./src/savedLineage";
       export { compareSavedVersions } from "../src/lib/lineage";
       export { extractComments, diffComments } from "../src/lib/docxComments";
       export { WatchArchive } from "../src/node/docWatcher";
     ` },
     bundle: true, platform: "node", format: "cjs", outfile: bundle,
   });
-  const { SavedReportAnalysis, savedReportHtml, readSelectedSavedVersions, readSavedVersionArchive,
+  const { SavedReportAnalysis, savedReportTitle, savedReportHtml, readSelectedSavedVersions, readSavedVersionArchive, savedVersionFile,
     compareSavedVersions, extractComments, diffComments, WatchArchive } = createRequire(import.meta.url)(bundle);
   const source = path.join(temp, "original.docx");
   const archive = WatchArchive.open(path.join(temp, "watch"), source);
@@ -88,8 +88,26 @@ try {
   }
   const protectedPaths = [...fixtures, path.join(archive.dir, "snapshots.json"), path.join(archive.dir, "comments.jsonl")];
   const protectedBytes = await Promise.all(protectedPaths.map((file) => fs.readFile(file)));
-  const manual = await readSelectedSavedVersions(fixtures);
-  const archived = await readSavedVersionArchive(archive);
+  const manual = await readSelectedSavedVersions(fixtures, true);
+  const archived = await readSavedVersionArchive(archive, true);
+  assert.equal(await savedVersionFile(manual[0].openId), await fs.realpath(fixtures[0]));
+  await assert.rejects(savedVersionFile(fixtures[0]), /no longer available/);
+  const archiveCopy = await savedVersionFile(archived[0].openId);
+  try {
+    assert.notEqual(archiveCopy, path.join(archive.dir, archived[0].label));
+    assert.deepEqual(await fs.readFile(archiveCopy), protectedBytes[0]);
+  } finally {
+    await fs.rm(path.dirname(archiveCopy), { recursive: true, force: true });
+  }
+  assert.equal(savedReportTitle(["出席支援制度の評価報告-初稿.docx", "出席支援制度の評価報告-中間稿.DOCX"]), "出席支援制度の評価報告");
+  assert.equal(savedReportTitle(["報告-s01.docx", "報告-s12.docx"]), "報告");
+  assert.equal(savedReportTitle(["2026-11-24_report.docx", "2026-11-25_report.docx"]), "report");
+  assert.equal(savedReportTitle(["初稿.docx", "中間稿.docx", "最終稿.docx"]), "初稿 / 中間稿 / 最終稿");
+  const info = await fs.stat(fixtures[0]);
+  assert.equal(manual[0].fileSize, info.size);
+  assert.equal(manual[0].fileCreatedAt, info.birthtimeMs > 0 ? info.birthtime.toISOString() : undefined);
+  assert.equal(archived[0].fileSize, info.size);
+  assert.equal(archived[0].fileCreatedAt, undefined);
 
   for (const versions of [manual, archived]) {
     assert.deepEqual(versions[1].pageMap, { breaks: [{ paragraph: 3, offset: 0 }], estimated: false });
@@ -102,6 +120,7 @@ try {
     };
     const labels = ["初稿", "中間稿", "最終稿", "収録対象外の稿"];
     const report = analysis.project(scope, "ja", labels);
+    assert.equal(report.title, versions === manual ? "draft" : "original");
     assert.deepEqual(report.pairs.map((pair) => [pair.before, pair.after]), [[0, 1], [0, 2], [1, 2]]);
     assert(report.pairs[0].changes.some((row) => row.kind === "comment"));
     assert(report.pairs[1].changes.some((row) => row.kind === "rewritten" && row.evidence.includes("paragraphId")));
@@ -120,6 +139,8 @@ try {
       assert(!JSON.stringify(report).includes(value), value);
     }
     const html = savedReportHtml(report);
+    assert(html.includes("<title>" + report.title + "</title>"));
+    assert(savedReportHtml({ ...report, title: "A </title> & B" }).includes("<title>A &lt;/title&gt; &amp; B</title>"));
     assert(!html.includes(dangerous));
     assert(!html.includes('<img src="https://example.org/report-pixel"'));
     assert(html.includes("default-src 'none'"));
@@ -147,8 +168,30 @@ try {
     assert(excludeMarkup.size > 0);
     const small = analysis.project({ ...scope, versions: [0, 2], initial: [0, 2], range: 0, excluded: excludeMarkup }, "ja", labels);
     assert(!savedReportHtml(small).includes("report-pixel"));
+
+    const related = analysis.changes(0, 2).find(({ comments }) => comments.some(({ version }) => version === 1));
+    assert(related);
+    const others = new Set(analysis.changes(0, 2).filter(({ id }) => id !== related.id).map(({ id }) => id));
+    const selectedScope = { ...scope, versions: [0, 2], initial: [0, 2], range: 2,
+      excluded: others, includeRelatedSources: true };
+    const selectedReport = analysis.project(selectedScope, "ja", labels);
+    const recordedElsewhere = selectedReport.threads.find((item) => item.sourceLabel === "中間稿");
+    assert.deepEqual(selectedReport.drafts.map(({ label }) => label), ["初稿", "最終稿"]);
+    assert.equal(selectedReport.pairs[0].changes.length, 1);
+    assert(recordedElsewhere?.absent && recordedElsewhere.original?.length);
+    assert.equal(recordedElsewhere.messages[1].author, "Reviewer");
+    assert(selectedReport.drafts.every(({ filename, characters, words }) => filename && characters > 0 && words > 0));
+    const selectedJson = JSON.stringify(selectedReport);
+    for (const secret of [temp, versions[0].openId, "reviewId", "reviewVersion", "位置未確定の注記", "report-pixel"]) {
+      assert(!selectedJson.includes(secret), secret);
+    }
+    const review = analysis.project({ ...selectedScope, review: true }, "ja", labels);
+    assert.equal(review.pairs[0].changes[0].reviewId, related.id);
+    assert.equal(review.threads.find((item) => item.sourceLabel === "中間稿").reviewVersion, 1);
   }
   assert.deepEqual(await Promise.all(protectedPaths.map((file) => fs.readFile(file))), protectedBytes);
+  await fs.writeFile(fixtures[0], protectedBytes[1]);
+  await assert.rejects(savedVersionFile(manual[0].openId), /has changed/);
   const unavailable = { label: "Unavailable", source: "archive", unavailable: true, threads: [] };
   const noPage = { ...manual[2], pageMap: undefined };
   const partial = [manual[0], unavailable, noPage];
