@@ -134,9 +134,12 @@ npm と単体バイナリの公開コマンドを1つに統合しました。呼
 | バージョン | macOS (Apple Silicon / Intel 共通) | Windows (x64 / ARM64 共通) |
 |---|---|---|
 | [v0.3.0（通常配布）](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) |
-| [v0.4.1（プレビュー）](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.1) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-0.4.1-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-Setup-0.4.1.exe) |
+| [v0.4.2（プレビュー）](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.2) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.2/Docx-Revision-Analyzer-0.4.2-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.2/Docx-Revision-Analyzer-Setup-0.4.2.exe) |
 
-v0.4.1 を手動でダウンロードすると、[保存版の分岐タイムライン](usage.ja.md#保存版の分岐タイムライン)を使い、選んだ変更箇所をHTMLに書き出せます。
+v0.4.2 を手動でダウンロードすると、[保存版の分岐タイムライン](usage.ja.md#保存版の分岐タイムライン)を使い、選んだ変更箇所をHTMLに書き出せます。
 比較や任意のWordコメント追記の設定は[利用ガイド](usage.ja.md#デスクトップアプリ-プレビュー)を参照してください。
+
+v0.4.2 の macOS 版は、同梱ヘルパーを含めてアドホック署名しています。Apple 公証は未実施のため、初回起動時に
+macOS で個別の許可が必要な場合があります。
 
 ソースからの起動は [desktop/README.md](../desktop/README.md)、パッケージの作成は [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md) を参照してください。

@@ -5,19 +5,19 @@
 
 ## デスクトップ版をダウンロード
 
-| お使いのパソコン | v0.3.0（通常配布） | v0.4.1（プレビュー・手動入手） |
+| お使いのパソコン | v0.3.0（通常配布） | v0.4.2（プレビュー・手動入手） |
 |---|---|---|
-| macOS (Apple Silicon / Intel 共通) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-0.4.1-universal.dmg) |
-| Windows (x64 / ARM64 共通) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.1/Docx-Revision-Analyzer-Setup-0.4.1.exe) |
+| macOS (Apple Silicon / Intel 共通) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.2/Docx-Revision-Analyzer-0.4.2-universal.dmg) |
+| Windows (x64 / ARM64 共通) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.2/Docx-Revision-Analyzer-Setup-0.4.2.exe) |
 
 .docx を開くかドロップして使えます。Node.js やコマンドラインの操作は不要です。
-v0.4.1 プレビューでは、保存版の分岐タイムラインが既定で表示されます。変更箇所をHTMLに書き出せます。
-設定を有効にするとWordコメントを追記できます。 [リリースノート](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.1)
+v0.4.2 プレビューでは、保存版の分岐タイムラインが既定で表示されます。変更箇所をHTMLに書き出せます。
+設定を有効にするとWordコメントを追記できます。 [リリースノート](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.2)
 自動更新を有効にした場合の配信対象は v0.3.0 です。[インストールガイド](docs/installation.ja.md#デスクトップアプリ)
 
 ### 保存版の比較を HTML に書き出す
 
-v0.4.1 では次の手順で書き出せます。
+v0.4.2 では次の手順で書き出せます。
 
 1. 「設定」で「保存版を比較（プレビュー）」を有効にします。
 2. 「保存版の比較」タブでファイルやフォルダを選び、「変更箇所の確認とコメント」を開きます。
@@ -28,7 +28,7 @@ v0.4.1 では次の手順で書き出せます。
 
 ![開発版の変更箇所の確認とコメント。対象版、チャート、抽出・全体件数、追加・削除文字数](docs/images/html-export/ja-review.png)
 
-[v0.4.1 と以前の版の操作手順](docs/usage.ja.md#保存版の比較を-html-に書き出す) ·
+[v0.4.2 と以前の版の操作手順](docs/usage.ja.md#保存版の比較を-html-に書き出す) ·
 [保存版の分岐タイムラインの使い方](docs/usage.ja.md#保存版の分岐タイムライン)
 
 ## CLI をダウンロード (v2.0.0)
