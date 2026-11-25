@@ -47,12 +47,44 @@ export function listCommentHistory(archive: WatchArchive): CommentHistoryRow[] {
     .map((state) => ({ ...state, members: membersByRoot.get(state.key) ?? [], tags: [...(tagsByRoot.get(state.key) ?? [])] }));
 }
 
-function observedVersion(event: CommentEvent, versions: SnapshotEntry[]): SnapshotEntry | undefined {
+export function observedVersion(event: CommentEvent, versions: SnapshotEntry[]): SnapshotEntry | undefined {
   if (!event.sha256) return undefined;
   const matching = versions.filter((version) => version.sha256 === event.sha256);
   const atObservation = matching.filter((version) => version.archivedAt === event.at);
   if (atObservation.length === 1) return atObservation[0];
   return matching.length === 1 ? matching[0] : undefined;
+}
+
+export function commentObservations(events: CommentEvent[], versions: SnapshotEntry[]): Map<string, CommentObservation[]> {
+  const result = new Map<string, CommentObservation[]>();
+  for (const event of events) {
+    const { type, key, at } = event;
+    if (type !== "resolved" && type !== "reopened" && type !== "removed" && type !== "reappeared") continue;
+    const thread = result.get(key) ?? [];
+    thread.push({ type, at, version: observedVersion(event, versions)?.n });
+    result.set(key, thread);
+  }
+  return result;
+}
+
+/** Group replies from a single version. Reused legacy keys cannot identify a unique parent. */
+export function commentThreads(comments: DocxComment[]): DocxComment[][] {
+  const visible = comments.filter((comment) => !isReceipt(comment));
+  const byKey = new Map<string, DocxComment>();
+  const ambiguous = new Set<string>();
+  for (const comment of visible) {
+    if (byKey.has(comment.key)) ambiguous.add(comment.key);
+    byKey.set(comment.key, comment);
+  }
+  for (const key of ambiguous) byKey.delete(key);
+  const groups = new Map<DocxComment, DocxComment[]>();
+  for (const comment of visible) {
+    const root = byKey.get(rootKey(comment, byKey)) ?? comment;
+    const thread = groups.get(root) ?? [root];
+    if (root !== comment) thread.push(comment);
+    groups.set(root, thread);
+  }
+  return [...groups.values()];
 }
 
 export async function readCommentHistory(archive: WatchArchive, key: string): Promise<CommentHistoryDetail | undefined> {
@@ -70,11 +102,7 @@ export async function readCommentHistory(archive: WatchArchive, key: string): Pr
   const transitions = events.filter((event): event is CommentEvent & { type: CommentObservation["type"] } =>
     event.key === key && ["resolved", "reopened", "removed", "reappeared"].includes(event.type),
   );
-  const observations = transitions.map((e) => ({
-    type: e.type,
-    at: e.at,
-    version: observedVersion(e, versions)?.n,
-  }));
+  const observations = commentObservations(transitions, versions).get(key) ?? [];
   const lastRemoval = state.present ? undefined : transitions.filter((e) => e.type === "removed").at(-1);
   const absentVersion = lastRemoval && observedVersion(lastRemoval, versions);
   const candidates = absentVersion ? versions.filter((v) => v.n < absentVersion.n) : versions;

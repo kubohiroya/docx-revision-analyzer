@@ -3,8 +3,12 @@ import {
   type LineageKind, type LineageLevel, type LineageLink, type LineageRange,
   type MatchEvidence, type SavedTextVersion, type SavedVersionLineage,
 } from "../../../src/lib/lineage";
-import type { AppLang, CommentHistoryTarget } from "../shared";
+import { commentReferences } from "../../../src/lib/commentReferences";
+import { LineageComments, type VersionThreadOccurrence } from "../lineageComments";
+import type { AppLang, CommentHistoryTarget, SavedLineageVersion } from "../shared";
 import { el } from "./extensions";
+import { showCommentHistory } from "./commentHistory";
+import { STRINGS } from "./strings";
 
 const EN = {
   preview: "Compare saved versions (preview)", tab: "Saved versions", version: "Version",
@@ -20,6 +24,11 @@ const EN = {
   sample: (shown: number, total: number) => `Showing ${shown} of ${total} candidates.`,
   limited: "The highlighted beginning and end match. The middle of this long passage has no detailed alignment.",
   timeline: "Related occurrences across versions", archivedAt: "Archived", modifiedAt: "File modified",
+  comments: "Word comments on related passages", versionComments: "Word comments by version", commentsVersion: "Comment version",
+  noComments: "There are no recorded threads in this version.", commentsUnreadable: "Word comments in this version could not be read.",
+  commentAbsent: "Absent in the latest available version", commentResolved: "Resolved in this version", openThread: "Open thread",
+  openOriginal: "Go to the original passage", sourceText: "Original saved text", closeSource: "Close original text",
+  countThreads: (count: number) => `${count} Word comment thread(s)`,
   kinds: {
     retained: "Unchanged", rewritten: "Rewritten", split: "Split", merged: "Merged", copied: "Exact copy candidate",
     reappeared: "Reappearance candidate", added: "Added", removed: "No longer present", ambiguous: "Uncertain",
@@ -44,6 +53,11 @@ const LABELS: Record<AppLang, typeof EN> = { en: EN, ja: {
   sample: (shown, total) => `候補 ${total} 件のうち ${shown} 件を表示しています。`,
   limited: "長い文章のため、一致する先頭と末尾だけを強調しています。",
   timeline: "版をまたぐ関連箇所", archivedAt: "保管日時", modifiedAt: "ファイル更新日時",
+  comments: "関連箇所のWordコメント", versionComments: "保存版ごとのWordコメント", commentsVersion: "コメントを読む版",
+  noComments: "この版に記録されたスレッドはありません。", commentsUnreadable: "この版のWordコメントを読み取れませんでした。",
+  commentAbsent: "確認できる最新の版では消失", commentResolved: "この版で解決済み", openThread: "スレッドを開く",
+  openOriginal: "元の保存版の該当箇所へ", sourceText: "当時の保存版の本文", closeSource: "元の本文を閉じる",
+  countThreads: (count) => `Wordコメント ${count} 件`,
   kinds: {
     retained: "継続", rewritten: "書き換え", split: "分割", merged: "結合", copied: "複製候補",
     reappeared: "再出現候補", added: "追加", removed: "消失", ambiguous: "未確定",
@@ -73,8 +87,12 @@ function option(label: string, value: string): HTMLOptionElement {
 }
 
 export class SavedVersionsPane {
-  private versions: SavedTextVersion[] = [];
+  private versions: SavedLineageVersion[] = [];
   private result?: SavedVersionLineage;
+  private comments?: LineageComments;
+  private commentVersion?: number;
+  private versionCommentsOpen = false;
+  private original?: VersionThreadOccurrence;
   private selected?: LineageLink;
   private pair = 0;
   private level: LineageLevel = "paragraph";
@@ -102,7 +120,7 @@ export class SavedVersionsPane {
     return `${v.archivedAt ? this.labels.archivedAt : this.labels.modifiedAt} ${new Date(iso).toLocaleString(this.lang)}`;
   }
 
-  private async load(read: () => Promise<SavedTextVersion[] | null>, fromArchive = false): Promise<void> {
+  private async load(read: () => Promise<SavedLineageVersion[] | null>, fromArchive = false): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     this.notice = undefined;
@@ -117,6 +135,9 @@ export class SavedVersionsPane {
       }
       this.versions = items;
       this.result = undefined;
+      this.comments = undefined;
+      this.commentVersion = undefined;
+      this.original = undefined;
       this.selected = undefined;
       this.pair = 0;
       if (items.length < 2) this.notice = "minimum";
@@ -132,6 +153,9 @@ export class SavedVersionsPane {
     const destination = index + delta;
     [this.versions[index], this.versions[destination]] = [this.versions[destination], this.versions[index]];
     this.result = undefined;
+    this.comments = undefined;
+    this.commentVersion = undefined;
+    this.original = undefined;
     this.selected = undefined;
     this.pair = 0;
     this.draw();
@@ -143,6 +167,7 @@ export class SavedVersionsPane {
     try {
       this.error = "";
       this.result = compareSavedVersions([...this.versions], { japaneseWordHints: true });
+      this.comments = new LineageComments(this.versions, this.result);
       this.selected = undefined;
     } catch (error) {
       this.error = String(error);
@@ -192,6 +217,7 @@ export class SavedVersionsPane {
       versions.append(row);
     }
     this.pane.append(versions, action(s.compare, () => this.compare(), this.versions.length < 2 || this.busy));
+    if (this.original) this.drawOriginal(this.original);
     if (this.result) this.drawResult(this.result);
   }
 
@@ -250,12 +276,14 @@ export class SavedVersionsPane {
     controls.append(pairLabel, levelLabel, showLabel);
     this.pane.append(controls);
     const pair = result.comparisons[this.pair];
+    this.drawVersionComments(pair.before, pair.after);
     if (pair.unavailable) {
       this.pane.append(el("p", s.missing, "hint"));
       return;
     }
     if (pair.recordingGap) this.pane.append(el("p", s.gap, "hint"));
-    const changes = pair[this.level].filter((link) => this.showUnchanged || link.kind !== "retained" || link.reordered);
+    const changes = pair[this.level].filter((link) =>
+      this.showUnchanged || link.kind !== "retained" || link.reordered || this.threadsFor(link).length > 0);
     if (!changes.length) {
       this.pane.append(el("p", s.noPairs, "hint"));
       return;
@@ -268,7 +296,11 @@ export class SavedVersionsPane {
     for (const change of changes) {
       const row = el("button", undefined, "lineage-row");
       row.setAttribute("aria-pressed", String(this.selected === change));
-      row.append(el("span", this.brief(change.from)), el("strong", this.kind(change)), el("span", this.brief(change.to)));
+      const relationship = el("span");
+      relationship.append(el("strong", this.kind(change)));
+      const count = this.threadsFor(change).length;
+      if (count) relationship.append(el("small", s.countThreads(count), "lineage-thread-count"));
+      row.append(el("span", this.brief(change.from)), relationship, el("span", this.brief(change.to)));
       row.onclick = () => {
         this.selected = change;
         for (const button of list.querySelectorAll("button")) button.setAttribute("aria-pressed", String(button === row));
@@ -315,6 +347,8 @@ export class SavedVersionsPane {
       passages.append(column);
     }
     detail.append(passages);
+    const threads = this.threadsFor(change);
+    if (threads.length) detail.append(el("h3", s.comments), this.threadList(threads));
     const anchor = change.to[0] ?? change.from[0];
     const lineage = anchor ? traceLineage(result, this.level, anchor) : [];
     if (lineage.length > 1) {
@@ -337,5 +371,118 @@ export class SavedVersionsPane {
       }
       detail.append(el("h3", s.timeline), list);
     }
+  }
+
+  private threadsFor(link: LineageLink): VersionThreadOccurrence[] {
+    return this.comments?.forRelationship(link, this.level) ?? [];
+  }
+
+  private drawVersionComments(before: number, after: number): void {
+    const s = this.labels;
+    const box = el("details", undefined, "lineage-version-comments");
+    box.open = this.versionCommentsOpen;
+    box.ontoggle = () => { this.versionCommentsOpen = box.open; };
+    box.append(el("summary", s.versionComments));
+    const label = el("label", s.commentsVersion);
+    const versions = el("select");
+    versions.id = "lineage-comment-version";
+    for (const [index, version] of this.versions.entries()) {
+      const name = version.threads.length ? `${this.name(index)} · ${s.countThreads(version.threads.length)}` : this.name(index);
+      versions.append(option(name, String(index)));
+    }
+    const current = this.commentVersion ?? (this.versions[after].threads.length ? after : before);
+    versions.value = String(current);
+    versions.onchange = () => {
+      this.commentVersion = Number(versions.value);
+      this.draw();
+      this.pane.querySelector<HTMLSelectElement>("#lineage-comment-version")?.focus();
+    };
+    label.append(versions);
+    box.append(label);
+    const selected = this.versions[current];
+    if (selected.commentsUnavailable) box.append(el("p", s.commentsUnreadable, "hint"));
+    else if (selected.threads.length) box.append(this.threadList(selected.threads.map((thread) => ({ version: current, thread }))));
+    else box.append(el("p", s.noComments, "hint"));
+    this.pane.append(box);
+  }
+
+  private threadList(occurrences: VersionThreadOccurrence[]): HTMLElement {
+    const s = this.labels;
+    const list = el("ul", undefined, "lineage-threads");
+    for (const entry of occurrences) {
+      const messages = entry.thread.detail.comments;
+      const author = messages[0].author ?? "";
+      const tags = [...new Set(messages.flatMap((comment) => commentReferences(comment.text, comment.links).tags))];
+      const states = this.threadStates(entry);
+      const text = Array.from(messages[0].text.replace(/\s+/g, " ").trim());
+      const summary = text.length > 100 ? text.slice(0, 100).join("") + "…" : text.join("");
+      const item = el("li");
+      const byline = [this.name(entry.version), author, ...states].filter(Boolean).join(" · ");
+      item.append(el("div", byline, "hint"), el("p", summary, "comment-text"));
+      if (tags.length) item.append(el("p", tags.map((tag) => `#${tag}`).join(" "), "hint"));
+      item.append(action(s.openThread, () => void this.openThread(entry)));
+      list.append(item);
+    }
+    return list;
+  }
+
+  private threadStates(entry: VersionThreadOccurrence): string[] {
+    const states: string[] = [];
+    if (entry.thread.detail.comments[0].done) states.push(this.labels.commentResolved);
+    if (this.comments?.absentInLatest(entry)) states.push(this.labels.commentAbsent);
+    return states;
+  }
+
+  private async openThread(entry: VersionThreadOccurrence): Promise<void> {
+    const version = this.versions[entry.version];
+    const date = (iso: string) => new Date(iso).toLocaleString(this.lang);
+    const versionLabel = [this.name(entry.version), this.date(version), ...this.threadStates(entry)].filter(Boolean).join(" · ");
+    await showCommentHistory(entry.thread.detail, STRINGS[this.lang], date, (url) => {
+      void window.app.watch.openCommentLink(url).catch((error) => {
+        this.error = String(error);
+        this.draw();
+      });
+    }, {
+      versionLabel,
+      original: entry.thread.ranges.length && !version.unavailable ? {
+        label: this.labels.openOriginal,
+        show: () => {
+          if (this.versions[entry.version] !== version) return;
+          this.original = entry;
+          this.draw();
+          const original = this.pane.querySelector<HTMLElement>(".lineage-original");
+          original?.focus({ preventScroll: true });
+          original?.scrollIntoView({ block: "start" });
+        },
+      } : undefined,
+    });
+  }
+
+  private drawOriginal(entry: VersionThreadOccurrence): void {
+    const version = this.versions[entry.version];
+    if (version.unavailable) return;
+    const s = this.labels;
+    const original = el("section", undefined, "lineage-original");
+    original.tabIndex = -1;
+    original.append(el("h2", `${s.sourceText} · ${this.name(entry.version)}`));
+    const marks = new Map(entry.thread.ranges.map((range) => [range.paragraph, range]));
+    for (const [index, p] of version.paragraphs.entries()) {
+      const mark = marks.get(p.index);
+      if (!mark && !marks.has(version.paragraphs[index - 1]?.index) && !marks.has(version.paragraphs[index + 1]?.index)) continue;
+      const paragraph = el("p", undefined, "lineage-passage");
+      if (!mark) paragraph.append(p.text);
+      else {
+        const highlight = el("mark", p.text.slice(mark.start, mark.end) || "│");
+        if (mark.start === mark.end) highlight.setAttribute("aria-label", STRINGS[this.lang].commentHistoryPoint);
+        paragraph.append(p.text.slice(0, mark.start), highlight, p.text.slice(mark.end));
+      }
+      original.append(el("div", `${s.paragraph} ${p.index + 1}`, "hint"), paragraph);
+    }
+    original.append(action(s.closeSource, () => {
+      this.original = undefined;
+      this.pane.querySelector<HTMLElement>('.lineage-row[aria-pressed="true"]')?.focus();
+      original.remove();
+    }));
+    this.pane.append(original);
   }
 }

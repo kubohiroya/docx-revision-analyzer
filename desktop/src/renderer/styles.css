@@ -862,3 +862,40 @@ table.comments td.receipt {
   white-space: normal;
   text-align: start;
 }
+.lineage-thread-count {
+  display: block;
+  color: var(--muted);
+}
+.lineage-version-comments,
+.lineage-original {
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+}
+.lineage-version-comments summary {
+  cursor: pointer;
+}
+.lineage-version-comments label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+.lineage-version-comments select {
+  max-width: min(32rem, 75vw);
+}
+.lineage-threads {
+  list-style: none;
+  padding: 0;
+}
+.lineage-threads li {
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--line);
+}
+.lineage-threads p {
+  margin: 0.35rem 0;
+}
+.lineage-original {
+  border-inline-start: 3px solid var(--accent);
+}

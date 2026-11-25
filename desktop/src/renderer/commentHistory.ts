@@ -3,11 +3,17 @@ import type { CommentHistoryDetail, CommentObservation } from "../shared";
 import { el, header, modal } from "./extensions";
 import type { Strings } from "./strings";
 
+interface CommentHistoryNavigation {
+  versionLabel: string;
+  original?: { label: string; show: () => void };
+}
+
 export function showCommentHistory(
   detail: CommentHistoryDetail,
   strings: Strings,
   formatDate: (iso: string) => string,
   openLink: (url: string) => void,
+  navigation?: CommentHistoryNavigation,
 ): Promise<void> {
   const labels: Record<CommentObservation["type"], string> = {
     removed: strings.commentHistoryAbsent,
@@ -15,9 +21,11 @@ export function showCommentHistory(
     resolved: strings.commentResolved,
     reopened: strings.commentHistoryReopened,
   };
-  return modal<void>((dialog, close) => {
+  return modal<boolean>((dialog, close) => {
     header(dialog, strings.commentHistoryTitle);
-    if (detail.version) {
+    if (navigation) {
+      dialog.append(el("p", navigation.versionLabel));
+    } else if (detail.version) {
       dialog.append(el("p", strings.commentHistoryVersion(detail.version.n, formatDate(detail.version.archivedAt))));
     }
     if (detail.versionUnavailable) dialog.append(el("p", strings.commentHistoryMissing, "hint"));
@@ -64,9 +72,16 @@ export function showCommentHistory(
       thread.append(message);
     });
     const buttons = el("div", undefined, "buttons");
+    if (navigation?.original) {
+      const original = el("button", navigation.original.label);
+      original.onclick = () => close(true);
+      buttons.append(original);
+    }
     const done = el("button", strings.close);
-    done.onclick = () => close();
+    done.onclick = () => close(false);
     buttons.append(done);
     dialog.append(thread, buttons);
-  }, undefined);
+  }, false).then((show) => {
+    if (show) navigation?.original?.show();
+  });
 }

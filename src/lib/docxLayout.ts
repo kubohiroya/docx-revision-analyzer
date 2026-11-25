@@ -96,6 +96,12 @@ export interface FigureSeg {
 
 export type Seg = TextSeg | BreakSeg | FigureSeg;
 
+export interface LayoutCommentMark {
+  id: string;
+  kind: "commentRangeStart" | "commentRangeEnd" | "commentReference";
+  segment: number;
+}
+
 /** 段落の書式 (スタイルの継承を解決したもの)。長さは twip */
 export interface ParaProps {
   styleId?: string;
@@ -729,6 +735,7 @@ interface ParseState {
   /** いま読んでいる段落の、Word が保存時に改ページした位置と脚注の参照 */
   renderedBreaks?: number[];
   noteRefs?: NoteRef[];
+  commentMarks?: LayoutCommentMark[];
 }
 
 /** 段落に付けるブックマークの名前 (Word が自動で付ける _GoBack は除く) */
@@ -961,10 +968,16 @@ function walkInline(nodes: XmlNode[], ctx: RevContext, segs: Seg[], state: Parse
       }
       case "bookmarkEnd":
       case "proofErr":
+        break;
       case "commentRangeStart":
       case "commentRangeEnd":
-      case "commentReference":
+      case "commentReference": {
+        if (state.commentMarks) {
+          const id = attr(node, "id");
+          if (id !== undefined) state.commentMarks.push({ id, kind: tag, segment: segs.length });
+        }
         break;
+      }
       default:
         // hyperlink, smartTag, sdt, sdtContent, fldSimple, customXml 等は中へ潜る
         walkInline(kids, ctx, segs, state, sc);
@@ -1045,6 +1058,7 @@ interface BlockContext {
   tables: TableSpec[];
   tableCount: number;
   state: ParseState;
+  commentMarks?: Map<number, LayoutCommentMark[]>;
   /** いまのセクションの番号と、これまでに見つかったセクションの w:sectPr */
   section: number;
   sectPrs: XmlNode[];
@@ -1064,7 +1078,9 @@ function walkBlocks(nodes: XmlNode[], tableId: number | undefined, ctx: BlockCon
       continue;
     }
     if (tag === "p") {
+      if (ctx.commentMarks) ctx.state.commentMarks = [];
       const { para, sectPr } = parseParagraph(node, ctx.out.length, tableId, ctx.section, ctx.sc, ctx.state);
+      if (ctx.state.commentMarks?.length) ctx.commentMarks?.set(para.index, ctx.state.commentMarks);
       ctx.out.push(para);
       container.push({ kind: "para", index: para.index });
       // 段落の w:sectPr は、その段落で終わるセクションの設定 (表の中には現れない)
@@ -1336,7 +1352,7 @@ async function parseNotes(zip: JSZip, part: string, tag: "footnote" | "endnote")
   return out;
 }
 
-export async function parseDocxLayout(input: DocxInput): Promise<DocxLayoutModel> {
+export async function parseDocxLayout(input: DocxInput, commentMarks?: Map<number, LayoutCommentMark[]>): Promise<DocxLayoutModel> {
   const zip = await JSZip.loadAsync(input);
   const docFile = zip.file("word/document.xml");
   if (!docFile) throw new Error(t("errNoDocumentXml"));
@@ -1365,7 +1381,7 @@ export async function parseDocxLayout(input: DocxInput): Promise<DocxLayoutModel
   if (!body) throw new Error(t("errNoBody"));
 
   const paras: Para[] = [];
-  const ctx: BlockContext = { sc, out: paras, tables: [], tableCount: 0, state: {}, section: 0, sectPrs: [] };
+  const ctx: BlockContext = { sc, out: paras, tables: [], tableCount: 0, state: {}, commentMarks, section: 0, sectPrs: [] };
   const blocks: BlockRef[] = [];
   const bodySectPr = walkBlocks(childrenOf(body, "body"), undefined, ctx, blocks);
 

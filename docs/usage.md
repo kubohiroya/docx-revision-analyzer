@@ -596,6 +596,17 @@ target passages, what changed and the evidence for the match. The related occurr
 through earlier and later versions. The preview also shows clear examples of splits, merges, and possible copies
 or reappearances. Repeated passages or competing matches can remain uncertain.
 
+**Word comments in the comparison**: Choose a passage to see its recorded threads under **Word comments on related
+passages**. A comment can appear on a row even if only the comment changed. Each thread shows the version in which
+it was recorded. A thread absent from the latest readable version remains available with the replies, hashtags and
+reference links from the earlier version. Choose **Open thread**, then **Go to the original passage** to highlight
+the original text in that saved version.
+
+Use **Word comments by version** to browse all threads in a particular save, including threads whose location or
+cross-version correspondence cannot be established. If an archived DOCX is missing, the app can show a comment and
+its recorded excerpt when the log identifies that version. Comments and replies are written in Word. The comparison
+only reads local copies.
+
 The preview compares visible body paragraphs and headings, including documents without Track Changes. File modification
 and archive times describe the available versions. They cannot identify the time of an individual edit or reveal writing
 that appeared and disappeared between saves. Gaps and unreadable saves are marked. The comparison reads each available
