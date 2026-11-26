@@ -191,7 +191,7 @@ function applyLang(): void {
   setText("tab-lineage", savedVersionsLabel(lang));
   setText("l-lineage-enabled", savedVersionsLabel(lang, true));
   setText("l-branch-timeline-enabled", S.branchTimelinePreview);
-  for (const [id, , en, ja] of historySettings) setText(`l-${id}`, `${lang === "ja" ? ja : en} ${lang === "ja" ? "（プレビュー・次回起動時）" : "(preview, after restart)"}`);
+  for (const [id, , en, ja] of historySettings) setText(`l-${id}`, `${lang === "ja" ? ja : en} ${lang === "ja" ? "（次回起動時）" : "(after restart)"}`);
   setText("l-review-comment-write", S.reviewCommentWrite);
   setText("tab-settings", S.tabSettings);
   setText("l-gap", S.gap);

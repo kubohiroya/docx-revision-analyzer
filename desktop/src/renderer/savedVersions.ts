@@ -16,7 +16,7 @@ import type { FigureSettings } from "./savedReportFigures";
 import { STRINGS } from "./strings";
 
 const EN = {
-  preview: "Compare saved versions (preview)", tab: "Saved versions", version: "Version",
+  preview: "Compare saved versions", tab: "Saved versions", version: "Version",
   select: "Choose DOCX files", folders: "Choose folders", noInputs: "No DOCX files were found.", archive: "Use the open document’s saved record",
   order: "Order the files from earliest to latest, then compare.", compare: "Compare", minimum: "Choose at least two saved versions.",
   working: "Reading saved versions…", missing: "This version could not be read.", noArchive: "There are no archived versions for this document.",
@@ -45,7 +45,7 @@ const EN = {
   } satisfies Record<MatchEvidence, string>,
 };
 const LABELS: Record<AppLang, typeof EN> = { en: EN, ja: {
-  preview: "保存版を比較（プレビュー）", tab: "保存版の比較", version: "保存版",
+  preview: "保存版を比較", tab: "保存版の比較", version: "保存版",
   select: "DOCXファイルを選ぶ", folders: "フォルダを選ぶ", noInputs: "対象のDOCXファイルが見つかりませんでした。", archive: "開いている文書の保全記録を使う",
   order: "ファイルを古い順に並べてから比較します。", compare: "比較する", minimum: "保存版を2つ以上選んでください。",
   working: "保存版を読み込んでいます…", missing: "この保存版を読み込めませんでした。", noArchive: "この文書の保全済み保存版はありません。",

@@ -55,7 +55,7 @@ export interface AppSettings {
   watchRecordsDir?: string;
   /** 保存時のページ (PDF) の設定 */
   pages?: PagesSettings;
-  /** Enable the saved-version comparison preview. */
+  /** Show saved-version comparison in the desktop app. */
   lineagePreview?: boolean;
   revisionHistoryIndexPreview?: boolean;
   historicalSearchPreview?: boolean;
@@ -127,6 +127,11 @@ export interface AnalysisSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   extensions: {},
   analysis: { gapThresholdHours: 1, bulkChars: 150, bucket: "auto", chartSplit: true },
+  lineagePreview: true,
+  revisionHistoryIndexPreview: true,
+  historicalSearchPreview: true,
+  historicalAnchorPreview: true,
+  cloudVersionHistoryPreview: true,
   branchTimelinePreview: true,
 };
 
