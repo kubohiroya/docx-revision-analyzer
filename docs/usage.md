@@ -522,8 +522,8 @@ Anything other than Japanese falls back to English. The macOS drag-and-drop apps
 ## Desktop app (preview)
 
 [`desktop/`](../desktop/) contains a desktop app (Electron) for people who don't use the command line: open or drop a
-.docx to see the chart, the flow and the highlighted insertions. Everything runs locally and the app blocks network
-access. It can also open a .docx from a OneDrive / SharePoint link (after signing in to Microsoft); the document is
+.docx to see the chart, the flow and the highlighted insertions. Analysis runs locally and the analysis window blocks
+external network access. The app can also open a .docx from a OneDrive / SharePoint link (after signing in to Microsoft); the document is
 only downloaded for analysis. Download the macOS or Windows installer from the [installation guide](installation.md#desktop-app).
 
 **Moving around the figures.** Drag the chart or the flow to move it; Ctrl / ⌘ + wheel (or a trackpad pinch) zooms
@@ -542,7 +542,9 @@ are not part of exported SVGs / PNGs.
 "Open from URL…" — for example the folder where Microsoft Teams collects assignment submissions — and choose (or
 create) an output folder: the source folder's hierarchy is recreated there with the SVGs inside (or, if you choose,
 everything is put in one folder with the path in the file names). Both also write `summary.csv` (for Excel) and
-`index.html` (links to every figure). The CLIs (and the macOS droplets) also accept folders: `docx-revision-analyzer flow
+`index.html` (links to every figure). By default, saving an SVG opens the figure in the browser, and batch processing
+opens the index. Use the toolbar's **Open the SVG in the browser after saving** checkbox to change this. The CLIs
+(and the macOS droplets) also accept folders: `docx-revision-analyzer flow
 submissions/`.
 
 **Lock template**: saves a copy of the opened document with Track Changes locked, through a save dialog (see
@@ -591,9 +593,9 @@ are written to documents opened from a URL (they are opened with read-only acces
 
 See [Export a saved-version comparison as HTML](#export-a-saved-version-comparison-as-html) for steps by version.
 The **Versions in scope** table, the `--versions` option, per-version charts and flows, search and date filters, and the
-[branch timeline](#saved-version-branch-timeline) are available in the v0.4.1 and v0.4.2 prereleases.
+[branch timeline](#saved-version-branch-timeline) are available in the v0.4.1 and later prereleases.
 
-**Compare saved versions (preview)**: Turn on **Compare saved versions (preview)** in Settings and open **Saved versions**.
+**Compare saved versions**: Open **Saved versions**.
 Select **Choose DOCX files** or **Choose folders** to open the **Versions in scope** table. Folders are scanned recursively
 for DOCX files. You can also drop multiple paths on the window or drop a file or folder on the **Saved versions** tab.
 
@@ -626,6 +628,12 @@ and archive times describe the available versions. They cannot identify the time
 that appeared and disappeared between saves. Gaps and unreadable saves are marked. The comparison reads each available
 version locally.
 
+**Search saved history (v0.5.0 or later)**: Open “Search saved history” from Saved versions or Review changes and comments. Search the selected versions or path for recorded insertions, deletions, moves, comments, replies, and quotations. If an earlier version still contains a tracked edit, it appears even when accepting it left the visible text unchanged. Use “Show source” to inspect the original range or thread.
+
+From a search result, you can look for the corresponding place in a later version. For files selected manually, put them in order and choose Compare, or select a branch path in the review window. The app shows the original range separately from any proposed location and withholds a match across gaps or unreadable versions. Change extraction and location matching cover body paragraphs and headings. The app displays Word timestamps separately from version timestamps. Results are limited to the versions and observations you could read.
+
+**Import OneDrive / SharePoint versions (v0.5.0 or later)**: Open a document from its URL. In Saved versions, choose “Import cloud versions” and select the versions to retrieve. Imported files are stored in the app data folder and reused in later comparisons and searches. Available history depends on the service's settings and retention period. Failed versions show a reason, and retrieved versions can still be compared. Saved-version comparison, indexing, search, location matching, and cloud import are on by default. To turn off a history feature, clear its setting and restart the app.
+
 **Review changes and comments**: After comparing, open **Review changes and comments**. In **Versions in scope**, choose
 versions using the filenames, dates, sizes, and visible text and heading counts. All loaded versions are selected initially.
 Select a row or its checkbox to toggle it,
@@ -654,9 +662,8 @@ changes in that DOCX. Select **Back to comparison** or the × at the top right t
 When adjacent panels are expanded, drag the divider between them to adjust their relative heights. With the divider
 focused, use the Up and Down arrow keys to resize. Double-click the divider to restore the original heights.
 
-**Add a Word comment from the comparison (preview)**: Comment writing is off by default. Enable saved-version comparison
-and **Write local Word comments from version comparison (preview, applies after restart)** in Settings, then restart the app.
-Compare local DOCX files and choose a change with one corresponding
+**Add a Word comment from the comparison**: Comment writing is available by default. To hide the writing controls,
+turn it off in Settings and restart the app. Compare local DOCX files and choose a change with one corresponding
 passage in the later version. Under **Add a Word comment**, check the file and paragraph, enter the author name and comment,
 and select **Add to Word**. Archived and URL-based versions are for viewing. Close the target in Word before writing, or reload
 the versions if the file changed after comparison. A failed save keeps the draft in the comparison window. Verification of comment
@@ -722,11 +729,11 @@ the selected path unavailable, choose a path again before opening the preview.
 
 ### Export a saved-version comparison as HTML
 
-#### Export in the v0.4.1 and v0.4.2 prereleases
+#### Export in the v0.4.1 and later prereleases
 
 The screenshots use a development build.
 
-1. In **Settings**, enable **Compare saved versions (preview)**. In **Saved versions**, select **Choose DOCX files** or **Choose folders**.
+1. In **Saved versions**, select **Choose DOCX files** or **Choose folders**.
 
    ![Development build Saved versions tab with file and folder buttons](images/html-export/en-comparison.png)
 
@@ -742,7 +749,7 @@ The screenshots use a development build.
 
 #### Enable and run the comparison in v0.3.0 and v0.4.0
 
-1. Open **Settings** in the desktop app and turn on **Compare saved versions (preview)**. The **Saved versions** tab appears at the top.
+1. Open **Saved versions** at the top of the desktop app.
 2. In **Saved versions**, select **Choose DOCX files** and pick at least two saved versions of the same document. Use the arrows to order them from earliest to latest, then select **Compare**. For versions archived while watching a document, open that document and choose **Use the open document’s saved record** before comparing.
 
 #### Export in the v0.4.0 prerelease

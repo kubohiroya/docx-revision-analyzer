@@ -170,6 +170,13 @@ function setText(id: string, text: string): void {
 // 表示言語
 // ---------------------------------------------------------------------------
 
+const historySettings = [
+  ["revision-history-index", "revisionHistoryIndexPreview", "Index Word changes in saved versions", "保存版のWord変更履歴を索引化"],
+  ["historical-search", "historicalSearchPreview", "Search saved history", "保存版の履歴を横断検索"],
+  ["historical-anchor", "historicalAnchorPreview", "Locate historical changes and comments", "過去の変更履歴とコメントを対応箇所へつなぐ"],
+  ["cloud-version-history", "cloudVersionHistoryPreview", "Import OneDrive / SharePoint version history", "OneDrive / SharePointの過去版を取得"],
+] as const;
+
 function applyLang(): void {
   S = STRINGS[lang];
   setLang(lang);
@@ -184,6 +191,7 @@ function applyLang(): void {
   setText("tab-lineage", savedVersionsLabel(lang));
   setText("l-lineage-enabled", savedVersionsLabel(lang, true));
   setText("l-branch-timeline-enabled", S.branchTimelinePreview);
+  for (const [id, , en, ja] of historySettings) setText(`l-${id}`, `${lang === "ja" ? ja : en} ${lang === "ja" ? "（次回起動時）" : "(after restart)"}`);
   setText("l-review-comment-write", S.reviewCommentWrite);
   setText("tab-settings", S.tabSettings);
   setText("l-gap", S.gap);
@@ -273,7 +281,9 @@ function showTab(next: Tab): void {
   for (const el of document.querySelectorAll<HTMLElement>(".figure-only")) el.hidden = next !== "chart" && next !== "flow";
   if (next === "chart") chartViewer?.shown();
   if (next === "flow") flowViewer?.shown();
-  if (next === "lineage") savedVersionsPane.render(lang, file ? { path: file.path, name: file.name } : undefined);
+  if (next === "lineage") savedVersionsPane.render(lang, file ? {
+    path: file.path, name: file.name, cloud: file.source?.kind === "url",
+  } : undefined);
 }
 
 (window as unknown as { __showTab: (t: Tab) => void }).__showTab = showTab;
@@ -1372,6 +1382,11 @@ function renderSettings(): void {
   $<HTMLButtonElement>("rules-clear").disabled = !settings.rulesPath;
   $<HTMLInputElement>("updates").checked = !!settings.checkForUpdates;
   $("tab-lineage").hidden = !versionReviewAvailable();
+  for (const [id, key] of historySettings) {
+    const control = $<HTMLInputElement>(id);
+    control.checked = settings[key] === true;
+    control.disabled = (key === "historicalSearchPreview" || key === "historicalAnchorPreview") && !settings.revisionHistoryIndexPreview;
+  }
   $<HTMLInputElement>("lineage-enabled").checked = settings.lineagePreview === true;
   $<HTMLInputElement>("branch-timeline-enabled").checked = settings.branchTimelinePreview === true;
   $<HTMLInputElement>("branch-timeline-enabled").disabled = !versionReviewAvailable();
@@ -1584,6 +1599,12 @@ async function main(): Promise<void> {
       renderSettings();
     });
   });
+  for (const [id, key] of historySettings) {
+    $(id).addEventListener("change", () => {
+      settings[key] = $<HTMLInputElement>(id).checked;
+      void runSafely(async () => { await persist(); renderSettings(); });
+    });
+  }
   $("branch-timeline-enabled").addEventListener("change", () => {
     settings.branchTimelinePreview = $<HTMLInputElement>("branch-timeline-enabled").checked;
     void persist();

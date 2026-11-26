@@ -6,6 +6,7 @@ import * as path from "node:path";
 import { addWordComment, extractComments, replayCommentEvents, type CommentEvent, type CommentLocations, type DocxComment } from "../../src/lib/docxComments";
 import { countRecordedRevisions } from "../../src/lib/integrity";
 import { readSavedTextVersion, type SavedParagraphRange, type VersionIdentity } from "../../src/lib/lineage";
+import { readRevisionOccurrences, type RevisionHistoryRead, type RevisionOccurrence } from "../../src/lib/revisionHistory";
 import { revertTrackedChangesXml } from "../../src/lib/versions";
 import { countVersionText } from "./versionTextCounts";
 import type { WatchArchive } from "../../src/node/docWatcher";
@@ -51,6 +52,33 @@ export async function readSavedVersionFigureSource(id: unknown): Promise<SavedVe
     return { ok: true, bytes: await file.read() };
   } catch (error) {
     return { ok: false, reason: error instanceof VersionFileChanged ? "changed" : "unavailable" };
+  }
+}
+
+const revisionCache = new Map<string, RevisionOccurrence[]>();
+let cachedRevisionCount = 0;
+
+export async function readSavedVersionRevisions(id: unknown): Promise<RevisionHistoryRead> {
+  const input = await readSavedVersionFigureSource(id);
+  if (!input.ok) return { status: input.reason, records: [] };
+  const sha = digest(input.bytes);
+  const cached = revisionCache.get(sha);
+  if (cached) return { status: "read", records: cached };
+  try {
+    const records = await readRevisionOccurrences(input.bytes);
+    if (!revisionCache.has(sha) && records.length <= 20_000) {
+      while (revisionCache.size >= 64 || cachedRevisionCount + records.length > 20_000) {
+        const oldest = revisionCache.keys().next().value;
+        if (oldest === undefined) break;
+        cachedRevisionCount -= revisionCache.get(oldest)!.length;
+        revisionCache.delete(oldest);
+      }
+      cachedRevisionCount += records.length;
+      revisionCache.set(sha, records);
+    }
+    return { status: "read", records };
+  } catch {
+    return { status: "unavailable", records: [] };
   }
 }
 
@@ -139,6 +167,34 @@ async function readVersion(
   }
 }
 
+export async function readCloudSavedVersion(
+  bytes: Uint8Array, identity: VersionIdentity, read: () => Promise<Uint8Array>,
+): Promise<SavedLineageVersion> {
+  const sha256 = digest(bytes);
+  const version = await readVersion(bytes, { ...identity, sha256 });
+  const verified = async () => {
+    const current = await read();
+    if (digest(current) !== sha256) throw new VersionFileChanged("The saved version no longer matches the imported content.");
+    return current;
+  };
+  const openId = rememberVersionFile({
+    read: verified,
+    path: async () => {
+      const bytes = await verified();
+      const folder = await fs.mkdtemp(path.join(tmpdir(), "dra-cloud-version-"));
+      const file = path.join(folder, "saved-version.docx");
+      try {
+        await fs.writeFile(file, bytes, { flag: "wx", mode: 0o400 });
+        return file;
+      } catch (error) {
+        await fs.rm(folder, { recursive: true, force: true });
+        throw error;
+      }
+    },
+  });
+  return { ...version, openId };
+}
+
 export async function readSelectedSavedVersions(files: string[], allowOpen = false): Promise<SavedLineageVersion[]> {
   const result: SavedLineageVersion[] = [];
   for (const file of files) {
@@ -146,13 +202,14 @@ export async function readSelectedSavedVersions(files: string[], allowOpen = fal
     const sourcePathHash = createHash("sha256").update(path.resolve(file)).digest("hex");
     const identity: VersionIdentity = {
       label: path.basename(file), source: "selected", sourceModified: stat?.mtime.toISOString(),
+      versionId: `selected:${sourcePathHash}:unavailable`,
     };
     const fileCreatedAt = stat && stat.birthtimeMs > 0 ? stat.birthtime.toISOString() : undefined;
     try {
       const actual = await fs.realpath(file);
       const bytes = await fs.readFile(actual);
       const sha256 = digest(bytes);
-      const version = await readVersion(bytes, { ...identity, sha256 });
+      const version = await readVersion(bytes, { ...identity, sha256, versionId: `selected:${sourcePathHash}:${sha256}` });
       const openId = allowOpen && stat?.isFile() && /\.docx$/iu.test(actual) ? rememberLocalVersion(actual, stat, sha256) : undefined;
       result.push({ ...version, fileCreatedAt, sourcePathHash, openId });
     } catch {
@@ -201,7 +258,8 @@ export async function addSavedVersionComment(id: unknown, request: unknown): Pro
       const label = path.basename(file);
       const generated = await addWordComment(bytes, request).catch(() => { throw new CommentWriteConflict("unsupported"); });
       const sha256 = digest(generated.bytes);
-      const version = await readVersion(generated.bytes, { label, source: "selected", sha256 });
+      const versionId = `selected:${digest(Buffer.from(source.file))}:${sha256}`;
+      const version = await readVersion(generated.bytes, { label, source: "selected", sha256, versionId });
       if (version.unavailable || version.commentsUnavailable ||
           !version.threads.some((thread) => thread.detail.comments[0]?.id === generated.id && thread.ranges.length)) {
         return { ok: false, reason: "unsupported" };
@@ -245,6 +303,7 @@ export async function readSavedVersionArchive(archive: WatchArchive, allowOpen =
     const identity: VersionIdentity = {
       label: entry.file, source: "archive", number: entry.n, sha256: entry.sha256,
       archivedAt: entry.archivedAt, sourceModified: entry.sourceModified,
+      versionId: `archive:${digest(Buffer.from(archive.dir))}:${entry.n}:${entry.sha256}`,
       gapBefore: resumed.has(entry.n) || Boolean(previous && entry.n !== previous.n + 1),
     };
     try {

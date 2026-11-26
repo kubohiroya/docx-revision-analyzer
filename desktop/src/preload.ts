@@ -65,6 +65,16 @@ const api: AppApi = {
   loadSavedVersionPaths: (paths) => ipcRenderer.invoke("load-saved-version-paths", paths),
   openSavedVersion: (id) => ipcRenderer.invoke("open-saved-version", id),
   readSavedVersionFigureSource: (id) => ipcRenderer.invoke("read-saved-version-figure-source", id),
+  historyFeatures: () => ipcRenderer.invoke("history-features"),
+  listCloudVersions: (path) => ipcRenderer.invoke("list-cloud-versions", path),
+  importCloudVersions: (path, ids) => ipcRenderer.invoke("import-cloud-versions", path, ids),
+  cancelCloudVersions: (path) => ipcRenderer.invoke("cancel-cloud-versions", path),
+  onCloudVersionProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, update: { path: string; done: number; total: number }) => callback(update);
+    ipcRenderer.on("cloud-version-progress", listener);
+    return () => ipcRenderer.removeListener("cloud-version-progress", listener);
+  },
+  readSavedVersionRevisions: (id) => ipcRenderer.invoke("read-saved-version-revisions", id),
   reviewCommentWriteEnabled: () => ipcRenderer.invoke("review-comment-write-enabled"),
   addSavedVersionComment: (id, comment) => ipcRenderer.invoke("add-saved-version-comment", id, comment),
   readDocx: (p) => ipcRenderer.invoke("read-docx", p),

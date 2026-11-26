@@ -102,6 +102,17 @@ export interface LayoutCommentMark {
   segment: number;
 }
 
+export type LayoutRevisionKind = "ins" | "del" | "moveFrom" | "moveTo";
+
+export interface LayoutRevisionMark {
+  kind: LayoutRevisionKind;
+  ref: RevRef;
+  start: number;
+  end: number;
+  paragraphMark?: boolean;
+  block?: boolean;
+}
+
 /** 段落の書式 (スタイルの継承を解決したもの)。長さは twip */
 export interface ParaProps {
   styleId?: string;
@@ -736,6 +747,7 @@ interface ParseState {
   renderedBreaks?: number[];
   noteRefs?: NoteRef[];
   commentMarks?: LayoutCommentMark[];
+  revisionMarks?: LayoutRevisionMark[];
 }
 
 /** 段落に付けるブックマークの名前 (Word が自動で付ける _GoBack は除く) */
@@ -880,17 +892,18 @@ function walkInline(nodes: XmlNode[], ctx: RevContext, segs: Seg[], state: Parse
     const kids = childrenOf(node, tag);
     switch (tag) {
       case "ins":
-        walkInline(kids, { ...ctx, ins: revRef(node, false) }, segs, state, sc);
-        break;
       case "moveTo":
-        walkInline(kids, { ...ctx, ins: revRef(node, true, state.moveToName) }, segs, state, sc);
-        break;
       case "del":
-        walkInline(kids, { ...ctx, del: revRef(node, false) }, segs, state, sc);
+      case "moveFrom": {
+        const incoming = tag === "ins" || tag === "moveTo";
+        const move = tag === "moveTo" || tag === "moveFrom";
+        const ref = revRef(node, move, incoming ? state.moveToName : state.moveFromName);
+        const mark = { kind: tag, ref, start: segs.length, end: segs.length };
+        state.revisionMarks?.push(mark);
+        walkInline(kids, incoming ? { ...ctx, ins: ref } : { ...ctx, del: ref }, segs, state, sc);
+        mark.end = segs.length;
         break;
-      case "moveFrom":
-        walkInline(kids, { ...ctx, del: revRef(node, true, state.moveFromName) }, segs, state, sc);
-        break;
+      }
       case "r": {
         // 文字の書式: 文字スタイル → 直接の書式
         const rPrNode = findChild(kids, "rPr");
@@ -1045,6 +1058,15 @@ function parseParagraph(
   state.pendingBookmarks = undefined;
   Object.assign(state, { renderedBreaks: undefined, noteRefs: undefined });
   walkInline(kids, { rpr }, para.segs, state, sc);
+  if (state.revisionMarks) {
+    const end = para.segs.length;
+    if (para.markIns) state.revisionMarks.push({
+      kind: para.markIns.move ? "moveTo" : "ins", ref: para.markIns, start: end, end, paragraphMark: true,
+    });
+    if (para.markDel) state.revisionMarks.push({
+      kind: para.markDel.move ? "moveFrom" : "del", ref: para.markDel, start: end, end, paragraphMark: true,
+    });
+  }
   if (state.paraBookmarks.length) para.bookmarks = state.paraBookmarks;
   if (state.renderedBreaks?.length) para.renderedBreaks = state.renderedBreaks;
   if (state.noteRefs?.length) para.noteRefs = state.noteRefs;
@@ -1059,6 +1081,8 @@ interface BlockContext {
   tableCount: number;
   state: ParseState;
   commentMarks?: Map<number, LayoutCommentMark[]>;
+  revisionMarks?: Map<number, LayoutRevisionMark[]>;
+  blockRevision?: LayoutRevisionMark[];
   /** いまのセクションの番号と、これまでに見つかったセクションの w:sectPr */
   section: number;
   sectPrs: XmlNode[];
@@ -1079,8 +1103,16 @@ function walkBlocks(nodes: XmlNode[], tableId: number | undefined, ctx: BlockCon
     }
     if (tag === "p") {
       if (ctx.commentMarks) ctx.state.commentMarks = [];
+      if (ctx.revisionMarks) ctx.state.revisionMarks = [];
       const { para, sectPr } = parseParagraph(node, ctx.out.length, tableId, ctx.section, ctx.sc, ctx.state);
       if (ctx.state.commentMarks?.length) ctx.commentMarks?.set(para.index, ctx.state.commentMarks);
+      if (ctx.revisionMarks) {
+        const marks = [
+          ...(ctx.blockRevision ?? []).map(mark => ({ ...mark, end: para.segs.length })),
+          ...(ctx.state.revisionMarks ?? []),
+        ];
+        if (marks.length) ctx.revisionMarks.set(para.index, marks);
+      }
       ctx.out.push(para);
       container.push({ kind: "para", index: para.index });
       // 段落の w:sectPr は、その段落で終わるセクションの設定 (表の中には現れない)
@@ -1094,7 +1126,16 @@ function walkBlocks(nodes: XmlNode[], tableId: number | undefined, ctx: BlockCon
       container.push({ kind: "table", table: parseTable(node, unitId, ctx) });
     } else if (tag === "sectPr") {
       lastSectPr = node;
-    } else if (["sdt", "sdtContent", "customXml", "ins", "del", "moveTo", "moveFrom"].includes(tag)) {
+    } else if (tag === "ins" || tag === "del" || tag === "moveTo" || tag === "moveFrom") {
+      const previous = ctx.blockRevision;
+      if (ctx.revisionMarks) {
+        const move = tag === "moveTo" || tag === "moveFrom";
+        const ref = revRef(node, move, tag === "moveTo" ? ctx.state.moveToName : ctx.state.moveFromName);
+        ctx.blockRevision = [...(previous ?? []), { kind: tag, ref, start: 0, end: 0, block: true }];
+      }
+      walkBlocks(childrenOf(node, tag), tableId, ctx, container);
+      ctx.blockRevision = previous;
+    } else if (["sdt", "sdtContent", "customXml"].includes(tag)) {
       walkBlocks(childrenOf(node, tag), tableId, ctx, container);
     }
   }
@@ -1354,6 +1395,7 @@ async function parseNotes(zip: JSZip, part: string, tag: "footnote" | "endnote")
 
 export async function parseDocxLayout(
   input: DocxInput, commentMarks?: Map<number, LayoutCommentMark[]>, transformDocumentXml?: (xml: string) => string,
+  revisionMarks?: Map<number, LayoutRevisionMark[]>,
 ): Promise<DocxLayoutModel> {
   const zip = await JSZip.loadAsync(input);
   const docFile = zip.file("word/document.xml");
@@ -1384,7 +1426,7 @@ export async function parseDocxLayout(
   if (!body) throw new Error(t("errNoBody"));
 
   const paras: Para[] = [];
-  const ctx: BlockContext = { sc, out: paras, tables: [], tableCount: 0, state: {}, commentMarks, section: 0, sectPrs: [] };
+  const ctx: BlockContext = { sc, out: paras, tables: [], tableCount: 0, state: {}, commentMarks, revisionMarks, section: 0, sectPrs: [] };
   const blocks: BlockRef[] = [];
   const bodySectPr = walkBlocks(childrenOf(body, "body"), undefined, ctx, blocks);
 
