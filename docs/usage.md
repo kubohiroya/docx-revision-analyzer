@@ -626,6 +626,12 @@ and archive times describe the available versions. They cannot identify the time
 that appeared and disappeared between saves. Gaps and unreadable saves are marked. The comparison reads each available
 version locally.
 
+**Search saved history (preview)**: Enable saved-version comparison, “Index Word changes in saved versions,” and “Search saved history” in Settings, then restart the app. Open “Search saved history” from Saved versions or Review changes and comments. Search the selected versions or path for recorded insertions, deletions, moves, comments, replies, and quotations. If an earlier version still contains a tracked edit, it appears even when accepting it left the visible text unchanged. Use “Show source” to inspect the original range or thread.
+
+Enable “Locate historical changes and comments” to follow a result to the corresponding place in a later version. For files selected manually, put them in order and choose Compare, or select a branch path in the review window. The app shows the original range separately from any proposed location and withholds a match across gaps or unreadable versions. Change extraction and location matching cover body paragraphs and headings. The app displays Word timestamps separately from version timestamps. Results are limited to the versions and observations you could read.
+
+**Import OneDrive / SharePoint versions (preview)**: Enable “Import OneDrive / SharePoint version history,” restart, and open a document from its URL. In Saved versions, choose “Import cloud versions” and select the versions to retrieve. Imported files are stored in the app data folder and reused in later comparisons and searches. Available history depends on the service's settings and retention period. Failed versions show a reason, and retrieved versions can still be compared. To turn off any of these previews, clear its setting and restart the app.
+
 **Review changes and comments**: After comparing, open **Review changes and comments**. In **Versions in scope**, choose
 versions using the filenames, dates, sizes, and visible text and heading counts. All loaded versions are selected initially.
 Select a row or its checkbox to toggle it,

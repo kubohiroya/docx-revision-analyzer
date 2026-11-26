@@ -1,3 +1,4 @@
+import { getCloudVersionBytes, listCloudVersionItems, CloudVersionError, MAX_CLOUD_DOCX_BYTES, type CloudVersionItem } from "./cloudVersionGraph";
 /**
  * OneDrive / SharePoint 上の docx を URL から開く (メインプロセス)。
  *
@@ -24,7 +25,7 @@ import type { AccountInfo, ICachePlugin, PublicClientApplication as PCA, TokenCa
 /** Graph で読むために求める権限 (自分がアクセスできるファイル。組織の多くでは利用者の同意だけで使える) */
 export const GRAPH_SCOPES = ["Files.Read.All"];
 const GRAPH = "https://graph.microsoft.com/v1.0";
-const MAX_BYTES = 200 * 1024 * 1024;
+const MAX_BYTES = MAX_CLOUD_DOCX_BYTES;
 
 export interface MicrosoftConfig {
   /** Azure に登録したアプリの (クライアント) ID */
@@ -42,6 +43,7 @@ export interface CloudFile {
   driveId: string;
   itemId: string;
   webUrl?: string;
+  accountId?: string;
 }
 
 export class MicrosoftError extends Error {
@@ -191,11 +193,16 @@ export class MicrosoftClient {
    * (interactive が false なら、サインインせずに signInCancelled のエラーにする。監視の問い合わせ用)
    */
   private async token(interactive = true): Promise<string> {
+    return (await this.authenticate(interactive)).token;
+  }
+
+  private async authenticate(interactive: boolean): Promise<{ token: string; accountId?: string }> {
     const pca = await this.app();
     const account = (await pca.getTokenCache().getAllAccounts())[0];
     if (account) {
       try {
-        return (await pca.acquireTokenSilent({ account, scopes: GRAPH_SCOPES })).accessToken;
+        const result = await pca.acquireTokenSilent({ account, scopes: GRAPH_SCOPES });
+        return { token: result.accessToken, accountId: result.account?.homeAccountId ?? account.homeAccountId };
       } catch {
         // 期限切れ・権限の追加などは、サインインし直す
       }
@@ -210,10 +217,29 @@ export class MicrosoftClient {
         successTemplate: SIGNED_IN_PAGE("Signed in / サインインしました", "You can close this tab and return to the app. / このタブを閉じてアプリに戻ってください。"),
         errorTemplate: SIGNED_IN_PAGE("Sign-in failed / サインインできませんでした", "Please return to the app and try again. / アプリに戻ってやり直してください。"),
       });
-      return r.accessToken;
+      return { token: r.accessToken, accountId: r.account?.homeAccountId };
     } catch (err) {
       throw new MicrosoftError(err instanceof Error ? err.message : String(err), "signInCancelled");
     }
+  }
+
+  private async versionToken(accountId: string): Promise<string> {
+    const pca = await this.app();
+    const account = (await pca.getTokenCache().getAllAccounts()).find(a => a.homeAccountId === accountId);
+    if (!account) throw new CloudVersionError("sign-in");
+    try {
+      return (await pca.acquireTokenSilent({ account, scopes: GRAPH_SCOPES })).accessToken;
+    } catch {
+      throw new CloudVersionError("sign-in");
+    }
+  }
+
+  async listVersions(target: { driveId: string; itemId: string }, accountId: string, signal: AbortSignal): Promise<CloudVersionItem[]> {
+    return listCloudVersionItems(target, await this.versionToken(accountId), signal);
+  }
+
+  async getVersionBytes(target: { driveId: string; itemId: string }, item: CloudVersionItem, accountId: string, signal: AbortSignal) {
+    return getCloudVersionBytes(target, item, await this.versionToken(accountId), signal);
   }
 
   private async graph(pathAndQuery: string, token: string, init: RequestInit = {}): Promise<Response> {
@@ -268,7 +294,7 @@ export class MicrosoftClient {
       return { name: path.basename(this.mockFile), mtime: stat.mtime.toISOString(), bytes: new Uint8Array(bytes), driveId: "mock", itemId: "mock" };
     }
     if ("url" in target && !isMicrosoftFileUrl(target.url)) throw new MicrosoftError(target.url, "badUrl");
-    const token = await this.token(interactive);
+    const { token, accountId } = await this.authenticate(interactive);
     const select = "$select=id,name,size,lastModifiedDateTime,webUrl,parentReference,file,folder";
     const meta = (await (
       "url" in target
@@ -298,6 +324,7 @@ export class MicrosoftClient {
       driveId,
       itemId: meta.id,
       webUrl: meta.webUrl,
+      accountId,
     };
   }
 

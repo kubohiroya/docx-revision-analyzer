@@ -1,3 +1,4 @@
+import { historySearchLabel, historySearchPanel } from "./historicalSearch";
 import { DEFAULT_REPORT_RANGE, REPORT_LIMITS, type SavedVersionReport } from "../reportData";
 import { SavedReportAnalysis, type SavedReportScope } from "../savedReport";
 import type { AppLang, SavedLineageVersion } from "../shared";
@@ -42,6 +43,7 @@ export async function showSavedReportExport(
 ): Promise<void> {
   const s = LABELS[lang];
   const canWrite = await window.app.reviewCommentWriteEnabled?.().catch(() => false) === true;
+  const features = await window.app.historyFeatures?.().catch(() => undefined);
   const currentVersions = [...versions];
   const sameNames = new Set<string>();
   const seenNames = new Set<string>();
@@ -147,6 +149,40 @@ export async function showSavedReportExport(
     };
     const reviewButton = action(s.back, () => { if (preview && !saving) showReview(); });
     const previewButton = action(s.preview, showPreview);
+    const history = action(historySearchLabel(lang, features?.search), () => {
+      if (preview || writing || saving) return;
+      const indices = pathIndices ?? [...targets].sort((a, b) => a - b);
+      const scoped = indices.map((index, position) => {
+        const version = currentVersions[index];
+        const prior = indices[position - 1];
+        const skipped = position > 0 && index !== prior + 1 && version.source !== "selected";
+        return skipped ? { ...version, gapBefore: true } : version;
+      });
+      const ordered = Boolean(pathIndices) || (scoped.length > 0 && scoped.every(v => v.source === scoped[0].source &&
+        (v.source === "archive" || v.source === "cloud")));
+      const historyView = new AbortController();
+      const scroll = dialog.scrollTop;
+      const dismiss = () => {
+        historyView.abort();
+        panel.remove();
+        dialog.removeEventListener("cancel", onCancel, true);
+        wrapper.hidden = false;
+        dialog.scrollTop = scroll;
+        history.focus({ preventScroll: true });
+      };
+      const onCancel = (event: Event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        dismiss();
+      };
+      const panel = historySearchPanel(lang, scoped, indices.map(versionName), ordered, Boolean(features?.anchors),
+        Boolean(features?.search), historyView.signal, dismiss);
+      wrapper.hidden = true;
+      dialog.append(panel);
+      dialog.addEventListener("cancel", onCancel, true);
+      dialog.scrollTop = 0;
+      panel.querySelector<HTMLElement>("input[type=search]")?.focus();
+    });
     const save = action(s.save, () => void savePreview(), "primary");
     const closeButton = (click: () => void) => {
       const label = el("span", "×");
@@ -158,6 +194,7 @@ export async function showSavedReportExport(
       return button;
     };
     actions.append(el("h2", s.review), reviewButton, previewButton, save, closeButton(() => close()));
+    if (features?.search || features?.anchors) actions.insertBefore(history, previewButton);
     wrapper.append(actions, count, pathBox, hint, status, content);
     dialog.append(wrapper);
 
@@ -270,6 +307,8 @@ export async function showSavedReportExport(
     }
 
     function updateMode(): void {
+      history.hidden = Boolean(preview);
+      history.disabled = saving || writing || !activeTargets().length;
       reviewButton.setAttribute("aria-pressed", String(!preview));
       previewButton.setAttribute("aria-pressed", String(Boolean(preview)));
       const indices = activeTargets();

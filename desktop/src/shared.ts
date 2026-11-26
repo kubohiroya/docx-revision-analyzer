@@ -57,6 +57,10 @@ export interface AppSettings {
   pages?: PagesSettings;
   /** Enable the saved-version comparison preview. */
   lineagePreview?: boolean;
+  revisionHistoryIndexPreview?: boolean;
+  historicalSearchPreview?: boolean;
+  historicalAnchorPreview?: boolean;
+  cloudVersionHistoryPreview?: boolean;
   /** Enable path selection in the saved-version comparison preview. */
   branchTimelinePreview?: boolean;
   /** Enable the local review comment writer on the next launch. */
@@ -399,6 +403,12 @@ export interface AppApi {
   loadSavedVersionPaths(paths: string[]): Promise<SavedLineageVersion[]>;
   openSavedVersion(id: string): Promise<void>;
   readSavedVersionFigureSource(id: string): Promise<SavedVersionFigureSource>;
+  historyFeatures(): Promise<{ index: boolean; search: boolean; anchors: boolean; cloud: boolean }>;
+  listCloudVersions(path: string): Promise<{ items: import("./cloudVersionGraph").CloudVersionItem[]; error?: string }>;
+  importCloudVersions(path: string, ids: string[]): Promise<import("./cloudVersionImport").CloudVersionImportResult & { error?: string }>;
+  cancelCloudVersions(path: string): Promise<void>;
+  onCloudVersionProgress(callback: (update: { path: string; done: number; total: number }) => void): () => void;
+  readSavedVersionRevisions(id: string): Promise<import("../../src/lib/revisionHistory").RevisionHistoryRead>;
   reviewCommentWriteEnabled(): Promise<boolean>;
   addSavedVersionComment(id: string, comment: SavedVersionCommentRequest): Promise<SavedVersionCommentResult>;
   /** パスのファイルを読む (ドロップされたファイルなど) */

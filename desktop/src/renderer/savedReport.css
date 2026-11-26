@@ -521,3 +521,29 @@ button.report-branch-edge-button {
 }
 .report-version-flow > span { overflow: hidden; text-overflow: ellipsis; }
 .report-version-flow:is(:hover, :focus-visible) > span { text-decoration: underline; }
+
+.history-search .lineage-controls {
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.history-search .lineage-controls label {
+  display: grid;
+  min-width: 8rem;
+  gap: .2rem;
+}
+
+.history-results {
+  max-height: min(34vh, 22rem);
+  overflow: auto;
+}
+
+.history-results li + li {
+  margin-top: .5rem;
+}
+
+.history-search .lineage-passage {
+  margin: .25rem 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

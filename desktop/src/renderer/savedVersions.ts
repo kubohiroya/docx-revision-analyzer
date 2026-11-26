@@ -1,3 +1,5 @@
+import { cloudVersionPickerLabel, pickCloudVersions } from "./cloudVersionPicker";
+import { historySearchLabel, historySearchPanel } from "./historicalSearch";
 import {
   compareSavedVersions, lineageRangeText, traceLineage,
   type LineageKind, type LineageLevel, type LineageLink, type LineageRange,
@@ -7,7 +9,7 @@ import { commentReferences } from "../../../src/lib/commentReferences";
 import { LineageComments, type VersionThreadOccurrence } from "../lineageComments";
 import { SavedReportAnalysis } from "../savedReport";
 import type { AppLang, CommentHistoryTarget, SavedLineageVersion } from "../shared";
-import { el } from "./extensions";
+import { el, modal } from "./extensions";
 import { showCommentHistory } from "./commentHistory";
 import { savedReportExportLabel, showSavedReportExport } from "./savedReportExport";
 import type { FigureSettings } from "./savedReportFigures";
@@ -122,7 +124,9 @@ export class SavedVersionsPane {
   private notice: "minimum" | "noArchive" | "noInputs" | undefined;
   private error = "";
   private lang: AppLang = "en";
-  private current?: CommentHistoryTarget;
+  private current?: CommentHistoryTarget & { cloud?: boolean };
+  private features?: Awaited<ReturnType<typeof window.app.historyFeatures>>;
+  private versionOrderConfirmed = false;
 
   constructor(
     private pane: HTMLElement,
@@ -166,6 +170,7 @@ export class SavedVersionsPane {
         return;
       }
       this.versions = items;
+      this.versionOrderConfirmed = false;
       this.result = undefined;
       this.comments = undefined;
       this.commentVersion = undefined;
@@ -186,7 +191,9 @@ export class SavedVersionsPane {
 
   private openReview(): void {
     const ordered = this.versions.map((version, index) => ({ version, index }));
-    ordered.sort((a, b) => compareVersionTime(a.version, b.version));
+    if (this.versions.some(version => version.source === "selected")) {
+      ordered.sort((a, b) => compareVersionTime(a.version, b.version));
+    }
     const versions = ordered.map(({ version }) => version);
     const lineage = compareSavedVersions(versions, { japaneseWordHints: true });
     void showSavedReportExport(
@@ -207,6 +214,7 @@ export class SavedVersionsPane {
     const destination = index + delta;
     [this.versions[index], this.versions[destination]] = [this.versions[destination], this.versions[index]];
     this.result = undefined;
+    this.versionOrderConfirmed = false;
     this.comments = undefined;
     this.commentVersion = undefined;
     this.original = undefined;
@@ -220,6 +228,7 @@ export class SavedVersionsPane {
   private compare(): void {
     try {
       this.error = "";
+      this.versionOrderConfirmed = true;
       this.result = compareSavedVersions([...this.versions], { japaneseWordHints: true });
       this.comments = new LineageComments(this.versions, this.result);
       this.selected = undefined;
@@ -230,10 +239,17 @@ export class SavedVersionsPane {
     this.pane.querySelector<HTMLSelectElement>("#lineage-pair")?.focus();
   }
 
-  render(lang: AppLang, current?: CommentHistoryTarget): void {
+  render(lang: AppLang, current?: CommentHistoryTarget & { cloud?: boolean }): void {
     this.lang = lang;
     this.current = current;
     this.draw();
+    void window.app.historyFeatures?.().then(features => {
+      const currentFeatures = this.features;
+      if (!currentFeatures || Object.keys(features).some(key => features[key as keyof typeof features] !== currentFeatures[key as keyof typeof features])) {
+        this.features = features;
+        this.draw();
+      }
+    }).catch(() => undefined);
   }
 
   private draw(): void {
@@ -248,6 +264,10 @@ export class SavedVersionsPane {
         if (current) void this.load(() => window.app.watch.savedVersionsForComparison(current), { fromArchive: true });
       }, this.busy || !current),
     );
+    if (this.features?.cloud && current?.cloud) {
+      controls.append(action(cloudVersionPickerLabel(this.lang), () =>
+        void this.load(() => pickCloudVersions(this.lang, current.path), { review: true }), this.busy));
+    }
     this.pane.append(controls);
     if (this.busy) this.pane.append(el("p", s.working, "hint"));
     if (this.notice) this.pane.append(el("p", s[this.notice], "hint"));
@@ -272,6 +292,18 @@ export class SavedVersionsPane {
       versions.append(row);
     }
     this.pane.append(versions, action(s.compare, () => this.compare(), this.versions.length < 2 || this.busy));
+    const features = this.features;
+    if (features?.search || features?.anchors) {
+      this.pane.append(action(historySearchLabel(this.lang, features.search), () => {
+        const versions = [...this.versions];
+        const names = versions.map((_, index) => this.name(index));
+        const ordered = this.versionOrderConfirmed || versions.every(v => v.source === versions[0].source && v.source !== "selected");
+        const reading = new AbortController();
+        void modal<void>((dialog, close) => {
+          dialog.append(historySearchPanel(this.lang, versions, names, ordered, features.anchors, features.search, reading.signal, close));
+        }, undefined).finally(() => reading.abort());
+      }, this.busy));
+    }
     if (this.original) this.drawOriginal(this.original);
     if (this.result) this.drawResult(this.result);
   }

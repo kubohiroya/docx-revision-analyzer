@@ -18,13 +18,15 @@ import { lockDocxBytes } from "../../src/node/lockFile";
 import { macSystemLocale } from "../../src/node/locale";
 import { langFromLocale } from "../../src/lib/i18n";
 import { AppLang, AppSettings, DEFAULT_SETTINGS, ExtensionListItem, LoadedRules, LockSaveResult, MicrosoftStatus, OpenedFile, RecentUrl } from "./shared";
+import { CloudVersionImport } from "./cloudVersionImport";
+import { CloudVersionError } from "./cloudVersionGraph";
 import { MicrosoftClient, MicrosoftConfig, MicrosoftError } from "./microsoft";
 import { EXT_SCHEME, ExtensionManager } from "./extensions";
 import { NetMediator } from "./sendLog";
 import { isSourceLink, listVersionInputFiles, registerBatchIpc, rememberSource } from "./batchMain";
 import { openFileInBrowser } from "./openInBrowser";
 import { registerWatchIpc, stopWatching } from "./watchMain";
-import { addSavedVersionComment, readSavedVersionFigureSource, readSelectedSavedVersions, savedVersionFile } from "./savedLineage";
+import { addSavedVersionComment, readSavedVersionFigureSource, readSavedVersionRevisions, readSelectedSavedVersions, savedVersionFile } from "./savedLineage";
 import { disposePages, registerPagesIpc } from "./pages/pagesMain";
 import { PDF_SCHEME } from "./pages/pdfHost";
 import type { AnalysisResult, ClassifierContext, FigureContext } from "./extension-api";
@@ -168,6 +170,53 @@ async function loadVersionInputs(paths: readonly string[]) {
 }
 
 function registerIpc(): void {
+  const historyAtLaunch = loadSettings();
+  const historyFeatures = () => {
+    const active = versionReviewEnabled();
+    const index = active && historyAtLaunch.revisionHistoryIndexPreview === true;
+    return {
+      index, search: index && historyAtLaunch.historicalSearchPreview === true,
+      anchors: index && historyAtLaunch.historicalAnchorPreview === true,
+      cloud: active && historyAtLaunch.cloudVersionHistoryPreview === true,
+    };
+  };
+  let cloudHistory: { path: string; session: CloudVersionImport } | undefined;
+  function historySession(event: Electron.IpcMainInvokeEvent, source: unknown): CloudVersionImport | undefined {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame ||
+        !historyFeatures().cloud || typeof source !== "string" || cloudHistory?.path !== source) return undefined;
+    return cloudHistory.session;
+  }
+  const versionError = (error: unknown) => error instanceof CloudVersionError ? error.reason : "network";
+  ipcMain.handle("list-cloud-versions", async (event, source: unknown) => {
+    const history = historySession(event, source);
+    if (!history) return { items: [], error: "sign-in" };
+    try {
+      return await history.list();
+    } catch (error) {
+      return { items: [], error: versionError(error) };
+    }
+  });
+  ipcMain.handle("import-cloud-versions", async (event, source: unknown, ids: unknown) => {
+    const history = historySession(event, source);
+    if (!history || !Array.isArray(ids) || !ids.length || !ids.every(id => typeof id === "string")) {
+      return { versions: [], failures: [], error: "invalid" };
+    }
+    try {
+      return await history.import(ids, (done, total) => {
+        if (!event.sender.isDestroyed()) event.sender.send("cloud-version-progress", { path: source, done, total });
+      });
+    } catch (error) {
+      return { versions: [], failures: [], error: versionError(error) };
+    }
+  });
+  ipcMain.handle("cancel-cloud-versions", (event, source: unknown) => historySession(event, source)?.cancel());
+  ipcMain.handle("history-features", () => historyFeatures());
+  ipcMain.handle("read-saved-version-revisions", (event, id: unknown) => {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame || !historyFeatures().index) {
+      return { status: "disabled", records: [] };
+    }
+    return readSavedVersionRevisions(id);
+  });
   const reviewCommentWriteAtLaunch = loadSettings().reviewCommentWrite === true;
   const reviewCommentWriteEnabled = () => reviewCommentWriteAtLaunch && versionReviewEnabled();
   ipcMain.handle("open-docx-dialog", async () => {
@@ -230,6 +279,16 @@ function registerIpc(): void {
         f = undefined;
       }
       f ??= await microsoft.open({ url });
+      cloudHistory?.session.cancel();
+      cloudHistory = undefined;
+      if (historyAtLaunch.cloudVersionHistoryPreview) {
+        if (f.accountId && f.driveId && f.itemId) cloudHistory = {
+          path: url,
+          session: new CloudVersionImport(path.join(app.getPath("userData"), "cloud-version-history"), {
+            ...f, account: f.accountId,
+          }, microsoft),
+        };
+      }
       rememberUrl({ url, name: f.name, driveId: f.driveId, itemId: f.itemId, openedAt: new Date().toISOString() });
       const webUrl = f.webUrl ?? url;
       rememberSource(webUrl);
@@ -255,6 +314,8 @@ function registerIpc(): void {
   });
   ipcMain.handle("ms-status", () => microsoftStatus());
   ipcMain.handle("ms-sign-out", async () => {
+    cloudHistory?.session.cancel();
+    cloudHistory = undefined;
     await microsoft?.signOut();
     return microsoftStatus();
   });
