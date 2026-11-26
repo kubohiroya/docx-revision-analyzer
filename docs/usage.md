@@ -593,7 +593,7 @@ are written to documents opened from a URL (they are opened with read-only acces
 
 See [Export a saved-version comparison as HTML](#export-a-saved-version-comparison-as-html) for steps by version.
 The **Versions in scope** table, the `--versions` option, per-version charts and flows, search and date filters, and the
-[branch timeline](#saved-version-branch-timeline) are available in the v0.4.1 and v0.4.2 prereleases.
+[branch timeline](#saved-version-branch-timeline) are available in the v0.4.1 and later prereleases.
 
 **Compare saved versions**: Open **Saved versions**.
 Select **Choose DOCX files** or **Choose folders** to open the **Versions in scope** table. Folders are scanned recursively
@@ -628,11 +628,11 @@ and archive times describe the available versions. They cannot identify the time
 that appeared and disappeared between saves. Gaps and unreadable saves are marked. The comparison reads each available
 version locally.
 
-**Search saved history**: Open “Search saved history” from Saved versions or Review changes and comments. Search the selected versions or path for recorded insertions, deletions, moves, comments, replies, and quotations. If an earlier version still contains a tracked edit, it appears even when accepting it left the visible text unchanged. Use “Show source” to inspect the original range or thread.
+**Search saved history (v0.5.0 or later)**: Open “Search saved history” from Saved versions or Review changes and comments. Search the selected versions or path for recorded insertions, deletions, moves, comments, replies, and quotations. If an earlier version still contains a tracked edit, it appears even when accepting it left the visible text unchanged. Use “Show source” to inspect the original range or thread.
 
 From a search result, you can look for the corresponding place in a later version. For files selected manually, put them in order and choose Compare, or select a branch path in the review window. The app shows the original range separately from any proposed location and withholds a match across gaps or unreadable versions. Change extraction and location matching cover body paragraphs and headings. The app displays Word timestamps separately from version timestamps. Results are limited to the versions and observations you could read.
 
-**Import OneDrive / SharePoint versions**: Open a document from its URL. In Saved versions, choose “Import cloud versions” and select the versions to retrieve. Imported files are stored in the app data folder and reused in later comparisons and searches. Available history depends on the service's settings and retention period. Failed versions show a reason, and retrieved versions can still be compared. Saved-version comparison, indexing, search, location matching, and cloud import are on by default. To turn off a history feature, clear its setting and restart the app.
+**Import OneDrive / SharePoint versions (v0.5.0 or later)**: Open a document from its URL. In Saved versions, choose “Import cloud versions” and select the versions to retrieve. Imported files are stored in the app data folder and reused in later comparisons and searches. Available history depends on the service's settings and retention period. Failed versions show a reason, and retrieved versions can still be compared. Saved-version comparison, indexing, search, location matching, and cloud import are on by default. To turn off a history feature, clear its setting and restart the app.
 
 **Review changes and comments**: After comparing, open **Review changes and comments**. In **Versions in scope**, choose
 versions using the filenames, dates, sizes, and visible text and heading counts. All loaded versions are selected initially.
@@ -729,7 +729,7 @@ the selected path unavailable, choose a path again before opening the preview.
 
 ### Export a saved-version comparison as HTML
 
-#### Export in the v0.4.1 and v0.4.2 prereleases
+#### Export in the v0.4.1 and later prereleases
 
 The screenshots use a development build.
 
