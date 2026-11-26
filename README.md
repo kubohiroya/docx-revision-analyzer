@@ -15,6 +15,10 @@ The v0.5.0 prerelease lets you search saved versions for past Word changes and c
 and find corresponding locations in another version. It also imports versions from OneDrive / SharePoint. [Release notes](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.5.0)
 The regular release and the automatic update feed are on v0.3.0. [Installation guide](docs/installation.md#desktop-app)
 
+The v0.5.0 Mac app is ad hoc signed and has not been notarized by Apple. Open the DMG, drag the app into **Applications**,
+and try opening it there. If macOS blocks it, choose **System Settings → Privacy & Security → Open Anyway** for
+**Docx Revision Analyzer**, then confirm. [macOS first-launch steps](docs/installation.md#first-launch-on-macos)
+
 ### Export a saved-version comparison as HTML
 
 In v0.5.0, follow these steps.

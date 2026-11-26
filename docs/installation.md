@@ -138,7 +138,15 @@ Download the desktop app using the installers below. The regular release and the
 Download v0.5.0 manually to search Word changes and comments across saved versions and open the passages they refer to.
 The [usage guide](usage.md#desktop-app-preview) covers past-version import from OneDrive / SharePoint and saved-version comparison.
 
-The v0.5.0 macOS app and its bundled helpers are ad-hoc signed. This preview is unnotarized, so macOS may require
-individual approval on first launch.
-
 To run from source, see [desktop/README.md](../desktop/README.md). For packaging instructions, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md).
+
+### First launch on macOS
+
+The v0.5.0 macOS app and its bundled helpers are ad hoc signed. Apple has not notarized this build.
+
+1. Open the v0.5.0 DMG and drag **Docx Revision Analyzer** into **Applications**.
+2. Open the app from **Applications**. If it opens, setup is complete. If macOS blocks it because the developer cannot be verified or Apple cannot check the app, dismiss the alert.
+3. For the app downloaded from GitHub Releases above, go to **System Settings → Privacy & Security**. Scroll to **Security** and click **Open Anyway** for **Docx Revision Analyzer**.
+4. Authenticate if prompted and confirm opening the app. You can then open the app as usual from **Applications**.
+
+[Apple Support instructions for opening an unnotarized app](https://support.apple.com/en-us/102445)

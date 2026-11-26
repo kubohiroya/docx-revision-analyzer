@@ -15,6 +15,10 @@ v0.5.0 プレビューでは、保存版に残る Word の変更履歴やコメ�
 OneDrive / SharePoint の過去版も取り込めます。 [リリースノート](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.5.0)
 通常配布版と自動更新の配信対象は v0.3.0 です。[インストールガイド](docs/installation.ja.md#デスクトップアプリ)
 
+v0.5.0 の Mac 版はアドホック署名済みで、Apple 公証は未実施です。DMG を開き、アプリを「アプリケーション」にドラッグしてから開きます。
+macOS が起動を止めた場合は、「システム設定」→「プライバシーとセキュリティ」で **Docx Revision Analyzer** の「このまま開く」を選び、確認します。
+[macOS での初回起動手順](docs/installation.ja.md#macos-での初回起動)
+
 ### 保存版の比較を HTML に書き出す
 
 v0.5.0 では次の手順で書き出せます。
