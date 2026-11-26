@@ -198,10 +198,10 @@ const en = {
   integrityOk: "as usual",
   settingsUpdates: "Updates",
   branchTimelinePreview: "Compare along inferred branches (preview)",
-  reviewCommentWrite: "Write local Word comments from version comparison (preview, applies after restart)",
+  reviewCommentWrite: "Write local Word comments from version comparison (after restart)",
   checkForUpdates: "Check GitHub Releases for a new version at startup",
   updatesNote:
-    "Only the app version is checked; no document or analysis data is sent. Updates are verified before installing.",
+    "Verified updates install when the app quits. The update check sends no document or analysis data.",
   updatesDevBuild: "Not available when running from source.",
   settingsAbout: "About",
   aboutText:
@@ -518,9 +518,9 @@ const ja: Strings = {
   integrityOk: "通常どおり",
   settingsUpdates: "アップデート",
   branchTimelinePreview: "推定した枝の経路で保存版を比較する（プレビュー）",
-  reviewCommentWrite: "保存版の比較からローカルのWord文書にコメントを追記する（プレビュー、再起動後に反映）",
+  reviewCommentWrite: "保存版の比較からローカルのWord文書にコメントを追記する（次回起動時）",
   checkForUpdates: "起動時に GitHub Releases で新しいバージョンを確認する",
-  updatesNote: "確認するのはアプリのバージョンだけで、文書や解析結果は送りません。更新は検証してから入れ替えます。",
+  updatesNote: "検証した更新をアプリの終了時に適用します。更新確認で文書や解析結果は送りません。",
   updatesDevBuild: "ソースから起動している場合は使えません。",
   settingsAbout: "このアプリについて",
   aboutText:

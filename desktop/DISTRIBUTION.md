@@ -69,8 +69,10 @@ Library releases (npm) are separate and keep using plain `vX.Y.Z` tags.
 
 ## Auto-update / 自動更新
 
-- Off by default. Users turn it on in Settings ("Check GitHub Releases for a new version at startup").
-  既定では無効。利用者が設定で有効にしたときだけ確認する。
+- On by default in packaged builds. Turn off “Check GitHub Releases for a new version at startup” in Settings
+  to disable startup checks and installation on quit.
+  配布版では既定で有効。設定で「起動時に GitHub Releases で新しいバージョンを確認する」をオフにすると、
+  起動時の確認と終了時の入れ替えが無効になる。
 - `electron-updater` in the main process reads `latest-mac.yml` / `latest.yml` from the **`desktop-latest`**
   pre-release (`https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-latest/…`, the
   `generic` provider in `electron-builder.config.cjs`), downloads the update from the `desktop-vX.Y.Z` release those

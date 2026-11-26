@@ -522,8 +522,8 @@ Anything other than Japanese falls back to English. The macOS drag-and-drop apps
 ## Desktop app (preview)
 
 [`desktop/`](../desktop/) contains a desktop app (Electron) for people who don't use the command line: open or drop a
-.docx to see the chart, the flow and the highlighted insertions. Everything runs locally and the app blocks network
-access. It can also open a .docx from a OneDrive / SharePoint link (after signing in to Microsoft); the document is
+.docx to see the chart, the flow and the highlighted insertions. Analysis runs locally and the analysis window blocks
+external network access. The app can also open a .docx from a OneDrive / SharePoint link (after signing in to Microsoft); the document is
 only downloaded for analysis. Download the macOS or Windows installer from the [installation guide](installation.md#desktop-app).
 
 **Moving around the figures.** Drag the chart or the flow to move it; Ctrl / ⌘ + wheel (or a trackpad pinch) zooms
@@ -542,7 +542,9 @@ are not part of exported SVGs / PNGs.
 "Open from URL…" — for example the folder where Microsoft Teams collects assignment submissions — and choose (or
 create) an output folder: the source folder's hierarchy is recreated there with the SVGs inside (or, if you choose,
 everything is put in one folder with the path in the file names). Both also write `summary.csv` (for Excel) and
-`index.html` (links to every figure). The CLIs (and the macOS droplets) also accept folders: `docx-revision-analyzer flow
+`index.html` (links to every figure). By default, saving an SVG opens the figure in the browser, and batch processing
+opens the index. Use the toolbar's **Open the SVG in the browser after saving** checkbox to change this. The CLIs
+(and the macOS droplets) also accept folders: `docx-revision-analyzer flow
 submissions/`.
 
 **Lock template**: saves a copy of the opened document with Track Changes locked, through a save dialog (see
@@ -660,9 +662,8 @@ changes in that DOCX. Select **Back to comparison** or the × at the top right t
 When adjacent panels are expanded, drag the divider between them to adjust their relative heights. With the divider
 focused, use the Up and Down arrow keys to resize. Double-click the divider to restore the original heights.
 
-**Add a Word comment from the comparison (preview)**: Comment writing is off by default. Enable saved-version comparison
-and **Write local Word comments from version comparison (preview, applies after restart)** in Settings, then restart the app.
-Compare local DOCX files and choose a change with one corresponding
+**Add a Word comment from the comparison**: Comment writing is available by default. To hide the writing controls,
+turn it off in Settings and restart the app. Compare local DOCX files and choose a change with one corresponding
 passage in the later version. Under **Add a Word comment**, check the file and paragraph, enter the author name and comment,
 and select **Add to Word**. Archived and URL-based versions are for viewing. Close the target in Word before writing, or reload
 the versions if the file changed after comparison. A failed save keeps the draft in the comparison window. Verification of comment

@@ -7,9 +7,9 @@
 
 ### 仕組み
 
-- 自動更新は既定では無効で、利用者が設定 (「起動時に GitHub Releases で新しいバージョンを確認する」) で有効にしたときだけ
-  動く。メインプロセスの `electron-updater` が確認し、ダウンロードして、アプリの終了時に入れ替える (`desktop/src/main.ts` の
-  `checkForUpdates`)。文書や解析結果は送らない。
+- 自動更新は配布版で既定で有効。メインプロセスの `electron-updater` が確認し、ダウンロードして、アプリの終了時に入れ替える
+  (`desktop/src/main.ts` の `checkForUpdates`)。設定の「起動時に GitHub Releases で新しいバージョンを確認する」をオフにすると、
+  起動時の確認と終了時の入れ替えが無効になる。文書や解析結果は送らない。
 - 参照先は **`generic` プロバイダ**で、デスクトップ版専用のプレリリース **`desktop-latest`** に置いた更新情報のファイルを読む
   (`desktop/electron-builder.config.cjs` の `publish`。アプリの `Contents/Resources/app-update.yml` に組み込まれる)。
   - `https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-latest/latest-mac.yml` (macOS)

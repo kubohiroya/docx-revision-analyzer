@@ -30,14 +30,14 @@ export interface AppSettings {
   /** 判定ルールのファイル。undefined なら --bulk-chars 相当の既定ルール */
   rulesPath?: string;
   /**
-   * 起動時に GitHub Releases で新しいバージョンを確認するか (既定はしない)。
+   * 起動時に GitHub Releases で新しいバージョンを確認するか (既定は確認する)。
    * 確認はメインプロセスだけが行い、文書や解析結果は送らない。署名した配布物でだけ動く
    */
   checkForUpdates?: boolean;
   /** 拡張の外部送信の前に毎回確認するか (id → 確認するか)。無ければ確認する */
   extensionConfirmSends?: Record<string, boolean>;
   /**
-   * SVG を作ったあと既定のブラウザで開くか (既定は開かない)。「SVG を保存」ではその SVG を、
+   * SVG を作ったあと既定のブラウザで開くか (既定は開く)。「SVG を保存」ではその SVG を、
    * フォルダの一括処理では一覧 (index.html) を開く
    */
   openSvgInBrowser?: boolean;
@@ -133,6 +133,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   historicalAnchorPreview: true,
   cloudVersionHistoryPreview: true,
   branchTimelinePreview: true,
+  reviewCommentWrite: true,
+  openSvgInBrowser: true,
+  checkForUpdates: true,
 };
 
 export interface OpenedFile {

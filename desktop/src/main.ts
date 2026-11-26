@@ -371,7 +371,8 @@ function registerIpc(): void {
   ipcMain.handle("set-settings", (_e, s: AppSettings) => {
     const turnedOn = s.checkForUpdates && !loadSettings().checkForUpdates;
     saveSettings(s);
-    if (turnedOn) checkForUpdates();
+    if (s.checkForUpdates !== true) autoUpdater.autoInstallOnAppQuit = false;
+    else if (turnedOn) checkForUpdates();
   });
   ipcMain.handle("updates-available", () => app.isPackaged);
 
@@ -674,8 +675,8 @@ function requestUi(kind: string, ext: { id: string; name: unknown }, spec: unkno
 }
 
 /**
- * GitHub Releases で新しいバージョンを確認し、あればダウンロードして終了時に入れ替える (利用者が設定で
- * 有効にした場合だけ)。electron-updater はメインプロセスの専用セッションで通信し、更新情報 (latest.yml) の
+ * 設定が有効な場合は GitHub Releases で新しいバージョンを確認し、ダウンロードして終了時に入れ替える。
+ * electron-updater はメインプロセスの専用セッションで通信し、更新情報 (latest.yml) の
  * SHA-512 と、macOS ではアプリの署名 (Squirrel.Mac)、Windows では発行者名 (publisherName) を検証する。
  * 文書や解析結果は送らない。開発中 (パッケージしていない起動) は何もしない。
  */
