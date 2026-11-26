@@ -533,6 +533,12 @@ button.report-branch-edge-button {
   gap: .2rem;
 }
 
+.history-search [role="searchbox"] {
+  min-height: 2rem;
+  width: min(19rem, 100%);
+  resize: vertical;
+}
+
 .history-results {
   max-height: min(34vh, 22rem);
   overflow: auto;

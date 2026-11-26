@@ -1,5 +1,5 @@
 import { cloudVersionPickerLabel, pickCloudVersions } from "./cloudVersionPicker";
-import { historySearchLabel, historySearchPanel } from "./historicalSearch";
+import { historySearchLabel, historySearchPanel, type HistorySearchState } from "./historicalSearch";
 import {
   compareSavedVersions, lineageRangeText, traceLineage,
   type LineageKind, type LineageLevel, type LineageLink, type LineageRange,
@@ -127,6 +127,7 @@ export class SavedVersionsPane {
   private current?: CommentHistoryTarget & { cloud?: boolean };
   private features?: Awaited<ReturnType<typeof window.app.historyFeatures>>;
   private versionOrderConfirmed = false;
+  private historySearchState: HistorySearchState = {};
 
   constructor(
     private pane: HTMLElement,
@@ -170,6 +171,7 @@ export class SavedVersionsPane {
         return;
       }
       this.versions = items;
+      this.historySearchState = {};
       this.versionOrderConfirmed = false;
       this.result = undefined;
       this.comments = undefined;
@@ -201,6 +203,7 @@ export class SavedVersionsPane {
       ordered.map(({ index }) => this.name(index)), this.lang, this.figureSettings, this.branchTimelineEnabled(),
       (index, version) => {
         this.versions[ordered[index].index] = version;
+        this.historySearchState = {};
         if (this.result) {
           this.result = { ...this.result, versions: [...this.versions] };
           this.comments = new LineageComments(this.versions, this.result);
@@ -213,6 +216,7 @@ export class SavedVersionsPane {
   private reorder(index: number, delta: -1 | 1): void {
     const destination = index + delta;
     [this.versions[index], this.versions[destination]] = [this.versions[destination], this.versions[index]];
+    this.historySearchState = {};
     this.result = undefined;
     this.versionOrderConfirmed = false;
     this.comments = undefined;
@@ -299,8 +303,9 @@ export class SavedVersionsPane {
         const names = versions.map((_, index) => this.name(index));
         const ordered = this.versionOrderConfirmed || versions.every(v => v.source === versions[0].source && v.source !== "selected");
         const reading = new AbortController();
+        const state = this.historySearchState;
         void modal<void>((dialog, close) => {
-          dialog.append(historySearchPanel(this.lang, versions, names, ordered, features.anchors, features.search, reading.signal, close));
+          dialog.append(historySearchPanel(this.lang, versions, names, ordered, features.anchors, features.search, reading.signal, close, state));
         }, undefined).finally(() => reading.abort());
       }, this.busy));
     }

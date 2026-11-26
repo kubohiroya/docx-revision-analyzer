@@ -22,7 +22,7 @@
  */
 
 import JSZip from "jszip";
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
 import type { DocxInput } from "./input";
 import { commentLinkUrl, type CommentLink } from "./commentReferences";
 import { insertWordCommentMarks, WORD_NS, type WordCommentRange } from "./docxCommentRange";
@@ -51,6 +51,7 @@ export interface CommentAnchor extends CommentPassage {
 }
 
 export interface CommentLocations {
+  incomplete?: boolean;
   passages: Map<string, CommentPassage>;
   find?: (anchor: CommentAnchor) => CommentPassage | undefined;
 }
@@ -145,7 +146,7 @@ function innerText(nodes: XmlNode[], withDeleted = true, withBreaks = false): st
 }
 
 /** 本文を文書順にたどり、コメントの範囲の文字列・段落・重なる変更を集める */
-function collectAnchors(docTree: XmlNode[], locations?: CommentLocations): Map<string, CommentAnchor> {
+function collectAnchors(docTree: XmlNode[], locations?: CommentLocations, references?: Set<string>): Map<string, CommentAnchor> {
   let text = "";
   let paraId: string | undefined;
   const open = new Map<string, { start: number; paraId?: string; revisions: Set<string> }>();
@@ -157,6 +158,10 @@ function collectAnchors(docTree: XmlNode[], locations?: CommentLocations): Map<s
     for (const n of nodes) {
       const tag = tagOf(n);
       if (tag === undefined) continue;
+      if (references && (tag === "commentRangeStart" || tag === "commentRangeEnd" || tag === "commentReference")) {
+        const id = attr(n, "id");
+        if (id !== undefined) references.add(id);
+      }
       const kids = childrenOf(n, tag);
       switch (tag) {
         case "p": {
@@ -269,9 +274,21 @@ function collectAnchors(docTree: XmlNode[], locations?: CommentLocations): Map<s
 /** 文書のコメントを読む (comments.xml の順) */
 export async function extractComments(input: DocxInput, locations?: CommentLocations): Promise<DocxComment[]> {
   const zip = await JSZip.loadAsync(input);
-  const tree = await partTree(zip, "word/comments.xml");
+  const commentsXml = await zip.file("word/comments.xml")?.async("string");
+  if (locations && commentsXml !== undefined && XMLValidator.validate(commentsXml) !== true) {
+    locations.incomplete = true;
+    return [];
+  }
+  const tree = commentsXml === undefined ? undefined : parser.parse(commentsXml) as XmlNode[];
   const root = tree?.find((n) => tagOf(n) === "comments");
-  if (!root) return [];
+  if (!root) {
+    if (locations) {
+      const documentXml = await zip.file("word/document.xml")?.async("string");
+      locations.incomplete = commentsXml !== undefined ||
+        /<(?:[^<>\s:]+:)?comment(?:Reference|RangeStart|RangeEnd)(?=[\s/>])/.test(documentXml ?? "");
+    }
+    return [];
+  }
 
   // 解決済み・返信の親子 (paraId → { done, parent paraId })
   const ex = new Map<string, { done: boolean; parent?: string }>();
@@ -297,7 +314,8 @@ export async function extractComments(input: DocxInput, locations?: CommentLocat
     if (tagOf(n) === "commentExtensible" && d && at) utc.set(d, at);
   }
   const docTree = await partTree(zip, "word/document.xml");
-  const anchors = docTree ? collectAnchors(docTree, locations) : new Map<string, CommentAnchor>();
+  const references = locations && new Set<string>();
+  const anchors = docTree ? collectAnchors(docTree, locations, references) : new Map<string, CommentAnchor>();
   const linksById = new Map<string, string>();
   const rels = (await partTree(zip, "word/_rels/comments.xml.rels"))?.find((n) => tagOf(n) === "Relationships");
   for (const rel of rels ? childrenOf(rels, "Relationships") : []) {
@@ -348,6 +366,10 @@ export async function extractComments(input: DocxInput, locations?: CommentLocat
       done: paraId ? ex.get(paraId)?.done ?? false : false,
       anchor: anchors.get(id),
     });
+  }
+  if (locations && references) {
+    const ids = new Set(comments.map(comment => comment.id));
+    locations.incomplete = [...references].some(id => !ids.has(id));
   }
   // 返信の親
   const byPara = new Map(comments.filter((c) => c.paraId).map((c) => [c.paraId!, c]));

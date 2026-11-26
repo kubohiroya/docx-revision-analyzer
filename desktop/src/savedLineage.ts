@@ -58,9 +58,10 @@ export async function readSavedVersionFigureSource(id: unknown): Promise<SavedVe
 const revisionCache = new Map<string, RevisionIndex>();
 let cachedRevisionCount = 0;
 
-export async function readSavedVersionRevisions(id: unknown): Promise<RevisionHistoryRead> {
+export async function readSavedVersionRevisions(id: unknown, indexEnabled = true): Promise<RevisionHistoryRead> {
   const input = await readSavedVersionFigureSource(id);
   if (!input.ok) return { status: input.reason, records: [] };
+  if (!indexEnabled) return { status: "disabled", records: [] };
   const sha = digest(input.bytes);
   const cached = revisionCache.get(sha);
   if (cached) return { status: "read", ...cached };
@@ -162,7 +163,8 @@ async function readVersion(
   const locations: CommentLocations = { passages: new Map() };
   try {
     const comments = await extractComments(bytes, locations);
-    return { ...metadata, threads: makeThreads(comments, identity, observations, locations, ranges) };
+    const threads = makeThreads(comments, identity, observations, locations, ranges);
+    return locations.incomplete ? { ...metadata, threads, commentsUnavailable: true } : { ...metadata, threads };
   } catch {
     return { ...metadata, threads: [], commentsUnavailable: true };
   }

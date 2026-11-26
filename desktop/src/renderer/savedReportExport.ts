@@ -1,4 +1,4 @@
-import { historySearchLabel, historySearchPanel } from "./historicalSearch";
+import { historySearchLabel, historySearchPanel, type HistorySearchState } from "./historicalSearch";
 import { DEFAULT_REPORT_RANGE, REPORT_LIMITS, type SavedVersionReport } from "../reportData";
 import { SavedReportAnalysis, type SavedReportScope } from "../savedReport";
 import type { AppLang, SavedLineageVersion } from "../shared";
@@ -149,9 +149,16 @@ export async function showSavedReportExport(
     };
     const reviewButton = action(s.back, () => { if (preview && !saving) showReview(); });
     const previewButton = action(s.preview, showPreview);
+    let historyScope: SavedLineageVersion[] = [];
+    let historyState: HistorySearchState = {};
     const history = action(historySearchLabel(lang, features?.search), () => {
       if (preview || writing || saving) return;
       const indices = pathIndices ?? [...targets].sort((a, b) => a - b);
+      const selectedVersions = indices.map(index => currentVersions[index]);
+      if (historyScope.length !== selectedVersions.length || historyScope.some((version, i) => version !== selectedVersions[i])) {
+        historyScope = selectedVersions;
+        historyState = {};
+      }
       const scoped = indices.map((index, position) => {
         const version = currentVersions[index];
         const prior = indices[position - 1];
@@ -176,12 +183,12 @@ export async function showSavedReportExport(
         dismiss();
       };
       const panel = historySearchPanel(lang, scoped, indices.map(versionName), ordered, Boolean(features?.anchors),
-        Boolean(features?.search), historyView.signal, dismiss);
+        Boolean(features?.search), historyView.signal, dismiss, historyState);
       wrapper.hidden = true;
       dialog.append(panel);
       dialog.addEventListener("cancel", onCancel, true);
       dialog.scrollTop = 0;
-      panel.querySelector<HTMLElement>("input[type=search]")?.focus();
+      panel.querySelector<HTMLElement>('[role="searchbox"]')?.focus();
     });
     const save = action(s.save, () => void savePreview(), "primary");
     const closeButton = (click: () => void) => {

@@ -27,7 +27,7 @@ try {
   await esbuild.build({
     stdin: { resolveDir: here, contents: `
       export { readCloudSavedVersion, readSelectedSavedVersions, readSavedVersionRevisions } from "./src/savedLineage";
-      export { historyEntries, historyMatch, searchKey } from "./src/historySearch";
+      export { groupedHistoryRows, historyEntries, historyMatch, reconcileHistoryVersions, searchKey } from "./src/historySearch";
       export { compareSavedVersions, lineageRangeText } from "../src/lib/lineage";
       export { projectHistoricalAnchor } from "../src/lib/historicalAnchors";
       export { listCloudVersionItems, getCloudVersionBytes, CloudVersionError } from "./src/cloudVersionGraph";
@@ -36,7 +36,7 @@ try {
     bundle: true, platform: "node", format: "cjs", outfile: compiled,
   });
   const {
-    readCloudSavedVersion, readSelectedSavedVersions, readSavedVersionRevisions, historyEntries, historyMatch, searchKey,
+    readCloudSavedVersion, readSelectedSavedVersions, readSavedVersionRevisions, groupedHistoryRows, historyEntries, historyMatch, reconcileHistoryVersions, searchKey,
     compareSavedVersions, lineageRangeText, projectHistoricalAnchor, listCloudVersionItems, getCloudVersionBytes, CloudVersionImport, CloudVersionError,
   } = createRequire(import.meta.url)(compiled);
 
@@ -55,6 +55,7 @@ try {
   assert.equal(versions[0].sha256, versions[2].sha256);
   const read = await readSavedVersionRevisions(versions[0].openId);
   assert.equal(read.status, "read");
+  assert.deepEqual(await readSavedVersionRevisions(versions[0].openId, false), { status: "disabled", records: [] });
   assert.deepEqual(read.excluded, []);
   assert.equal(read.records[1].author, "編集者");
   assert.equal(read.records[1].date, "2026-11-25T12:34:00.000Z");
@@ -195,7 +196,73 @@ try {
 
   await writeFile(files[0], after);
   assert.equal((await readSavedVersionRevisions(versions[0].openId)).status, "changed");
+  assert.equal((await readSavedVersionRevisions(versions[0].openId, false)).status, "changed");
   console.log("ok observed markup with identical visible text, duplicate IDs, exact source ranges, Unicode search and safe reconnection");
+
+  function threadParts(text, { reply, resolved = false } = {}) {
+    const contents = [text, ...(reply ? [reply] : [])];
+    const ids = ["AA000004", "AA000005"];
+    const xml = (tag, child, render) => contents.map((value, i) => render(`<${tag}:${child}`, value, i, ids[i])).join("");
+    return {
+      "word/comments.xml": '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">' +
+        xml("w", "comment", (tag, value, i, id) => `${tag} w:id="${i + 4}" w:author="${i ? "Reviewer" : "Reader"}">${para(value, id)}</w:comment>`) + "</w:comments>",
+      "word/commentsExtended.xml": '<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">' +
+        xml("w15", "commentEx", (tag, _value, i, id) => `${tag} w15:paraId="${id}"${i ? ' w15:paraIdParent="AA000004"' : ` w15:done="${Number(resolved)}"`}/>`) + "</w15:commentsEx>",
+      "word/commentsIds.xml": '<w16cid:commentsIds xmlns:w16cid="http://schemas.microsoft.com/office/word/2016/wordml/cid">' +
+        xml("w16cid", "commentId", (tag, _value, i, id) => `${tag} w16cid:paraId="${id}" w16cid:durableId="CC00000${i}"/>`) + "</w16cid:commentsIds>",
+    };
+  }
+  const visible = para(node(left + "新案" + right));
+  const commented = para(node(left) + start + node("新案") + end + node(right));
+  const oldParts = threadParts(node("旧版の指摘[原文]") + '<w:r><w:br/></w:r>' + node("next 📝"), { reply: node("中間版だけの返信 #根拠") });
+  const newParts = threadParts(node("編集後の指摘"), { resolved: true });
+  const commentPaths = [];
+  for (const [index, [body, parts]] of [[visible], [commented, oldParts], [commented, newParts], [visible], [commented]].entries()) {
+    const filename = join(folder, `thread-${index}.docx`);
+    await writeFile(filename, await docx(body, undefined, parts));
+    commentPaths.push(filename);
+  }
+  const commentVersions = await readSelectedSavedVersions(commentPaths, true);
+  assert(commentVersions.every(version => version.paragraphs[0].text === commentVersions[0].paragraphs[0].text));
+  const readHistory = async (list) => Promise.all(list.map(async (version, index) => {
+    const indexResult = await readSavedVersionRevisions(version.openId);
+    return {
+      version, entries: historyEntries(version, index, indexResult.records),
+      changesRead: indexResult.status === "read", commentsRead: !version.commentsUnavailable,
+    };
+  }));
+  const observed = await readHistory(commentVersions);
+  for (let i = 1; i < 4; i++) reconcileHistoryVersions(observed[i - 1], observed[i], i);
+  const commentEntries = observed.flatMap(version => version.entries);
+  const old = commentEntries.find(entry => entry.foldedText.includes(searchKey("[原文]\nNEXT 📝")));
+  assert.equal(old.version, 1);
+  assert.equal(old.date, undefined);
+  assert.deepEqual(historyMatch(old.text, searchKey("[原文]\nNEXT 📝")), { start: 5, end: old.text.length });
+  const reply = commentEntries.find(entry => entry.kind === "reply");
+  assert.equal(reply.version, 1);
+  assert.deepEqual(reply.tags, ["根拠"]);
+  const next = commentEntries.find(entry => entry.version === 2 && entry.resolved);
+  assert.equal(next.absentAt, 3);
+  assert.equal(old.absentAt, undefined, "edited text is still part of the same observed thread");
+  assert.deepEqual(groupedHistoryRows(commentEntries).map(row => row.map(entry => entry.version)), [[1, 1, 2]]);
+  const onlySource = groupedHistoryRows(commentEntries.filter(entry => entry.foldedText.includes("中間版だけ")));
+  assert.deepEqual(onlySource, [[reply]]);
+  assert.equal(lineageRangeText(commentVersions, { ...reply.ranges[0], version: reply.version }), "新案");
+  assert.equal(commentVersions[4].commentsUnavailable, true, "a DOCX with comment marks but no comment part is incomplete");
+  const missingAfter = await readHistory([commentVersions[1], commentVersions[4]]);
+  reconcileHistoryVersions(missingAfter[0], missingAfter[1], 1);
+  assert(missingAfter[0].entries.every(entry => entry.absentAt === undefined));
+  const gapped = await readHistory([commentVersions[1], { ...commentVersions[2], gapBefore: true }]);
+  reconcileHistoryVersions(gapped[0], gapped[1], 1);
+  assert(gapped.every(version => version.entries.every(entry => entry.threadGroup === undefined)));
+  const duplicate = await readHistory([commentVersions[1], {
+    ...commentVersions[2], threads: [...commentVersions[2].threads, ...commentVersions[2].threads],
+  }]);
+  reconcileHistoryVersions(duplicate[0], duplicate[1], 1);
+  assert(duplicate.every(version => version.entries.every(entry => entry.threadGroup === undefined && entry.absentAt === undefined)));
+  const differentBranch = await readHistory([commentVersions[0], commentVersions[2], commentVersions[3]]);
+  assert(differentBranch.flatMap(version => version.entries).every(entry => !entry.foldedText.includes("中間版だけ")));
+  console.log("ok grouped durable threads, version-specific comments and replies, incomplete coverage and literal multiline search");
 
   const target = { driveId: "a", itemId: "b" };
   const fetches = [];
@@ -239,6 +306,9 @@ try {
   await session.list();
   const imported = await session.import(["3", "1"], () => {});
   assert.equal(imported.versions[0].revisionCount, 4);
+  const importedHistory = historyEntries(imported.versions[0], 0, (await readSavedVersionRevisions(imported.versions[0].openId)).records);
+  assert(importedHistory.some(entry => entry.kind === "del" && entry.text === "旧案"));
+  assert(importedHistory.some(entry => entry.kind === "comment" && entry.foldedText.includes("中間版のコメント")));
   assert.equal(imported.versions[1].gapBefore, true);
   assert.deepEqual(imported.failures, [{ id: "3", reason: "invalid" }]);
   const again = await session.import(["2", "1"], () => {});
@@ -333,7 +403,7 @@ try {
     assert.equal(records.length, 10_000);
     const query = searchKey("version 49, measurement 199");
     const searchStarted = performance.now();
-    const matches = records.filter(entry => searchKey(entry.text).includes(query));
+    const matches = records.filter(entry => entry.foldedText.includes(query));
     assert.equal(matches.length, 1);
     console.log(JSON.stringify({ versions: benchmarkVersions.length, records: records.length,
       firstBatchMs: Math.round(first), indexMs: Math.round(searchStarted - started),
