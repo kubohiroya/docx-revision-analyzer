@@ -1,4 +1,4 @@
-import { parseDocxLayout, type LayoutRevisionKind, type LayoutRevisionMark, type RevRef } from "./docxLayout";
+import { parseDocxLayout, type LayoutRevisionKind, type LayoutRevisionMark, type RevRef, type RevisionExcludedRegion } from "./docxLayout";
 import type { DocxInput } from "./input";
 import { savedSegmentText, type SavedParagraphRange } from "./lineage";
 
@@ -17,14 +17,20 @@ export interface RevisionOccurrence {
   context?: { prefix: string; suffix: string };
 }
 
+export interface RevisionIndex {
+  records: RevisionOccurrence[];
+  excluded: RevisionExcludedRegion[];
+}
+
 export type RevisionHistoryRead =
-  | { status: "read"; records: RevisionOccurrence[] }
-  | { status: "changed" | "unavailable" | "disabled"; records: [] };
+  | ({ status: "read" } & RevisionIndex)
+  | { status: "changed" | "unavailable" | "failed" | "disabled"; records: [] };
 
 /** Extract individual XML occurrences, including nested edits and repeated Word IDs. */
-export async function readRevisionOccurrences(input: DocxInput): Promise<RevisionOccurrence[]> {
+export async function readRevisionIndex(input: DocxInput): Promise<RevisionIndex> {
   const marks = new Map<number, LayoutRevisionMark[]>();
-  const model = await parseDocxLayout(input, undefined, undefined, marks);
+  const excluded = new Set<RevisionExcludedRegion>();
+  const model = await parseDocxLayout(input, undefined, undefined, { marks, excluded });
   const records = new Map<RevRef, RevisionOccurrence>();
   for (const p of model.paras) {
     const selected = marks.get(p.index);
@@ -83,5 +89,5 @@ export async function readRevisionOccurrences(input: DocxInput): Promise<Revisio
     group[0].moveOccurrence = group[1].occurrence;
     group[1].moveOccurrence = group[0].occurrence;
   }
-  return [...records.values()];
+  return { records: [...records.values()], excluded: [...excluded] };
 }

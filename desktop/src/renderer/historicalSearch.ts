@@ -13,6 +13,8 @@ const labels = {
     target: "Find corresponding position in", choose: "Choose a version", previous: "Previous", next: "Next",
     quote: "Recorded quotation", noPosition: "The original range could not be verified.", matched: "matches",
     revisionCoverage: "Change history read", commentCoverage: "Comment files read", unavailable: "Unavailable", pending: "Pending", changed: "Changed since comparison", indexing: "Reading versions…",
+    excluded: "Outside index scope", failed: "Unable to read change history", disabled: "Indexing disabled",
+    tables: "tables", headersFooters: "headers and footers", notes: "footnotes and endnotes", textBoxes: "text boxes", formatting: "formatting changes",
     limited: "Positions and change history cover body paragraphs and headings. Text from unavailable versions may be missing.",
     notOrdered: "Choose a branch or compare versions in a confirmed order to find a corresponding position.",
     absentAt: "No longer observed in", range: "Corresponding range", partial: "Part of the original range",
@@ -29,6 +31,8 @@ const labels = {
     target: "対応箇所を探す版", choose: "版を選ぶ", previous: "前へ", next: "次へ",
     quote: "記録された引用", noPosition: "元の範囲を確認できませんでした。", matched: "件",
     revisionCoverage: "変更履歴を読めた版", commentCoverage: "コメントを読めた版", unavailable: "読取不能", pending: "未処理", changed: "比較後に変更", indexing: "保存版を読み込んでいます…",
+    excluded: "索引の対象外", failed: "変更履歴の読取失敗", disabled: "索引化が無効",
+    tables: "表", headersFooters: "ヘッダー・フッター", notes: "脚注・文末脚注", textBoxes: "テキストボックス", formatting: "書式変更",
     limited: "位置照合と変更履歴の対象は本文と見出しです。読み取れない版の内容は検索に出ない場合があります。",
     notOrdered: "対応箇所を探すには、経路を選ぶか、順序を確認した版を比較してください。",
     absentAt: "観測されなくなった版", range: "対応する範囲", partial: "一部が対応する範囲",
@@ -278,11 +282,14 @@ export function historySearchPanel(
       const usable = result?.status !== "changed" && (version.source !== "cloud" || result?.status === "read");
       const hasComments = usable && !version.unavailable && !version.commentsUnavailable;
       if (hasComments) commentsRead++;
+      const revisionStatus = result?.status ?? "unavailable";
       coverage[index].textContent = [
         names[index],
-        result?.status === "read" ? s.revisionCoverage : `${s.revisionCoverage}: ${result?.status === "changed" ? s.changed : s.unavailable}`,
+        revisionStatus === "read" ? s.revisionCoverage : s[revisionStatus],
+        result?.status === "read" && result.excluded.length
+          ? `${s.excluded} (${result.excluded.map(region => s[region]).join(", ")})` : "",
         hasComments ? s.commentCoverage : `${s.commentCoverage}: ${s.unavailable}`,
-      ].join(" · ");
+      ].filter(Boolean).join(" · ");
       if (usable) {
         for (const entry of historyEntries(version, index, result?.records ?? [])) history.push(entry);
       }

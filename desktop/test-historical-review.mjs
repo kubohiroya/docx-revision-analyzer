@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, rm, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createRequire } from "node:module";
@@ -12,12 +12,13 @@ const folder = await mkdtemp(join(tmpdir(), "dra-historical-review-"));
 const node = (text) => `<w:r><w:t>${text}</w:t></w:r>`;
 const ins = (text, id = 8) => `<w:ins w:id="${id}" w:author="編集者" w:date="2026-11-25T12:34:00Z">${node(text)}</w:ins>`;
 const para = (content, id = "AB000010") => `<w:p w14:paraId="${id}">${content}</w:p>`;
-async function docx(body, comment) {
+async function docx(body, comment, parts = {}) {
   const zip = new JSZip();
   zip.file("word/document.xml",
     `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w:body>${body}</w:body></w:document>`);
   if (comment) zip.file("word/comments.xml",
     `<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:comment w:id="4" w:author="Reader">${para(node(comment))}</w:comment></w:comments>`);
+  for (const [name, content] of Object.entries(parts)) zip.file(name, content);
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
@@ -25,7 +26,7 @@ try {
   const compiled = join(folder, "tests.cjs");
   await esbuild.build({
     stdin: { resolveDir: here, contents: `
-      export { readSelectedSavedVersions, readSavedVersionRevisions } from "./src/savedLineage";
+      export { readCloudSavedVersion, readSelectedSavedVersions, readSavedVersionRevisions } from "./src/savedLineage";
       export { historyEntries, historyMatch, searchKey } from "./src/historySearch";
       export { compareSavedVersions } from "../src/lib/lineage";
       export { projectHistoricalAnchor } from "../src/lib/historicalAnchors";
@@ -35,7 +36,7 @@ try {
     bundle: true, platform: "node", format: "cjs", outfile: compiled,
   });
   const {
-    readSelectedSavedVersions, readSavedVersionRevisions, historyEntries, historyMatch, searchKey,
+    readCloudSavedVersion, readSelectedSavedVersions, readSavedVersionRevisions, historyEntries, historyMatch, searchKey,
     compareSavedVersions, projectHistoricalAnchor, listCloudVersionItems, getCloudVersionBytes, CloudVersionImport, CloudVersionError,
   } = createRequire(import.meta.url)(compiled);
 
@@ -54,6 +55,9 @@ try {
   assert.equal(versions[0].sha256, versions[2].sha256);
   const read = await readSavedVersionRevisions(versions[0].openId);
   assert.equal(read.status, "read");
+  assert.deepEqual(read.excluded, []);
+  assert.equal(read.records[1].author, "編集者");
+  assert.equal(read.records[1].date, "2026-11-25T12:34:00.000Z");
   assert.deepEqual(read.records.map(entry => [entry.kind, entry.text]), [
     ["del", "旧案"], ["ins", "新案"], ["ins", "draft"], ["ins", "draft"],
   ]);
@@ -75,6 +79,44 @@ try {
     paragraphs: [...versions[1].paragraphs, { ...versions[1].paragraphs[0], index: 10 }],
   }]);
   assert.equal(projectHistoricalAnchor(copy, 0, 1, read.records[1].ranges).kind, "ambiguous");
+  const move = (side, group, text) =>
+    `<w:${side}RangeStart w:id="81" w:name="${group}"/><w:${side} w:id="82">${node(text)}</w:${side}><w:${side}RangeEnd w:id="81"/>`;
+  const rich = await docx(
+    para(node("本文") + '<w:ins w:id="9">' + node("📝") + deletion +
+      '<w:r><w:br/></w:r>' + node("ABC") + '</w:ins>') +
+    para(move("moveFrom", "paired", "移動"), "AB000020") +
+    para(move("moveTo", "paired", "移動") + move("moveTo", "unpaired", "未対応"), "AB000030"),
+  );
+  const richPath = join(folder, "rich.docx");
+  await writeFile(richPath, rich);
+  const richVersion = (await readSelectedSavedVersions([richPath], true))[0];
+  const richIndex = await readSavedVersionRevisions(richVersion.openId);
+  assert.deepEqual(richIndex.records.map(record => [record.kind, record.text]), [
+    ["ins", "📝旧案\nABC"], ["del", "旧案"], ["moveFrom", "移動"], ["moveTo", "移動"], ["moveTo", "未対応"],
+  ]);
+  assert.deepEqual(richIndex.records[0].ranges, [{ paragraph: 0, start: 2, end: 4 }, { paragraph: 0, start: 4, end: 8 }]);
+  assert.deepEqual(richIndex.records[1].ranges, [{ paragraph: 0, start: 4, end: 4 }]);
+  assert.deepEqual(richIndex.records.slice(2).map(record => record.moveOccurrence), [3, 2, undefined]);
+  assert.deepEqual(await readSavedVersionRevisions(richVersion.openId), richIndex);
+  assert.deepEqual(await readFile(richPath), rich, "indexing never changes its source DOCX");
+
+  const outside = await docx(
+    '<w:tbl><w:tr><w:tc>' + para(ins("Table edit")) + '</w:tc></w:tr></w:tbl>' +
+    para('<w:pPr><w:pPrChange w:id="77"><w:pPr/></w:pPrChange></w:pPr>' +
+      '<w:r><w:pict><w:txbxContent>' + para(ins("Text box edit")) + '</w:txbxContent></w:pict></w:r>'),
+    undefined, { "word/header1.xml": "<w:hdr/>", "word/footnotes.xml": "<w:footnotes/>" },
+  );
+  const readBytes = async (bytes, versionId) => {
+    const version = await readCloudSavedVersion(bytes, { label: versionId, source: "cloud", versionId }, async () => bytes);
+    return readSavedVersionRevisions(version.openId);
+  };
+  const outsideIndex = await readBytes(outside, "coverage");
+  assert.deepEqual(outsideIndex, { status: "read", records: [], excluded: ["tables", "formatting", "textBoxes", "headersFooters", "notes"] });
+  assert.deepEqual(await readBytes(outside, "same bytes in another version"), outsideIndex, "the cache preserves coverage");
+  assert.deepEqual(await readBytes(await docx("<w:p></w:r>"), "bad XML"), { status: "failed", records: [] });
+  await rm(richPath);
+  assert.deepEqual(await readSavedVersionRevisions(richVersion.openId), { status: "unavailable", records: [] });
+
   await writeFile(files[0], after);
   assert.equal((await readSavedVersionRevisions(versions[0].openId)).status, "changed");
   console.log("ok observed markup with identical visible text, duplicate IDs, exact source ranges, Unicode search and safe reconnection");
