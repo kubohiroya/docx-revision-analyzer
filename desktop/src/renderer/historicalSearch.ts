@@ -1,7 +1,7 @@
 import { commentReferences } from "../../../src/lib/commentReferences";
 import { projectHistoricalAnchor, type HistoricalMatch } from "../../../src/lib/historicalAnchors";
-import { compareSavedVersions, type SavedParagraphRange } from "../../../src/lib/lineage";
-import { historyEntries, historyMatch, searchKey, type HistoryEntry } from "../historySearch";
+import { compareSavedVersions, type LineageRange, type SavedParagraphRange } from "../../../src/lib/lineage";
+import { groupedHistoryRows, historyEntries, historyMatch, reconcileHistoryVersions, searchKey, type HistoryEntry } from "../historySearch";
 import type { AppLang, SavedLineageVersion } from "../shared";
 import { el } from "./extensions";
 
@@ -12,11 +12,21 @@ const labels = {
     absent: "No longer observed", unknownDate: "Unknown dates", open: "Show source", file: "Open source file",
     target: "Find corresponding position in", choose: "Choose a version", previous: "Previous", next: "Next",
     quote: "Recorded quotation", noPosition: "The original range could not be verified.", matched: "matches",
-    revisionCoverage: "Change history read", commentCoverage: "Comment files read", unavailable: "Unavailable", pending: "Pending", changed: "Changed since comparison", indexing: "Reading versions…",
+    observations: (count: number) => `${count} matching versions of this thread`,
+    recorded: "Partial or recorded comments only", revisionCoverage: "Change history read", commentCoverage: "Comment files read", unavailable: "Unavailable", pending: "Pending", changed: "Changed since comparison", indexing: "Reading versions…",
+    excluded: "Outside index scope", failed: "Unable to read change history", disabled: "Indexing disabled",
+    tables: "tables", headersFooters: "headers and footers", notes: "footnotes and endnotes", textBoxes: "text boxes", formatting: "formatting changes",
     limited: "Positions and change history cover body paragraphs and headings. Text from unavailable versions may be missing.",
     notOrdered: "Choose a branch or compare versions in a confirmed order to find a corresponding position.",
     absentAt: "No longer observed in", range: "Corresponding range", partial: "Part of the original range",
     boundary: "Estimated boundary", related: "Related paragraph", ambiguous: "Multiple possible locations",
+    reappeared: "Possible reappearance", reappearanceHint: "A passage with matching text reappears after an absence.",
+    rangeHint: "Matching characters across the selected versions establish this span.",
+    partialHint: "Only the highlighted characters could be followed across the selected versions.",
+    boundaryHint: "Surviving text on both sides points to this boundary.",
+    relatedHint: "The paragraph corresponds, but the original characters could not be matched.",
+    ambiguousHint: "Multiple occurrences or a possible copy prevented an exact match.",
+    noPath: "There was insufficient context to establish a match on this path.",
     deleted: "No corresponding passage found; it may have been deleted", unknown: "Position could not be determined",
     gap: "There is a gap or an unreadable version on this path.", close: "Back to comparison",
     ins: "Insertion", del: "Deletion", moveTo: "Move destination", moveFrom: "Move source", comment: "Comment", reply: "Reply",
@@ -28,11 +38,21 @@ const labels = {
     absent: "後続版では観測されない", unknownDate: "日時が不明", open: "出典を表示", file: "元のファイルを開く",
     target: "対応箇所を探す版", choose: "版を選ぶ", previous: "前へ", next: "次へ",
     quote: "記録された引用", noPosition: "元の範囲を確認できませんでした。", matched: "件",
-    revisionCoverage: "変更履歴を読めた版", commentCoverage: "コメントを読めた版", unavailable: "読取不能", pending: "未処理", changed: "比較後に変更", indexing: "保存版を読み込んでいます…",
+    observations: (count: number) => `このスレッドに一致した版 ${count} 件`,
+    recorded: "一部または保全記録のコメントのみ", revisionCoverage: "変更履歴を読めた版", commentCoverage: "コメントを読めた版", unavailable: "読取不能", pending: "未処理", changed: "比較後に変更", indexing: "保存版を読み込んでいます…",
+    excluded: "索引の対象外", failed: "変更履歴の読取失敗", disabled: "索引化が無効",
+    tables: "表", headersFooters: "ヘッダー・フッター", notes: "脚注・文末脚注", textBoxes: "テキストボックス", formatting: "書式変更",
     limited: "位置照合と変更履歴の対象は本文と見出しです。読み取れない版の内容は検索に出ない場合があります。",
     notOrdered: "対応箇所を探すには、経路を選ぶか、順序を確認した版を比較してください。",
     absentAt: "観測されなくなった版", range: "対応する範囲", partial: "一部が対応する範囲",
     boundary: "推定した境界", related: "関連する段落", ambiguous: "複数の対応候補",
+    reappeared: "再出現の候補", reappearanceHint: "いったん消えた箇所と同じ本文が後続版に現れています。",
+    rangeHint: "選んだ版の間で一致した文字に基づく範囲です。",
+    partialHint: "選んだ版の間でたどれた文字だけを強調しています。",
+    boundaryHint: "境界の両側に残った本文から位置を推定しました。",
+    relatedHint: "段落は対応していますが、元の文字の範囲は照合できませんでした。",
+    ambiguousHint: "複数の出現や複製の可能性があるため、位置を絞れませんでした。",
+    noPath: "この経路で対応を特定できる文脈が不足しています。",
     deleted: "対応箇所なし（削除された可能性）", unknown: "位置を特定できませんでした",
     gap: "この経路には記録の空白または読めない版があります。", close: "比較に戻る",
     ins: "挿入", del: "削除", moveTo: "移動先", moveFrom: "移動元", comment: "コメント", reply: "返信",
@@ -55,18 +75,29 @@ function marked(text: string, start: number, end: number) {
   return passage;
 }
 
+type HistoryFilter = "query" | "kind" | "author" | "tag" | "version" | "state" | "dateBasis" | "from" | "to";
+
+export interface HistorySearchState {
+  filters?: Partial<Record<HistoryFilter, string>>;
+  page?: number;
+  selection?: string;
+  target?: string;
+  expanded?: Set<string>;
+}
+
 export function historySearchPanel(
   lang: AppLang, versions: readonly SavedLineageVersion[], names: readonly string[],
-  ordered: boolean, anchors: boolean, search: boolean, signal: AbortSignal, dismiss: () => void,
+  ordered: boolean, anchors: boolean, search: boolean, signal: AbortSignal, dismiss: () => void, view: HistorySearchState = {},
 ): HTMLElement {
   const s = labels[lang];
   const panel = el("section", undefined, "report-export history-search");
   const header = el("div", undefined, "report-export-actions");
   header.append(el("h2", historySearchLabel(lang, search)), button(s.close, dismiss));
   const controls = el("div", undefined, "lineage-controls");
-  const query = el("input");
-  query.type = "search";
-  function field(label: string, control: HTMLInputElement | HTMLSelectElement): void {
+  const query = el("textarea");
+  query.rows = 1;
+  query.setAttribute("role", "searchbox");
+  function field(label: string, control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): void {
     const container = el("label", label + " ");
     container.append(control);
     controls.append(container);
@@ -91,6 +122,10 @@ export function historySearchPanel(
   field(s.dateBasis, dateBasis);
   const from = el("input"); from.type = "date"; field(s.from, from);
   const to = el("input"); to.type = "date"; field(s.to, to);
+  const fields = Object.entries({ query, kind, author, tag, version, state, dateBasis, from, to }) as
+    [HistoryFilter, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement][];
+  for (const [name, field] of fields) field.value = view.filters?.[name] ?? field.value;
+  const expanded = view.expanded ??= new Set();
   const scope = el("details");
   const coverage = names.map(name => el("li", `${name} · ${s.pending}`));
   const scopeRows = el("ul");
@@ -121,9 +156,13 @@ export function historySearchPanel(
   let read = 0;
   let commentsRead = 0;
   let processed = 0;
-  let page = 0;
   const pageSize = 40;
+  let displayed: HistoryEntry | undefined;
+  let displayedAbsence: number | undefined;
+  let pendingRender = false;
   let lineage: ReturnType<typeof compareSavedVersions> | undefined;
+  const anchorVersions = [...versions];
+  let shownTarget: number | undefined;
   panel.append(header, scope, controls, el("p", s.limited, "hint"), status, list, paging, detail, choices, projected);
 
   function addRanges(parent: HTMLElement, index: number, ranges: readonly SavedParagraphRange[], highlight = true): boolean {
@@ -142,7 +181,12 @@ export function historySearchPanel(
     return found;
   }
 
-  function displayEntry(entry: HistoryEntry): void {
+  function displayEntry(entry: HistoryEntry, restore = false): void {
+    displayed = entry;
+    displayedAbsence = entry.absentAt;
+    shownTarget = undefined;
+    if (!restore) view.target = undefined;
+    view.selection = entry.id;
     const source = versions[entry.version];
     detail.replaceChildren(el("h3", `${names[entry.version]} · ${s[entry.kind]}`));
     choices.replaceChildren();
@@ -178,34 +222,68 @@ export function historySearchPanel(
         const label = el("label", s.target + " ");
         label.append(select);
         choices.append(label);
+        select.value = view.target ?? "";
         select.onchange = () => {
-          projected.replaceChildren();
-          if (!select.value) return;
-          lineage ??= compareSavedVersions(versions, { japaneseWordHints: true });
-          const target = Number(select.value);
-          const match = projectHistoricalAnchor(lineage, entry.version, target, entry.ranges);
-          showMatch(match, target);
+          view.target = select.value;
+          refreshProjection();
         };
       }
     }
-    detail.scrollIntoView({ block: "nearest" });
+    refreshProjection();
+    if (!restore) detail.scrollIntoView({ block: "nearest" });
+  }
+
+  function refreshProjection(): void {
+    if (!anchors || !ordered || !displayed) return;
+    const target = view.target ? Number(view.target) : undefined;
+    if (target === undefined || displayed.version >= target || target >= anchorVersions.length) {
+      projected.replaceChildren();
+      shownTarget = undefined;
+    } else if (target >= processed) {
+      projected.replaceChildren(el("p", s.indexing, "hint"));
+      shownTarget = undefined;
+    } else if (shownTarget !== target) {
+      projected.replaceChildren();
+      lineage ??= compareSavedVersions(anchorVersions, { japaneseWordHints: true });
+      showMatch(projectHistoricalAnchor(lineage, displayed.version, target, displayed.ranges), target);
+      shownTarget = target;
+    }
+  }
+
+  function showCandidates(candidates: readonly LineageRange[]): void {
+    const byVersion = new Map<number, SavedParagraphRange[]>();
+    for (const candidate of candidates) {
+      const ranges = byVersion.get(candidate.version) ?? [];
+      ranges.push(candidate);
+      byVersion.set(candidate.version, ranges);
+    }
+    for (const [version, ranges] of byVersion) {
+      projected.append(el("h4", names[version]));
+      addRanges(projected, version, ranges, false);
+    }
   }
 
   function showMatch(match: HistoricalMatch, target: number): void {
     projected.append(el("h3", names[target]), el("p", s[match.kind]));
-    if (match.kind === "unknown" && match.reason === "gap") projected.append(el("p", s.gap, "hint"));
-    if (match.kind === "ambiguous") {
-      const byVersion = new Map<number, SavedParagraphRange[]>();
-      for (const candidate of match.ranges) {
-        const ranges = byVersion.get(candidate.version) ?? [];
-        ranges.push(candidate);
-        byVersion.set(candidate.version, ranges);
-      }
-      for (const [version, ranges] of byVersion) {
-        projected.append(el("h4", names[version]));
-        addRanges(projected, version, ranges, false);
-      }
-    } else addRanges(projected, target, match.ranges, match.kind !== "related");
+    switch (match.kind) {
+      case "unknown":
+        projected.append(el("p", match.reason === "gap" ? s.gap : match.reason === "no-source" ? s.noPosition : s.noPath, "hint"));
+        break;
+      case "ambiguous":
+      case "reappeared":
+        projected.append(el("p", match.kind === "reappeared" ? s.reappearanceHint : s.ambiguousHint, "hint"));
+        showCandidates(match.ranges);
+        break;
+      case "deleted":
+        break;
+      default:
+        projected.append(el("p", s[`${match.kind}Hint`], "hint"));
+        addRanges(projected, target, match.ranges, match.kind !== "related");
+        if (match.reappearance?.length) {
+          projected.append(el("p", s.reappearanceHint, "hint"));
+          showCandidates(match.reappearance);
+        }
+    }
   }
 
   function formatDate(iso: string): string {
@@ -215,7 +293,7 @@ export function historySearchPanel(
 
   function render(): void {
     if (signal.aborted) return;
-    const needle = searchKey(query.value.trim());
+    const needle = searchKey(query.value);
     const authorNeedle = searchKey(author.value.trim());
     const tagNeedle = searchKey(tag.value.trim().replace(/^#/, ""));
     let unknown = 0;
@@ -226,116 +304,133 @@ export function historySearchPanel(
           (tagNeedle && !entry.tags.some(t => searchKey(t) === tagNeedle)) ||
           (state.value === "resolved" && !entry.resolved) ||
           (state.value === "absent" && entry.absentAt === undefined) ||
-          (needle && !searchKey(entry.text).includes(needle) && !searchKey(entry.quote ?? "").includes(needle))) return false;
+          (needle && !entry.foldedText.includes(needle) && !entry.foldedQuote.includes(needle))) return false;
       const date = dateFor(entry);
       if (!date) unknown++;
       return (!from.value || (date !== "" && date >= from.value)) && (!to.value || (date !== "" && date <= to.value));
     });
-    page = Math.min(page, Math.max(0, Math.ceil(filtered.length / pageSize) - 1));
+    const rows = groupedHistoryRows(filtered);
+    const page = Math.min(view.page ?? 0, Math.max(0, Math.ceil(rows.length / pageSize) - 1));
     status.textContent = [
       `${filtered.length} ${s.matched}`, `${s.revisionCoverage} ${read}/${versions.length}`,
       `${s.commentCoverage} ${commentsRead}/${versions.length}`, unknown ? `${s.unknownDate} ${unknown}` : "",
       processed < versions.length ? s.indexing : "",
     ].filter(Boolean).join(" · ");
-    list.replaceChildren();
-    for (const entry of filtered.slice(page * pageSize, (page + 1) * pageSize)) {
-      const row = el("li");
-      const desc = [names[entry.version], s[entry.kind], entry.author, entry.resolved ? s.resolved : undefined,
-        entry.absentAt !== undefined ? s.absent : undefined].filter(Boolean).join(" · ");
-      const heading = button(desc, () => displayEntry(entry));
-      heading.setAttribute("aria-label", `${s.open} · ${desc}`);
-      row.append(heading);
-      const match = historyMatch(entry.text, needle);
-      const quotation = match ? undefined : historyMatch(entry.quote ?? "", needle);
-      if (match || quotation) {
-        const hit = match ?? quotation!;
-        const text = match ? entry.text : entry.quote!;
-        const start = Math.max(0, hit.start - 60);
-        row.append(marked(text.slice(start, hit.end + 100), hit.start - start, hit.end - start));
-      } else row.append(el("p", entry.text.slice(0, 160), "lineage-passage"));
-      list.append(row);
-    }
-    const back = button(s.previous, () => { page--; render(); });
+    list.replaceChildren(...rows.slice(page * pageSize, (page + 1) * pageSize)
+      .map(entries => renderRow(entries, needle)));
+    const back = button(s.previous, () => { view.page = page - 1; render(); });
     back.disabled = page === 0;
-    const next = button(s.next, () => { page++; render(); });
-    next.disabled = (page + 1) * pageSize >= filtered.length;
+    const next = button(s.next, () => { view.page = page + 1; render(); });
+    next.disabled = (page + 1) * pageSize >= rows.length;
     paging.replaceChildren(back, next);
+
+    const selected = view.selection && filtered.find(entry => entry.id === view.selection);
+    if (selected && (selected !== displayed || selected.absentAt !== displayedAbsence)) displayEntry(selected, true);
+    else if (displayed && shownTarget === undefined && view.target) refreshProjection();
+  }
+
+  function renderRow(entries: HistoryEntry[], needle: string): HTMLLIElement {
+    if (entries.length === 1) return resultRow(entries[0], needle);
+    const versionCount = new Set(entries.map(entry => entry.version)).size;
+    const row = el("li");
+    const group = el("details");
+    const key = entries[0].threadGroup!;
+    const author = entries[0].thread?.detail.comments[0]?.author;
+    group.open = expanded.has(key) || entries.some(entry => entry.id === view.selection);
+    const results = el("ul");
+    function showObservations(limit: number): void {
+      results.replaceChildren(...entries.slice(0, limit).map(entry => resultRow(entry, needle)));
+      if (limit < entries.length) {
+        const more = el("li");
+        more.append(button(s.next, () => showObservations(limit + pageSize)));
+        results.append(more);
+      }
+    }
+    if (group.open) showObservations(pageSize);
+    group.ontoggle = () => {
+      if (signal.aborted || !group.isConnected) return;
+      if (group.open) {
+        expanded.add(key);
+        if (!results.childElementCount) showObservations(pageSize);
+      } else expanded.delete(key);
+    };
+    group.append(el("summary", [s.observations(versionCount), author].filter(Boolean).join(" · ")), results);
+    row.append(group);
+    return row;
+  }
+
+  function resultRow(entry: HistoryEntry, needle: string): HTMLLIElement {
+    const row = el("li");
+    const desc = [names[entry.version], s[entry.kind], entry.author, entry.resolved ? s.resolved : undefined,
+      entry.absentAt !== undefined ? s.absent : undefined].filter(Boolean).join(" · ");
+    const heading = button(desc, () => displayEntry(entry));
+    heading.setAttribute("aria-label", `${s.open} · ${desc}`);
+    row.append(heading);
+    const match = historyMatch(entry.text, needle);
+    const quotation = match ? undefined : historyMatch(entry.quote ?? "", needle);
+    const hit = match ?? quotation;
+    if (hit) {
+      const text = match ? entry.text : entry.quote!;
+      const start = Math.max(0, hit.start - 60);
+      row.append(marked(text.slice(start, hit.end + 100), hit.start - start, hit.end - start));
+    } else row.append(el("p", entry.text.slice(0, 160), "lineage-passage"));
+    return row;
+  }
+
+  function scheduleRender(): void {
+    if (pendingRender) return;
+    pendingRender = true;
+    requestAnimationFrame(() => {
+      pendingRender = false;
+      render();
+    });
   }
   controls.hidden = !search;
   controls.oninput = () => {
-    page = 0;
+    view.filters = Object.fromEntries(fields.map(([name, field]) => [name, field.value]));
+    view.page = 0;
+    view.selection = view.target = undefined;
+    displayed = undefined;
     detail.replaceChildren(); choices.replaceChildren(); projected.replaceChildren();
-    render();
+    scheduleRender();
   };
   render();
 
   void (async () => {
-    const revisionRead = new Set<number>();
+    let previous: Parameters<typeof reconcileHistoryVersions>[0] | undefined;
     for (const [index, version] of versions.entries()) {
+      if (signal.aborted) return;
       const result = version.openId ? await window.app.readSavedVersionRevisions(version.openId).catch(() => undefined) : undefined;
       if (signal.aborted) return;
-      if (result?.status === "read") { read++; revisionRead.add(index); }
-      const usable = result?.status !== "changed" && (version.source !== "cloud" || result?.status === "read");
-      const hasComments = usable && !version.unavailable && !version.commentsUnavailable;
+      const changesRead = result?.status === "read";
+      if (changesRead) read++;
+      const verified = !version.openId || (result !== undefined && result.status !== "changed" && result.status !== "unavailable");
+      if (version.openId && (!verified || result?.status === "failed")) {
+        anchorVersions[index] = { ...version, unavailable: true };
+        lineage = undefined;
+      }
+      const hasComments = verified && !version.unavailable && !version.commentsUnavailable;
       if (hasComments) commentsRead++;
+      const entries = historyEntries(verified ? version : { ...version, threads: [] }, index, result?.records ?? []);
+      if (result?.status === "failed") for (const entry of entries) entry.ranges = [];
+      const revisionStatus = result?.status ?? "unavailable";
+      const commentStatus = hasComments ? s.commentCoverage : verified && version.threads.length ? s.recorded : s.unavailable;
       coverage[index].textContent = [
         names[index],
-        result?.status === "read" ? s.revisionCoverage : `${s.revisionCoverage}: ${result?.status === "changed" ? s.changed : s.unavailable}`,
-        hasComments ? s.commentCoverage : `${s.commentCoverage}: ${s.unavailable}`,
-      ].join(" · ");
-      if (usable) {
-        for (const entry of historyEntries(version, index, result?.records ?? [])) history.push(entry);
-      }
+        revisionStatus === "read" ? s.revisionCoverage : s[revisionStatus],
+        result?.status === "read" && result.excluded.length
+          ? `${s.excluded} (${result.excluded.map(region => s[region]).join(", ")})` : "",
+        commentStatus,
+      ].filter(Boolean).join(" · ");
+      const current = { version, entries, changesRead, commentsRead: hasComments };
+      if (ordered && previous) reconcileHistoryVersions(previous, current, index);
+      previous = current;
+      for (const entry of entries) history.push(entry);
       processed++;
-      render();
-    }
-    if (ordered) {
-      annotateDisappearance(versions, history, revisionRead);
-      render();
+      scheduleRender();
+      // Yield to input and painting even when the next version has no file to read.
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
     }
   })();
   return panel;
-}
-
-function annotateDisappearance(
-  versions: readonly SavedLineageVersion[], entries: HistoryEntry[], revisionRead: ReadonlySet<number>,
-): void {
-  const byVersion = versions.map((): HistoryEntry[] => []);
-  for (const entry of entries) byVersion[entry.version].push(entry);
-  const tracked = (entry: HistoryEntry) => entry.revision && [entry.kind, entry.revision.wordId,
-    entry.date, entry.author, entry.text].join("\0");
-  for (let index = 1; index < versions.length; index++) {
-    const before = versions[index - 1], after = versions[index];
-    if (before.unavailable || after.unavailable || after.gapBefore) continue;
-    const earlier = byVersion[index - 1], later = byVersion[index];
-    if (!before.commentsUnavailable && !after.commentsUnavailable) {
-      const keys = new Set(later.flatMap(entry => entry.thread ? [entry.thread.key] : []));
-      const beforeCounts = new Map<string, number>();
-      for (const thread of before.threads) beforeCounts.set(thread.key, (beforeCounts.get(thread.key) ?? 0) + 1);
-      for (const entry of earlier) {
-        if (entry.thread?.key.startsWith("d:") && beforeCounts.get(entry.thread.key) === 1 &&
-            !keys.has(entry.thread.key)) entry.absentAt = index;
-      }
-    }
-    if (!revisionRead.has(index) || !revisionRead.has(index - 1)) continue;
-    const keys = new Set(later.map(tracked));
-    const counts = new Map<string, number>();
-    for (const entry of earlier) {
-      const key = tracked(entry);
-      if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    const currentIds = new Set(later.flatMap(entry => entry.revision?.wordId ? [entry.revision.wordId] : []));
-    const currentText = new Set(later.flatMap(entry => entry.revision ? [entry.text] : []));
-    for (const entry of earlier) {
-      const revision = entry.revision;
-      const key = tracked(entry);
-      if (!key || !revision?.wordId || !entry.ranges.length || counts.get(key) !== 1 ||
-          keys.has(key) || currentIds.has(revision.wordId) || currentText.has(entry.text)) continue;
-      const aligned = entry.ranges.every(range => {
-        const source = before.paragraphs.find(p => p.index === range.paragraph);
-        return source?.paraId && after.paragraphs.filter(p => p.paraId === source.paraId && p.text === source.text).length === 1;
-      });
-      if (aligned) entry.absentAt = index;
-    }
-  }
 }

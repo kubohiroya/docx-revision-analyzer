@@ -212,10 +212,10 @@ function registerIpc(): void {
   ipcMain.handle("cancel-cloud-versions", (event, source: unknown) => historySession(event, source)?.cancel());
   ipcMain.handle("history-features", () => historyFeatures());
   ipcMain.handle("read-saved-version-revisions", (event, id: unknown) => {
-    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame || !historyFeatures().index) {
+    if (event.sender !== mainWindow?.webContents || event.senderFrame !== event.sender.mainFrame) {
       return { status: "disabled", records: [] };
     }
-    return readSavedVersionRevisions(id);
+    return readSavedVersionRevisions(id, historyFeatures().index);
   });
   const reviewCommentWriteAtLaunch = loadSettings().reviewCommentWrite === true;
   const reviewCommentWriteEnabled = () => reviewCommentWriteAtLaunch && versionReviewEnabled();

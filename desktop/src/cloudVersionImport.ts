@@ -97,7 +97,10 @@ export class CloudVersionImport {
     } catch (cause) {
       error = cause instanceof CloudVersionError ? cause.reason : "network";
       // Permission failures must not be mistaken for a known gap in the server history.
-      if (error === "sign-in" || error === "forbidden") throw cause;
+      if (error === "sign-in" || error === "forbidden") {
+        this.newestFirst = [];
+        throw cause;
+      }
     }
     const freshIds = new Set(fresh.map(item => item.id));
     const cached = (await this.listCached()).filter(item => !freshIds.has(item.id));
@@ -130,7 +133,7 @@ export class CloudVersionImport {
         const identity: VersionIdentity = {
           label: `${this.target.name} · ${item.id}`, source: "cloud", number: order + 1,
           versionId: `cloud:${document}:${item.id}`, sourceModified: item.modified,
-          gapBefore: last >= 0 && (order > last + 1 || item.cachedOnly || ordered[last].cachedOnly),
+          gapBefore: last >= 0 && (order > last + 1 || item.cachedOnly === true || ordered[last].cachedOnly === true),
         };
         last = order;
         try {
@@ -152,13 +155,12 @@ export class CloudVersionImport {
       const snapshot = path.join(dir, `${digest}.docx`);
       const stored = await fs.readFile(snapshot).catch(() => undefined);
       if (!stored || hash(stored) !== digest) await replace(snapshot, bytes);
-      const newest = ordered.at(-1)?.modified;
-      const adjacent = last === ordered.length - 1 && !ordered[last].cachedOnly && newest && Date.parse(newest) < Date.parse(this.target.mtime);
       const current = await readCloudSavedVersion(bytes, {
         label: this.target.name, source: "cloud", number: ordered.length + 1, sourceModified: this.target.mtime,
         versionId: `cloud:${document}:current:${digest}`,
-        // The snapshot comes from opening the document, so coincident timestamps do not establish its order.
-        gapBefore: !adjacent,
+        // The snapshot was opened independently of the list and has no Graph version ID.
+        // Keep it searchable, but do not infer adjacency from timestamps or matching bytes.
+        gapBefore: true,
       }, async () => { await this.verifyAccount(); return fs.readFile(snapshot); });
       return { versions: [...versions, current], failures };
     } finally {

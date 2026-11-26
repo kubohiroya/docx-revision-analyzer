@@ -1,8 +1,8 @@
 import type { LineageLink, LineageRange, SavedParagraphRange, SavedVersionLineage } from "./lineage";
 
 export type HistoricalMatch =
-  | { kind: "range" | "partial" | "boundary" | "related"; ranges: LineageRange[] }
-  | { kind: "ambiguous"; ranges: LineageRange[] }
+  | { kind: "range" | "partial" | "boundary" | "related"; ranges: LineageRange[]; reappearance?: LineageRange[] }
+  | { kind: "ambiguous" | "reappeared"; ranges: LineageRange[] }
   | { kind: "deleted"; ranges: [] }
   | { kind: "unknown"; ranges: []; reason: "no-source" | "no-path" | "gap" };
 
@@ -10,8 +10,8 @@ function sameParagraph(a: SavedParagraphRange, b: SavedParagraphRange): boolean 
   return a.paragraph === b.paragraph;
 }
 
-function touches(a: SavedParagraphRange, b: SavedParagraphRange): boolean {
-  return sameParagraph(a, b) && (a.start === a.end
+function touches(a: LineageRange, b: LineageRange): boolean {
+  return a.version === b.version && sameParagraph(a, b) && (a.start === a.end
     ? b.start <= a.start && a.start <= b.end
     : a.start < b.end && b.start < a.end);
 }
@@ -59,16 +59,23 @@ export function projectHistoricalAnchor(
   let ranges = source.map(range => ({ ...range, version: origin }));
   let related = false;
   let partial = false;
+  const lost: LineageRange[] = [];
+  const candidateLinks: LineageLink[] = [];
   for (const step of route) {
     const links = step.paragraph;
+    for (const link of links) {
+      if (link.evidence.includes("past") && link.from.some(from => lost.some(range => touches(range, from)))) {
+        candidateLinks.push(link);
+      }
+    }
     const next: LineageRange[] = [];
     for (const range of ranges) {
       const possible = links.filter(link => link.from.some(from => touches(range, from)));
-      if (possible.some(link => link.kind === "ambiguous" || link.kind === "copied" || link.kind === "reappeared")) {
+      if (possible.some(link => link.kind === "ambiguous" || link.kind === "copied")) {
         const candidates = possible.flatMap(link => link.to);
         return { kind: "ambiguous", ranges: distinctRanges(candidates) };
       }
-      const matches = possible.filter(link => link.to.length && link.from.every(from => from.version === range.version));
+      const matches = possible.filter(link => link.to.length);
       if (!related) {
         const { result, covered } = mapSpan(range, matches);
         if (result.length) {
@@ -88,13 +95,18 @@ export function projectHistoricalAnchor(
         next.push(...matches.flatMap(link => link.to));
       } else if (matches.length) {
         return { kind: "unknown", ranges: [], reason: "no-path" };
-      } else if (ranges.length > 1) {
+      } else {
+        lost.push(range);
         partial = true;
       }
     }
-    if (!next.length) return { kind: "deleted", ranges: [] };
     ranges = distinctRanges(next);
   }
+  const candidates = distinctRanges(candidateLinks.flatMap(link => link.to));
+  if (!ranges.length) {
+    if (!candidates.length) return { kind: "deleted", ranges: [] };
+    return { kind: candidateLinks.some(link => link.kind === "ambiguous") ? "ambiguous" : "reappeared", ranges: candidates };
+  }
   const kind = related ? "related" : ranges.every(range => range.start === range.end) ? "boundary" : partial ? "partial" : "range";
-  return { kind, ranges };
+  return candidates.length ? { kind, ranges, reappearance: candidates } : { kind, ranges };
 }

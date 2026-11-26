@@ -21,7 +21,7 @@
  */
 
 import JSZip from "jszip";
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { t } from "./i18n";
 import type { DocxInput } from "./input";
 
@@ -103,6 +103,13 @@ export interface LayoutCommentMark {
 }
 
 export type LayoutRevisionKind = "ins" | "del" | "moveFrom" | "moveTo";
+
+export type RevisionExcludedRegion = "tables" | "headersFooters" | "notes" | "textBoxes" | "formatting";
+
+interface LayoutRevisionIndex {
+  marks: Map<number, LayoutRevisionMark[]>;
+  excluded: Set<RevisionExcludedRegion>;
+}
 
 export interface LayoutRevisionMark {
   kind: LayoutRevisionKind;
@@ -1393,15 +1400,32 @@ async function parseNotes(zip: JSZip, part: string, tag: "footnote" | "endnote")
   return out;
 }
 
+function recordRevisionExclusions(nodes: XmlNode[], excluded: Set<RevisionExcludedRegion>): void {
+  for (const node of nodes) {
+    const tag = tagOf(node);
+    if (!tag) continue;
+    if (tag === "tbl") {
+      excluded.add("tables");
+    } else if (tag === "txbxContent") {
+      excluded.add("textBoxes");
+    } else {
+      if (/^(?:pPr|rPr|sectPr|numbering)Change$/.test(tag)) excluded.add("formatting");
+      recordRevisionExclusions(childrenOf(node, tag), excluded);
+    }
+  }
+}
+
 export async function parseDocxLayout(
   input: DocxInput, commentMarks?: Map<number, LayoutCommentMark[]>, transformDocumentXml?: (xml: string) => string,
-  revisionMarks?: Map<number, LayoutRevisionMark[]>,
+  revisionIndex?: LayoutRevisionIndex,
 ): Promise<DocxLayoutModel> {
   const zip = await JSZip.loadAsync(input);
   const docFile = zip.file("word/document.xml");
   if (!docFile) throw new Error(t("errNoDocumentXml"));
   const documentXml = await docFile.async("string");
-  const docRoot = parser.parse(transformDocumentXml ? transformDocumentXml(documentXml) : documentXml) as XmlNode[];
+  const xml = transformDocumentXml ? transformDocumentXml(documentXml) : documentXml;
+  if (revisionIndex && XMLValidator.validate(xml) !== true) throw new Error("Invalid document XML");
+  const docRoot = parser.parse(xml) as XmlNode[];
   const stylesRoot = await partXml(zip, "word/styles.xml");
   const styles = parseStyles(stylesRoot);
   const themeFile = Object.keys(zip.files).find((n) => /^word\/theme\/theme\d*\.xml$/.test(n));
@@ -1425,10 +1449,19 @@ export async function parseDocxLayout(
   const body = documentNode ? findChild(childrenOf(documentNode, "document"), "body") : undefined;
   if (!body) throw new Error(t("errNoBody"));
 
+  const bodyNodes = childrenOf(body, "body");
+  if (revisionIndex) {
+    const { excluded } = revisionIndex;
+    recordRevisionExclusions(bodyNodes, excluded);
+    for (const file of Object.keys(zip.files)) {
+      if (/^word\/(?:header|footer)[^/]*\.xml$/.test(file)) excluded.add("headersFooters");
+      if (/^word\/(?:footnotes|endnotes)\.xml$/.test(file)) excluded.add("notes");
+    }
+  }
   const paras: Para[] = [];
-  const ctx: BlockContext = { sc, out: paras, tables: [], tableCount: 0, state: {}, commentMarks, revisionMarks, section: 0, sectPrs: [] };
+  const ctx: BlockContext = { sc, out: paras, tables: [], tableCount: 0, state: {}, commentMarks, revisionMarks: revisionIndex?.marks, section: 0, sectPrs: [] };
   const blocks: BlockRef[] = [];
-  const bodySectPr = walkBlocks(childrenOf(body, "body"), undefined, ctx, blocks);
+  const bodySectPr = walkBlocks(bodyNodes, undefined, ctx, blocks);
 
   // 本文の文字サイズ: 既定の段落スタイル > docDefaults > 10.5pt
   const base = resolveParaProps({}, undefined, sc).props;

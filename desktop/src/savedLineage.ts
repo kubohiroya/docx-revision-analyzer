@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { addWordComment, extractComments, replayCommentEvents, type CommentEvent, type CommentLocations, type DocxComment } from "../../src/lib/docxComments";
 import { countRecordedRevisions } from "../../src/lib/integrity";
 import { readSavedTextVersion, type SavedParagraphRange, type VersionIdentity } from "../../src/lib/lineage";
-import { readRevisionOccurrences, type RevisionHistoryRead, type RevisionOccurrence } from "../../src/lib/revisionHistory";
+import { readRevisionIndex, type RevisionHistoryRead, type RevisionIndex } from "../../src/lib/revisionHistory";
 import { revertTrackedChangesXml } from "../../src/lib/versions";
 import { countVersionText } from "./versionTextCounts";
 import type { WatchArchive } from "../../src/node/docWatcher";
@@ -55,30 +55,32 @@ export async function readSavedVersionFigureSource(id: unknown): Promise<SavedVe
   }
 }
 
-const revisionCache = new Map<string, RevisionOccurrence[]>();
+const revisionCache = new Map<string, RevisionIndex>();
 let cachedRevisionCount = 0;
 
-export async function readSavedVersionRevisions(id: unknown): Promise<RevisionHistoryRead> {
+export async function readSavedVersionRevisions(id: unknown, indexEnabled = true): Promise<RevisionHistoryRead> {
   const input = await readSavedVersionFigureSource(id);
   if (!input.ok) return { status: input.reason, records: [] };
+  if (!indexEnabled) return { status: "disabled", records: [] };
   const sha = digest(input.bytes);
   const cached = revisionCache.get(sha);
-  if (cached) return { status: "read", records: cached };
+  if (cached) return { status: "read", ...cached };
   try {
-    const records = await readRevisionOccurrences(input.bytes);
+    const index = await readRevisionIndex(input.bytes);
+    const { records } = index;
     if (!revisionCache.has(sha) && records.length <= 20_000) {
       while (revisionCache.size >= 64 || cachedRevisionCount + records.length > 20_000) {
         const oldest = revisionCache.keys().next().value;
         if (oldest === undefined) break;
-        cachedRevisionCount -= revisionCache.get(oldest)!.length;
+        cachedRevisionCount -= revisionCache.get(oldest)!.records.length;
         revisionCache.delete(oldest);
       }
       cachedRevisionCount += records.length;
-      revisionCache.set(sha, records);
+      revisionCache.set(sha, index);
     }
-    return { status: "read", records };
+    return { status: "read", ...index };
   } catch {
-    return { status: "unavailable", records: [] };
+    return { status: "failed", records: [] };
   }
 }
 
@@ -161,7 +163,8 @@ async function readVersion(
   const locations: CommentLocations = { passages: new Map() };
   try {
     const comments = await extractComments(bytes, locations);
-    return { ...metadata, threads: makeThreads(comments, identity, observations, locations, ranges) };
+    const threads = makeThreads(comments, identity, observations, locations, ranges);
+    return locations.incomplete ? { ...metadata, threads, commentsUnavailable: true } : { ...metadata, threads };
   } catch {
     return { ...metadata, threads: [], commentsUnavailable: true };
   }
