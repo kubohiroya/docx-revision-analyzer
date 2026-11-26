@@ -274,3 +274,31 @@ docx-revision-analyzer/
 Issues and pull requests are welcome — please use
 [GitHub Issues](https://github.com/kubohiroya/docx-revision-analyzer/issues)
 for bug reports and feature requests.
+
+### Real-environment checks for saved history and Word
+
+See issues [#107](https://github.com/kubohiroya/docx-revision-analyzer/issues/107),
+[#111](https://github.com/kubohiroya/docx-revision-analyzer/issues/111),
+[#85](https://github.com/kubohiroya/docx-revision-analyzer/issues/85), and
+[#39](https://github.com/kubohiroya/docx-revision-analyzer/issues/39). Use disposable
+test documents and a separate app profile, not production student documents.
+
+1. Open the shared test document in a browser and confirm its version history.
+   Import from the app separately in personal OneDrive, work/school OneDrive,
+   and SharePoint. If the app refuses access, record the stage (sign-in, link
+   resolution, reading the current version, listing versions, or retrieving a
+   selected version). Do not include URLs, tokens, or names in shared logs.
+2. On Windows x64 and ARM64, install the designated verification build and
+   perform the #111 GUI checks with its A/B/C fixtures. With dev dependencies
+   installed, the following platform-independent, read-only engine check
+   verifies the same three files, but does **not** verify installer or UI behavior:
+   `node desktop/scripts/verify-history-case.mjs 01-A.docx 02-B.docx 03-C.docx`.
+3. For #85, in a local copy select an unambiguous Japanese or English passage,
+   append a comment, then close and reopen that copy in Windows Word. Check
+   the quote, author, multiline text, a tag and a URL, and preservation of the
+   existing reply and tracked changes. Confirm the backup matches the original.
+4. For #39 first test the lock controls and save the files in **Word for the
+   web**. After `npm run build:lib`, run:
+   `node scripts/verify-word-web.mjs locked-template.docx web-tracked.docx unlocked-template.docx web-tracking-off.docx`.
+   Inspect any failed check as a compatibility result, not evidence of
+   misconduct. Also perform the second submission cycle in #39 separately.

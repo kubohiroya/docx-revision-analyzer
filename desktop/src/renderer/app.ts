@@ -1222,7 +1222,8 @@ async function openFromUrl(target: { url: string } | { recent: string }): Promis
   await refreshCloud();
   if (r.error?.code === "folder") return { folder: "url" in target ? target.url : target.recent };
   if (r.error) {
-    const msg = S.urlErrors[r.error.code] ?? r.error.message;
+    const reason = S.urlErrors[r.error.code] ?? r.error.message;
+    const msg = r.error.stage ? `${S.urlStages[r.error.stage]}: ${reason}` : reason;
     status(S.error(msg));
     return r.error.message && r.error.code !== "badUrl" ? `${msg} (${r.error.message})` : msg;
   }

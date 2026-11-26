@@ -81,6 +81,8 @@ export interface RecentUrl {
   openedAt: string;
 }
 
+export type CloudOpenStage = "sign-in" | "resolve-link" | "read-current";
+
 export type CloudErrorCode =
   | "notConfigured"
   | "badUrl"
@@ -422,7 +424,7 @@ export interface AppApi {
   /** パスのファイルを読む (ドロップされたファイルなど) */
   readDocx(path: string): Promise<OpenedFile>;
   /** OneDrive / SharePoint の URL (または最近開いた文書) を開く。必要ならブラウザでサインインする */
-  openUrl(target: { url: string } | { recent: string }): Promise<{ file?: OpenedFile; error?: { code: CloudErrorCode; message: string } }>;
+  openUrl(target: { url: string } | { recent: string }): Promise<{ file?: OpenedFile; error?: { code: CloudErrorCode; message: string; stage?: CloudOpenStage } }>;
   recentUrls(): Promise<RecentUrl[]>;
   removeRecentUrl(url: string): Promise<RecentUrl[]>;
   microsoftStatus(): Promise<MicrosoftStatus>;

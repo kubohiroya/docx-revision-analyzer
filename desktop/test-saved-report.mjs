@@ -367,6 +367,38 @@ try {
   const changedBytes = await fs.readFile(targetFile);
   assert.deepEqual(await addSavedVersionComment(saved.version.openId, request), { ok: false, reason: "changed" });
   assert.deepEqual(await fs.readFile(targetFile), changedBytes);
+  // Exercise a second file that already has a thread, a reply, and a tracked revision.
+  // This is an OOXML regression test, not a substitute for opening the result in Word.
+  const prior = await JSZip.loadAsync(await fixture(1, true));
+  prior.file("[Content_Types].xml", '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>');
+  prior.file("word/_rels/document.xml.rels", '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    `<Relationship Id="rId1" Type="${R}/comments" Target="comments.xml"/></Relationships>`);
+  const priorBytes = await prior.generateAsync({ type: "nodebuffer" });
+  const threadedFile = path.join(writeFolder, "threaded.docx");
+  await fs.writeFile(threadedFile, priorBytes);
+  const [threaded] = await readSelectedSavedVersions([threadedFile], true);
+  const oldNotes = await extractComments(priorBytes);
+  assert(oldNotes.some(note => note.parentKey && oldNotes.some(parent => parent.key === note.parentKey && parent.done)));
+  const richText = '2行目を確認 & <確認済み> / verify “terms”\n#根拠 https://example.org/source';
+  const untouchedParagraph = pageContext + "第一ページの周辺情報。";
+  const targetQuote = "授業の記録";
+  const posted = await addSavedVersionComment(threaded.openId, {
+    author: "Review / 校閲", text: richText,
+    range: { paragraphId: "00000002", paragraphText: untouchedParagraph, start: 0, end: targetQuote.length },
+  });
+  assert(posted.ok, JSON.stringify(posted));
+  assert.deepEqual(await fs.readFile(posted.backupPath), priorBytes);
+  const written = await fs.readFile(threadedFile);
+  const newNotes = await extractComments(written);
+  assert.deepEqual(newNotes.slice(0, oldNotes.length), oldNotes, "existing comments, reply links and resolution stay intact");
+  assert.equal(newNotes.length, oldNotes.length + 1);
+  assert.equal(newNotes.at(-1).text, richText);
+  assert.equal(newNotes.at(-1).author, "Review / 校閲");
+  assert.equal(newNotes.at(-1).parentKey, undefined);
+  assert.equal(newNotes.at(-1).anchor.quote, targetQuote);
+  assert.deepEqual(posted.version.paragraphs, threaded.paragraphs);
+  assert.equal(posted.version.revisionCount, threaded.revisionCount);
   console.log("ok comment writes: opaque local capabilities, lock, protection, conflict, backup, serialized submission and reload");
 } finally {
   await fs.rm(temp, { recursive: true, force: true });

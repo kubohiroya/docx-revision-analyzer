@@ -3,6 +3,7 @@ import { el, header, modal } from "./extensions";
 
 const labels = {
   en: {
+    listError: "List previous versions",
     title: "Import cloud versions", choose: "Choose the saved versions to retrieve.", loading: "Listing versions…",
     none: "No previous versions are available.", status: "Processed", cached: "Local copy only", import: "Retrieve selected versions",
     close: "Close", stop: "Stop", retry: "Retry selected versions", view: "Compare retrieved versions", error: "Could not retrieve",
@@ -11,6 +12,7 @@ const labels = {
     invalid: "Could not read the version", conflict: "The version differs from a previous import", cancelled: "Stopped",
   },
   ja: {
+    listError: "過去版の一覧",
     title: "クラウドの過去版を取得", choose: "取得する保存版を選択してください。", loading: "版を一覧にしています…",
     none: "取得できる過去版がありません。", status: "処理済み", cached: "ローカル保管分", import: "選択した版を取得",
     close: "閉じる", stop: "中断", retry: "選択した版を再試行", view: "取得した版を比較", error: "取得できなかった版",
@@ -79,7 +81,7 @@ export async function pickCloudVersions(lang: AppLang, path: string): Promise<Sa
         if (event.path === path) state.textContent = `${s.status} ${event.done}/${event.total}`;
       });
       void window.app.listCloudVersions(path).then(result => {
-        state.textContent = result.error ? describe(result.error) : result.items.length ? "" : s.none;
+        state.textContent = result.error ? `${s.listError}: ${describe(result.error)}` : result.items.length ? "" : s.none;
         choicesReady = result.items.length > 0;
         for (const item of result.items) {
           const field = el("label", undefined, "check-row");
@@ -90,7 +92,7 @@ export async function pickCloudVersions(lang: AppLang, path: string): Promise<Sa
           choices.append(field);
         }
         update();
-      }).catch(() => { state.textContent = s.network; });
+      }).catch(() => { state.textContent = `${s.listError}: ${s.network}`; });
     }, null);
   } finally {
     unsubscribe?.();

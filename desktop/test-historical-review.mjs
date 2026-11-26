@@ -31,14 +31,25 @@ try {
       export { compareSavedVersions, lineageRangeText } from "../src/lib/lineage";
       export { projectHistoricalAnchor } from "../src/lib/historicalAnchors";
       export { listCloudVersionItems, getCloudVersionBytes, CloudVersionError } from "./src/cloudVersionGraph";
+      export { MicrosoftError, atCloudOpenStage } from "./src/cloudOpenStatus";
       export { CloudVersionImport } from "./src/cloudVersionImport";
     ` },
     bundle: true, platform: "node", format: "cjs", outfile: compiled,
   });
   const {
     readCloudSavedVersion, readSelectedSavedVersions, readSavedVersionRevisions, groupedHistoryRows, historyEntries, historyMatch, reconcileHistoryVersions, searchKey,
-    compareSavedVersions, lineageRangeText, projectHistoricalAnchor, listCloudVersionItems, getCloudVersionBytes, CloudVersionImport, CloudVersionError,
+    compareSavedVersions, lineageRangeText, projectHistoricalAnchor, listCloudVersionItems, getCloudVersionBytes, CloudVersionImport, CloudVersionError, MicrosoftError, atCloudOpenStage,
   } = createRequire(import.meta.url)(compiled);
+
+  for (const stage of ["sign-in", "resolve-link", "read-current"]) {
+    await assert.rejects(atCloudOpenStage(stage, async () => {
+      throw new MicrosoftError("private signed URL", "forbidden");
+    }), error => error instanceof MicrosoftError && error.stage === stage &&
+      error.code === "forbidden" && error.message === "");
+  }
+  await assert.rejects(atCloudOpenStage("read-current", async () => { throw new TypeError("private URL"); }),
+    { stage: "read-current", code: "network", message: "" });
+  assert.equal(await atCloudOpenStage("resolve-link", async () => 42), 42);
 
   const left = "説明の前置き📝", right = "を検証しました。";
   const deletion = '<w:del w:id="12" w:author="Reader"><w:r><w:delText>旧案</w:delText></w:r></w:del>';
