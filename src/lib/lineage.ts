@@ -1,4 +1,4 @@
-import { parseDocxLayout, type LayoutCommentMark, type Para } from "./docxLayout";
+import { parseDocxLayout, type LayoutCommentMark, type Para, type Seg } from "./docxLayout";
 import type { DocxInput } from "./input";
 import { compareUnits, prepareUnits, type Unit } from "./lineageMatching";
 
@@ -8,7 +8,9 @@ export type MatchEvidence = "exact" | "paragraphId" | "neighbors" | "heading" | 
 
 export interface VersionIdentity {
   label: string;
-  source: "selected" | "archive";
+  versionId?: string;
+  source: "selected" | "archive" | "cloud";
+  fetchedAt?: string;
   number?: number;
   sha256?: string;
   archivedAt?: string;
@@ -158,13 +160,16 @@ function visibleText(p: Para, marks: LayoutCommentMark[] = []) {
     if (renderedAt.has(i)) breaks.add(text.length);
     const seg = p.segs[i];
     if (!seg || seg.del) continue;
-    if (seg.kind === "text") text += seg.text;
-    else if (seg.kind === "lineBreak" || seg.kind === "pageBreak") {
-      text += "\n";
-      if (seg.kind === "pageBreak") breaks.add(text.length);
-    }
+    text += savedSegmentText(seg);
+    if (seg.kind === "pageBreak") breaks.add(text.length);
   }
   return { text, offsets, breaks: [...breaks].sort((a, b) => a - b), rendered: renderedAt.size };
+}
+
+/** Text and offsets shared by saved-version comparison and historical anchors. */
+export function savedSegmentText(seg: Seg): string {
+  if (seg.kind === "text") return seg.text;
+  return seg.kind === "figure" ? "" : "\n";
 }
 
 export function compareSavedVersions(versions: readonly SavedTextVersion[], options: LineageOptions = {}): SavedVersionLineage {
