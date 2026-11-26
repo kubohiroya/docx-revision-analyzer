@@ -128,6 +128,7 @@ const en = {
   urlNotConfigured:
     "Opening from OneDrive / SharePoint isn't set up in this copy of the app (no Microsoft application ID). " +
     "See Settings → Microsoft account.",
+  urlStages: { "sign-in": "Sign-in", "resolve-link": "Resolve the document link", "read-current": "Read the current version" },
   urlErrors: {
     notConfigured: "Opening from OneDrive / SharePoint isn't set up (no Microsoft application ID).",
     badUrl: "This isn't a OneDrive or SharePoint address. Copy the link with Share → Copy link in Word or OneDrive.",
@@ -452,6 +453,7 @@ const ja: Strings = {
   urlNotConfigured:
     "このアプリでは OneDrive / SharePoint から開く設定がされていません (Microsoft のアプリケーション ID がありません)。" +
     "設定 → Microsoft アカウントを確認してください。",
+  urlStages: { "sign-in": "サインイン", "resolve-link": "文書リンクの解決", "read-current": "現行版の読み取り" },
   urlErrors: {
     notConfigured: "OneDrive / SharePoint から開く設定がされていません (Microsoft のアプリケーション ID がありません)。",
     badUrl: "OneDrive / SharePoint のアドレスではありません。Word や OneDrive の「共有」→「リンクのコピー」でコピーしてください。",

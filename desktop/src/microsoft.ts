@@ -1,3 +1,4 @@
+import { MicrosoftError, atCloudOpenStage } from "./cloudOpenStatus";
 import { getCloudVersionBytes, listCloudVersionItems, CloudVersionError, MAX_CLOUD_DOCX_BYTES, type CloudVersionItem } from "./cloudVersionGraph";
 /**
  * OneDrive / SharePoint 上の docx を URL から開く (メインプロセス)。
@@ -46,25 +47,7 @@ export interface CloudFile {
   accountId?: string;
 }
 
-export class MicrosoftError extends Error {
-  constructor(
-    message: string,
-    /** 画面で案内を出し分けるための種類 */
-    readonly code:
-      | "notConfigured"
-      | "badUrl"
-      | "notDocx"
-      | "notFolder"
-      | "folder"
-      | "notFound"
-      | "forbidden"
-      | "tooLarge"
-      | "signInCancelled"
-      | "network"
-  ) {
-    super(message);
-  }
-}
+export { MicrosoftError } from "./cloudOpenStatus";
 
 /** OneDrive / SharePoint の URL か (それ以外の URL は Graph に渡さない) */
 export function isMicrosoftFileUrl(url: string): boolean {
@@ -294,9 +277,9 @@ export class MicrosoftClient {
       return { name: path.basename(this.mockFile), mtime: stat.mtime.toISOString(), bytes: new Uint8Array(bytes), driveId: "mock", itemId: "mock" };
     }
     if ("url" in target && !isMicrosoftFileUrl(target.url)) throw new MicrosoftError(target.url, "badUrl");
-    const { token, accountId } = await this.authenticate(interactive);
+    const { token, accountId } = await atCloudOpenStage("sign-in", () => this.authenticate(interactive));
     const select = "$select=id,name,size,lastModifiedDateTime,webUrl,parentReference,file,folder";
-    const meta = (await (
+    const meta = await atCloudOpenStage("resolve-link", async () => (await (
       "url" in target
         ? await this.graph(`/shares/${shareIdOf(target.url)}/driveItem?${select}`, token, { headers: { prefer: "redeemSharingLinkIfNecessary" } })
         : await this.graph(`/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(target.itemId)}?${select}`, token)
@@ -308,14 +291,16 @@ export class MicrosoftClient {
       webUrl?: string;
       parentReference?: { driveId?: string };
       folder?: unknown;
-    };
+    });
     if (meta.folder) throw new MicrosoftError(meta.name, "folder");
     if (!/\.docx$/i.test(meta.name)) throw new MicrosoftError(meta.name, "notDocx");
     if ((meta.size ?? 0) > MAX_BYTES) throw new MicrosoftError(meta.name, "tooLarge");
     const driveId = meta.parentReference?.driveId ?? ("driveId" in target ? target.driveId : "");
     // 中身は Graph が返す、期限付きのダウンロード用の URL へ転送される (fetch が転送をたどる)
-    const res = await this.graph(`/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(meta.id)}/content`, token);
-    const bytes = new Uint8Array(await res.arrayBuffer());
+    const bytes = await atCloudOpenStage("read-current", async () => {
+      const res = await this.graph(`/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(meta.id)}/content`, token);
+      return new Uint8Array(await res.arrayBuffer());
+    });
     if (bytes.byteLength > MAX_BYTES) throw new MicrosoftError(meta.name, "tooLarge");
     return {
       name: meta.name,

@@ -302,7 +302,8 @@ function registerIpc(): void {
       return { file };
     } catch (err) {
       const code = err instanceof MicrosoftError ? err.code : "network";
-      return { error: { code, message: err instanceof Error ? err.message : String(err) } };
+      const stage = err instanceof MicrosoftError ? err.stage : undefined;
+      return { error: { code, stage, message: err instanceof Error ? err.message : String(err) } };
     }
   });
   ipcMain.handle("recent-urls", () => loadSettings().recentUrls ?? []);

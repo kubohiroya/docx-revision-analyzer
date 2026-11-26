@@ -264,3 +264,26 @@ docx-revision-analyzer/
 
 Issue / Pull Request 歓迎です。バグ報告や改善提案は
 [GitHub Issues](https://github.com/kubohiroya/docx-revision-analyzer/issues) へ。
+
+### 保存版・Word の実環境検証
+
+対象は [#107](https://github.com/kubohiroya/docx-revision-analyzer/issues/107)、
+[#111](https://github.com/kubohiroya/docx-revision-analyzer/issues/111)、
+[#85](https://github.com/kubohiroya/docx-revision-analyzer/issues/85)、
+[#39](https://github.com/kubohiroya/docx-revision-analyzer/issues/39)。
+実際の提出物を使わず、検証用文書と分離したアプリ設定で実施する。
+
+1. ブラウザーで検証用共有文書の版履歴を確認し、個人用 OneDrive、職場・学校用 OneDrive、
+   SharePoint のそれぞれでアプリから取り込む。失敗時は、サインイン、リンク解決、
+   現行版の読み取り、過去版の一覧、選択版の取得のどこで失敗したかを記録する。
+   共有するログには URL、トークン、利用者名を記載しない。
+2. Windows x64・ARM64 では指定の検証ビルドをインストールし、#111 の A/B/C 文書で GUI を確認する。
+   開発依存を導入した環境では、同じ3ファイルを
+   `node desktop/scripts/verify-history-case.mjs 01-A.docx 02-B.docx 03-C.docx` で読み取り専用検査できる。
+   このコマンドは解析側の確認であり、Windows インストーラや画面操作の代用ではない。
+3. #85 ではローカルのコピーで日英の対応箇所にコメントを追記し、Windows 版 Word で開き直す。
+   引用範囲、作成者、改行、タグ、URL、既存の返信と変更履歴を確認し、バックアップが原本と一致することを確かめる。
+4. #39 では **Word for the web** のロック操作を確認してからテストファイルを保存する。
+   `npm run build:lib` の後、
+   `node scripts/verify-word-web.mjs locked-template.docx web-tracked.docx unlocked-template.docx web-tracking-off.docx`
+   で結果を読む。不一致は互換性の検証結果であって、不正の証拠ではない。#39 にある2回目の提出サイクルは別に確認する。
