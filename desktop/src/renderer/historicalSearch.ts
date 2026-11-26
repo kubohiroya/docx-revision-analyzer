@@ -1,6 +1,6 @@
 import { commentReferences } from "../../../src/lib/commentReferences";
 import { projectHistoricalAnchor, type HistoricalMatch } from "../../../src/lib/historicalAnchors";
-import { compareSavedVersions, type SavedParagraphRange } from "../../../src/lib/lineage";
+import { compareSavedVersions, type LineageRange, type SavedParagraphRange } from "../../../src/lib/lineage";
 import { historyEntries, historyMatch, searchKey, type HistoryEntry } from "../historySearch";
 import type { AppLang, SavedLineageVersion } from "../shared";
 import { el } from "./extensions";
@@ -19,6 +19,13 @@ const labels = {
     notOrdered: "Choose a branch or compare versions in a confirmed order to find a corresponding position.",
     absentAt: "No longer observed in", range: "Corresponding range", partial: "Part of the original range",
     boundary: "Estimated boundary", related: "Related paragraph", ambiguous: "Multiple possible locations",
+    reappeared: "Possible reappearance", reappearanceHint: "A passage with matching text reappears after an absence.",
+    rangeHint: "Matching characters across the selected versions establish this span.",
+    partialHint: "Only the highlighted characters could be followed across the selected versions.",
+    boundaryHint: "Surviving text on both sides points to this boundary.",
+    relatedHint: "The paragraph corresponds, but the original characters could not be matched.",
+    ambiguousHint: "Multiple occurrences or a possible copy prevented an exact match.",
+    noPath: "There was insufficient context to establish a match on this path.",
     deleted: "No corresponding passage found; it may have been deleted", unknown: "Position could not be determined",
     gap: "There is a gap or an unreadable version on this path.", close: "Back to comparison",
     ins: "Insertion", del: "Deletion", moveTo: "Move destination", moveFrom: "Move source", comment: "Comment", reply: "Reply",
@@ -37,6 +44,13 @@ const labels = {
     notOrdered: "対応箇所を探すには、経路を選ぶか、順序を確認した版を比較してください。",
     absentAt: "観測されなくなった版", range: "対応する範囲", partial: "一部が対応する範囲",
     boundary: "推定した境界", related: "関連する段落", ambiguous: "複数の対応候補",
+    reappeared: "再出現の候補", reappearanceHint: "いったん消えた箇所と同じ本文が後続版に現れています。",
+    rangeHint: "選んだ版の間で一致した文字に基づく範囲です。",
+    partialHint: "選んだ版の間でたどれた文字だけを強調しています。",
+    boundaryHint: "境界の両側に残った本文から位置を推定しました。",
+    relatedHint: "段落は対応していますが、元の文字の範囲は照合できませんでした。",
+    ambiguousHint: "複数の出現や複製の可能性があるため、位置を絞れませんでした。",
+    noPath: "この経路で対応を特定できる文脈が不足しています。",
     deleted: "対応箇所なし（削除された可能性）", unknown: "位置を特定できませんでした",
     gap: "この経路には記録の空白または読めない版があります。", close: "比較に戻る",
     ins: "挿入", del: "削除", moveTo: "移動先", moveFrom: "移動元", comment: "コメント", reply: "返信",
@@ -195,21 +209,40 @@ export function historySearchPanel(
     detail.scrollIntoView({ block: "nearest" });
   }
 
+  function showCandidates(candidates: readonly LineageRange[]): void {
+    const byVersion = new Map<number, SavedParagraphRange[]>();
+    for (const candidate of candidates) {
+      const ranges = byVersion.get(candidate.version) ?? [];
+      ranges.push(candidate);
+      byVersion.set(candidate.version, ranges);
+    }
+    for (const [version, ranges] of byVersion) {
+      projected.append(el("h4", names[version]));
+      addRanges(projected, version, ranges, false);
+    }
+  }
+
   function showMatch(match: HistoricalMatch, target: number): void {
     projected.append(el("h3", names[target]), el("p", s[match.kind]));
-    if (match.kind === "unknown" && match.reason === "gap") projected.append(el("p", s.gap, "hint"));
-    if (match.kind === "ambiguous") {
-      const byVersion = new Map<number, SavedParagraphRange[]>();
-      for (const candidate of match.ranges) {
-        const ranges = byVersion.get(candidate.version) ?? [];
-        ranges.push(candidate);
-        byVersion.set(candidate.version, ranges);
-      }
-      for (const [version, ranges] of byVersion) {
-        projected.append(el("h4", names[version]));
-        addRanges(projected, version, ranges, false);
-      }
-    } else addRanges(projected, target, match.ranges, match.kind !== "related");
+    switch (match.kind) {
+      case "unknown":
+        projected.append(el("p", match.reason === "gap" ? s.gap : match.reason === "no-source" ? s.noPosition : s.noPath, "hint"));
+        break;
+      case "ambiguous":
+      case "reappeared":
+        projected.append(el("p", match.kind === "reappeared" ? s.reappearanceHint : s.ambiguousHint, "hint"));
+        showCandidates(match.ranges);
+        break;
+      case "deleted":
+        break;
+      default:
+        projected.append(el("p", s[`${match.kind}Hint`], "hint"));
+        addRanges(projected, target, match.ranges, match.kind !== "related");
+        if (match.reappearance?.length) {
+          projected.append(el("p", s.reappearanceHint, "hint"));
+          showCandidates(match.reappearance);
+        }
+    }
   }
 
   function formatDate(iso: string): string {

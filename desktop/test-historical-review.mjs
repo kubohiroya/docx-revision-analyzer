@@ -28,7 +28,7 @@ try {
     stdin: { resolveDir: here, contents: `
       export { readCloudSavedVersion, readSelectedSavedVersions, readSavedVersionRevisions } from "./src/savedLineage";
       export { historyEntries, historyMatch, searchKey } from "./src/historySearch";
-      export { compareSavedVersions } from "../src/lib/lineage";
+      export { compareSavedVersions, lineageRangeText } from "../src/lib/lineage";
       export { projectHistoricalAnchor } from "../src/lib/historicalAnchors";
       export { listCloudVersionItems, getCloudVersionBytes, CloudVersionError } from "./src/cloudVersionGraph";
       export { CloudVersionImport } from "./src/cloudVersionImport";
@@ -37,7 +37,7 @@ try {
   });
   const {
     readCloudSavedVersion, readSelectedSavedVersions, readSavedVersionRevisions, historyEntries, historyMatch, searchKey,
-    compareSavedVersions, projectHistoricalAnchor, listCloudVersionItems, getCloudVersionBytes, CloudVersionImport, CloudVersionError,
+    compareSavedVersions, lineageRangeText, projectHistoricalAnchor, listCloudVersionItems, getCloudVersionBytes, CloudVersionImport, CloudVersionError,
   } = createRequire(import.meta.url)(compiled);
 
   const left = "説明の前置き📝", right = "を検証しました。";
@@ -116,6 +116,82 @@ try {
   assert.deepEqual(await readBytes(await docx("<w:p></w:r>"), "bad XML"), { status: "failed", records: [] });
   await rm(richPath);
   assert.deepEqual(await readSavedVersionRevisions(richVersion.openId), { status: "unavailable", records: [] });
+
+  const removedPath = join(folder, "removed.docx");
+  const remaining = para(node("First draft"), "AB000020") + para(node("Second draft"), "AB000030");
+  await writeFile(removedPath, await docx(remaining));
+  const removed = (await readSelectedSavedVersions([removedPath], true))[0];
+  const three = [versions[0], removed, versions[1]];
+  const returned = compareSavedVersions(three);
+  const originalRange = history.find(entry => entry.kind === "comment").ranges;
+  const deleted = projectHistoricalAnchor(returned, 0, 1, originalRange);
+  assert.deepEqual(deleted, { kind: "deleted", ranges: [] });
+  const revived = projectHistoricalAnchor(returned, 0, 2, originalRange);
+  assert.deepEqual(revived, { kind: "reappeared", ranges: [{ paragraph: 0, version: 2, start: 0, end: (left + "新案" + right).length }] });
+  const anotherParagraph = projectHistoricalAnchor(returned, 1, 2, [{ paragraph: 0, start: 0, end: 5 }]);
+  assert.deepEqual(anotherParagraph, { kind: "range", ranges: [{ paragraph: 1, version: 2, start: 0, end: 5 }] },
+    "a past link with the same paragraph number is unrelated to a different version");
+  const uncertain = compareSavedVersions([versions[0], removed, {
+    ...versions[1], paragraphs: [...versions[1].paragraphs, { ...versions[1].paragraphs[0], index: 10 }],
+  }]);
+  assert.equal(projectHistoricalAnchor(uncertain, 0, 2, originalRange).kind, "ambiguous");
+  const unavailable = compareSavedVersions([versions[0], { ...removed, unavailable: true }, versions[1]]);
+  assert.equal(projectHistoricalAnchor(unavailable, 0, 2, originalRange).reason, "gap");
+  const skipped = compareSavedVersions([versions[0], { ...removed, gapBefore: true }, versions[1]]);
+  assert.equal(projectHistoricalAnchor(skipped, 0, 2, originalRange).reason, "gap");
+  assert.equal(projectHistoricalAnchor(lineage, 0, 1, [{ paragraph: 0, start: 0, end: 0 }]).reason, "no-path");
+
+  const spans = [];
+  const first = "The evaluation used three independent tests.";
+  const second = "We archived the raw observations for future readers.";
+  const movedFrom = "制度によって欠席率が20％低下した。この結果は別の調査でも同じだった。";
+  const movedTo = "制度の導入後、欠席率が20％低下した。この結果は別の調査でも同じだった。";
+  const lead = "すべての調査票は別のフォルダに保管した。";
+  for (const [i, frag] of [
+    para(node(movedFrom), "AB000040") + para(node(lead), "AB000050") + para(node(first + " " + second), "AB000060"),
+    para(node(lead), "AB000050") + para(node(movedTo), "AB000040") + para(node(first + " " + second), "AB000060"),
+    para(node(lead), "AB000050") + para(node(movedTo), "AB000040") + para(node(first), "AB000070") + para(node(second), "AB000080"),
+    para(node(lead), "AB000050") + para(node(movedTo), "AB000040") + para(node(first + " " + second), "AB000060"),
+  ].entries()) {
+    const file = join(folder, `span-${i}.docx`);
+    await writeFile(file, await docx(frag));
+    spans.push(file);
+  }
+  const changes = compareSavedVersions(await readSelectedSavedVersions(spans, true));
+  const retainedText = "欠席率が20％低下した";
+  const shifted = projectHistoricalAnchor(changes, 0, 3, [{
+    paragraph: 0, start: movedFrom.indexOf(retainedText), end: movedFrom.indexOf(retainedText) + retainedText.length,
+  }]);
+  assert.equal(shifted.kind, "range");
+  assert.deepEqual(shifted.ranges.map(range => [range.paragraph, lineageRangeText(changes.versions, range)]), [[1, retainedText]]);
+  assert.equal(projectHistoricalAnchor(changes, 0, 1, [{ paragraph: 0, start: 2, end: 4 }]).kind, "related");
+  const selected = "raw observations";
+  for (const target of [2, 3]) {
+    const start = first.length + 1 + second.indexOf(selected);
+    const match = projectHistoricalAnchor(changes, 1, target, [{ paragraph: 2, start, end: start + selected.length }]);
+    assert.equal(match.kind, "range");
+    assert.deepEqual(match.ranges.map(range => [range.paragraph, lineageRangeText(changes.versions, range)]), [[target === 2 ? 3 : 2, selected]]);
+  }
+  const multiPath = join(folder, "multi.docx");
+  await writeFile(multiPath, await docx(para(node("Lead ") + start + node("first"), "AB000010") +
+    para(node("second") + end + node(" tail"), "AB000020"), "Span"));
+  const multi = (await readSelectedSavedVersions([multiPath], true))[0];
+  assert.equal(multi.threads[0].ranges.length, 2);
+  const multiLineage = compareSavedVersions([multi, { ...multi, threads: [] }]);
+  const multiMatch = projectHistoricalAnchor(multiLineage, 0, 1, multi.threads[0].ranges);
+  assert.deepEqual(multiMatch.ranges.map(range => lineageRangeText(multiLineage.versions, range)), ["first", "second"]);
+  const onlyFirst = compareSavedVersions([multi, { ...multi, paragraphs: multi.paragraphs.slice(0, 1), threads: [] }]);
+  const surviving = projectHistoricalAnchor(onlyFirst, 0, 1, multi.threads[0].ranges);
+  assert.equal(surviving.kind, "partial");
+  assert.deepEqual(surviving.ranges.map(range => lineageRangeText(onlyFirst.versions, range)), ["first"]);
+
+  const prefix = "Shared context before the edit. ";
+  const suffix = " Shared context after the edit.";
+  const long = (text) => ({ ...multi, paragraphs: [{ index: 0, paraId: "FEDCBA01", kind: "body", text }], threads: [] });
+  const longMatch = compareSavedVersions([long(prefix + "a".repeat(600) + suffix), long(prefix + "b".repeat(600) + suffix)]);
+  assert(longMatch.comparisons[0].paragraph.some(link => link.alignmentPartial));
+  assert.equal(projectHistoricalAnchor(longMatch, 0, 1, [{ paragraph: 0, start: prefix.length + 30, end: prefix.length + 35 }]).kind, "related");
+  assert.equal(projectHistoricalAnchor(longMatch, 0, 1, [{ paragraph: 0, start: prefix.length + 30, end: prefix.length + 30 }]).reason, "no-path");
 
   await writeFile(files[0], after);
   assert.equal((await readSavedVersionRevisions(versions[0].openId)).status, "changed");
