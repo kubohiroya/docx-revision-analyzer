@@ -29,14 +29,14 @@ try {
       export { historyEntries, historyMatch, searchKey } from "./src/historySearch";
       export { compareSavedVersions } from "../src/lib/lineage";
       export { projectHistoricalAnchor } from "../src/lib/historicalAnchors";
-      export { listCloudVersionItems, getCloudVersionBytes } from "./src/cloudVersionGraph";
+      export { listCloudVersionItems, getCloudVersionBytes, CloudVersionError } from "./src/cloudVersionGraph";
       export { CloudVersionImport } from "./src/cloudVersionImport";
     ` },
     bundle: true, platform: "node", format: "cjs", outfile: compiled,
   });
   const {
     readSelectedSavedVersions, readSavedVersionRevisions, historyEntries, historyMatch, searchKey,
-    compareSavedVersions, projectHistoricalAnchor, listCloudVersionItems, getCloudVersionBytes, CloudVersionImport,
+    compareSavedVersions, projectHistoricalAnchor, listCloudVersionItems, getCloudVersionBytes, CloudVersionImport, CloudVersionError,
   } = createRequire(import.meta.url)(compiled);
 
   const left = "説明の前置き📝", right = "を検証しました。";
@@ -104,6 +104,11 @@ try {
   };
   assert.deepEqual(await getCloudVersionBytes(target, { id: "1" }, "token", signal, download), new Uint8Array(before));
   assert.deepEqual(headers, ["Bearer token", "Bearer token", undefined]);
+  await assert.rejects(listCloudVersionItems(target, "expired", signal, async () =>
+    new Response(null, { status: 401 })), { reason: "sign-in" });
+  await assert.rejects(getCloudVersionBytes(target, { id: "expired" }, "token", signal, async () =>
+    new Response(null, { status: 404 })), { reason: "missing" });
+
   const cache = join(folder, "cache");
   let downloads = 0;
   let account = "test-user";
@@ -140,6 +145,49 @@ try {
   const expired = await session.import(["2", "1"], () => {});
   assert.equal(expired.versions[1].gapBefore, true, "cached-only entries preserve access without inferring continuity");
   assert.equal(downloads, 3);
+
+  const sameTime = "2026-11-24T00:00:00Z";
+  const openedDate = "2026-11-25T00:00:00Z";
+  const refreshedList = async () => ["4", "3", "2", "1"].map(id => ({ id, modified: sameTime }));
+  let authorized = false;
+  const freshClient = {
+    ...client,
+    listVersions: async () => {
+      if (!authorized) throw new CloudVersionError("sign-in");
+      return refreshedList();
+    },
+    getVersionBytes: async (_target, item) => {
+      downloads++;
+      if (item.id === "3") throw new CloudVersionError("missing");
+      return after;
+    },
+  };
+  const restarted = new CloudVersionImport(cache, { ...target, name: "File.docx", account, mtime: openedDate, bytes: after }, freshClient);
+  await assert.rejects(restarted.list(), { reason: "sign-in" });
+  authorized = true;
+  await restarted.list();
+  const latest = await restarted.import(["4", "3", "2", "1"], () => {});
+  assert.deepEqual(latest.failures, [{ id: "3", reason: "missing" }]);
+  assert.deepEqual(latest.versions.map(version => version.label), ["File.docx · 1", "File.docx · 2", "File.docx · 3", "File.docx · 4", "File.docx"]);
+  assert.equal(latest.versions[1].gapBefore, false, "Graph order is preserved for the same version date");
+  assert.equal(latest.versions[1].sourceModified, sameTime);
+  assert.equal(latest.versions[0].versionId, again.versions[0].versionId);
+  assert.equal(latest.versions[0].fetchedAt, again.versions[0].fetchedAt, "restarting preserves successful imports");
+  assert.deepEqual(latest.versions[0].paragraphs, latest.versions[3].paragraphs);
+  assert.notEqual(latest.versions[0].sha256, latest.versions[3].sha256, "with identical visible text, track changes distinguish the bytes");
+  assert(latest.versions[2].unavailable);
+  assert.equal(latest.versions[2].openId, undefined);
+  assert.equal(latest.versions.at(-1).gapBefore, true, "the open snapshot has no server position even with a later date and equal bytes");
+  assert.notEqual(latest.versions.at(-1).versionId, latest.versions[3].versionId);
+  assert.equal(latest.versions.at(-1).sha256, latest.versions[3].sha256);
+  const reversed = await restarted.import(["1", "2", "3", "4"], () => {});
+  assert.deepEqual(reversed.versions.map(version => [version.versionId, version.gapBefore]),
+    latest.versions.map(version => [version.versionId, version.gapBefore]));
+  const omitted = await restarted.import(["1", "4"], () => {});
+  assert(omitted.versions[1].gapBefore);
+  authorized = false;
+  await assert.rejects(restarted.list(), { reason: "sign-in" });
+  await assert.rejects(restarted.import(["1"], () => {}), { reason: "invalid" });
 
   if (process.env.DRA_HISTORY_BENCH) {
     const { performance } = await import("node:perf_hooks");
