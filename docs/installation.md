@@ -128,17 +128,17 @@ Existing settings filenames (such as `docx-revision-chart.yml`) and the analysis
 
 ## Desktop app
 
-Download the desktop app using the installers below. The automatic update feed serves v0.3.0 when you enable update checks.
+Download the desktop app using the installers below. The regular release and the automatic update feed are on v0.3.0.
 
 | Version | macOS (Apple Silicon / Intel) | Windows (x64 / ARM64) |
 |---|---|---|
 | [v0.3.0 (regular release)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.3.0) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-0.3.0-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.3.0/Docx-Revision-Analyzer-Setup-0.3.0.exe) |
-| [v0.4.2 (prerelease)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.4.2) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.2/Docx-Revision-Analyzer-0.4.2-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.4.2/Docx-Revision-Analyzer-Setup-0.4.2.exe) |
+| [v0.5.0 (manual prerelease download)](https://github.com/kubohiroya/docx-revision-analyzer/releases/tag/desktop-v0.5.0) | [DMG](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.5.0/Docx-Revision-Analyzer-0.5.0-universal.dmg) | [EXE](https://github.com/kubohiroya/docx-revision-analyzer/releases/download/desktop-v0.5.0/Docx-Revision-Analyzer-Setup-0.5.0.exe) |
 
-Download v0.4.2 manually to use the [saved-version branch timeline](usage.md#saved-version-branch-timeline) and export
-selected changes as HTML. The [usage guide](usage.md#desktop-app-preview) covers the comparison and optional Word comment writing.
+Download v0.5.0 manually to search Word changes and comments across saved versions and open the passages they refer to.
+The [usage guide](usage.md#desktop-app-preview) covers past-version import from OneDrive / SharePoint and saved-version comparison.
 
-The v0.4.2 macOS app and its bundled helpers are ad-hoc signed. This preview is unnotarized, so macOS may require
+The v0.5.0 macOS app and its bundled helpers are ad-hoc signed. This preview is unnotarized, so macOS may require
 individual approval on first launch.
 
 To run from source, see [desktop/README.md](../desktop/README.md). For packaging instructions, see [desktop/DISTRIBUTION.md](../desktop/DISTRIBUTION.md).
